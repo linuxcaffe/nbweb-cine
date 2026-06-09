@@ -725,7 +725,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // ── Sub-field query resolver ──────────────────────────────────────────────
     // Sub-block fields searched for flat lookups (order = priority on name collision).
-    const _SHOT_SUBBLOCKS = ['tech', 'art', 'resources'];
+    const _SHOT_SUBBLOCKS = ['tech', 'art', 'cast', 'resources'];
 
     // Resolve a dotted or flat path against a shot record.
     //   'tech.camera'  → shot.tech.camera  (explicit)
