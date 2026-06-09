@@ -880,7 +880,7 @@ button.nb-cine-actor {
                 }
                 if (lockedNames.length) {
                     const s = lockedNames.length === 1 ? '' : 's';
-                    alert(`Can't reorder — locked strip${s}: ${lockedNames.join(', ')}`);
+                    alert(`Can't reorder — locked shot${s}: ${lockedNames.join(', ')}`);
                     _bust(notebook);
                     _loadCineBlock(board.closest('.nb-cine-block'));
                     return;
