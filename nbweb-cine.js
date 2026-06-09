@@ -249,6 +249,28 @@ button.nb-cine-actor {
 
     function _bust(notebook) { _cache.delete(notebook); }
 
+    // ── Shot filter helper ────────────────────────────────────────────────────
+    // Applies all filter fields with consistent null-sentinel handling.
+    // filter.day = null → unscheduled; filter.scene = null → no scene assigned;
+    // filter.actor = null → shots with no actors.
+
+    function _filterShots(shots, filter) {
+        let f = shots;
+        if (filter.day !== undefined)
+            f = filter.day === null
+                ? f.filter(s => s.day == null || s.day === '')
+                : f.filter(s => s.day === filter.day);
+        if (filter.scene !== undefined)
+            f = filter.scene === null
+                ? f.filter(s => s.scene == null || String(s.scene) === '')
+                : f.filter(s => String(s.scene) === String(filter.scene));
+        if (filter.actor !== undefined)
+            f = filter.actor === null
+                ? f.filter(s => !s.actors?.length)
+                : f.filter(s => s.actors.includes(filter.actor));
+        return f;
+    }
+
     // ── Strip builder ─────────────────────────────────────────────────────────
 
     function _colorClass(shot) {
@@ -622,15 +644,7 @@ button.nb-cine-actor {
 
     function _buildShotLine(el, data, filter, notebook) {
         const { shots, actors, locations, config } = data;
-
-        let filtered = shots;
-        if (filter.day !== undefined) {
-            filtered = filter.day === null
-                ? filtered.filter(s => s.day == null || s.day === '')
-                : filtered.filter(s => s.day === filter.day);
-        }
-        if (filter.scene !== undefined) filtered = filtered.filter(s => String(s.scene) === String(filter.scene));
-        if (filter.actor)               filtered = filtered.filter(s => s.actors.includes(filter.actor));
+        const filtered = _filterShots(shots, filter);
 
         el.innerHTML = '';
         const hdr = document.createElement('div');
@@ -715,12 +729,12 @@ button.nb-cine-actor {
         }
 
         if (field === 'shots') {
-            if (format === 'sheet') {
-                _buildShotSheet(el, data, filter, notebook);
-            } else if (format === 'line') {
-                _buildShotLine(el, data, filter, notebook);
-            } else {
+            if (format === 'strip') {
                 _buildStripboard(el, data, filter, notebook);
+            } else if (format === 'sheet') {
+                _buildShotSheet(el, data, filter, notebook);
+            } else {
+                _buildShotLine(el, data, filter, notebook);  // default: shots / shots.line
             }
         } else if (field === 'scenes') {
             _buildSceneIndex(el, data, filter);
@@ -742,15 +756,7 @@ button.nb-cine-actor {
 
     function _buildStripboard(el, data, filter, notebook) {
         const { shots, actors, locations, config } = data;
-
-        let filtered = shots;
-        if (filter.day !== undefined) {
-            filtered = filter.day === null
-                ? filtered.filter(s => s.day == null || s.day === '')
-                : filtered.filter(s => s.day === filter.day);
-        }
-        if (filter.scene !== undefined) filtered = filtered.filter(s => String(s.scene) === String(filter.scene));
-        if (filter.actor)               filtered = filtered.filter(s => s.actors.includes(filter.actor));
+        const filtered = _filterShots(shots, filter);
 
         el.innerHTML = '';
 
@@ -874,6 +880,16 @@ button.nb-cine-actor {
         detect: notebooks => notebooks.filter(nb => nb.cine !== null && nb.cine !== undefined),
 
         previewRenderer: note => _renderScript(note),
+
+        listItemIcon: note => {
+            const p = note.selector || note.path || '';
+            if (/\/shots\//.test(p))     return '🎬';
+            if (/\/actors\//.test(p))    return '🧑';
+            if (/\/locations\//.test(p)) return '📍';
+            if (/\/script\//.test(p))    return '📜';
+            if (/\/resou/.test(p))       return '🎁';
+            return null;
+        },
 
         codeblockRenderers: [{
             lang: 'cine',
