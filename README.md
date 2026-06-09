@@ -184,14 +184,15 @@ field[.format] [: code, code, …] [| filter: value, filter: value, …]
 
 | Query | Result |
 |-------|--------|
-| `shots` | Master stripboard — all shots, all days |
-| `shots \| day: 1` | Stripboard filtered to shoot day 1 |
+| `shots` | Compact shot list — all shots, all days (default) |
+| `shots \| day: 1` | Shot list filtered to shoot day 1 |
 | `shots \| actor: JD` | All shots featuring actor JD |
 | `shots \| scene: 2` | All shots in scene 2 |
-| `shots.strip \| day: 1` | Explicit stripboard (same as default) |
-| `shots.sheet \| day: 1` | Call sheet rows — verbose text, print-friendly |
-| `shots.line \| day: 1` | Compact single-line list, no special strips |
 | `shots \| day: ""` | Unscheduled shots (no day assigned yet) |
+| `shots.line \| day: 1` | Compact single-line list, explicit (same as default) |
+| `shots.strip` | Draggable stripboard — all days; drag to resequence |
+| `shots.strip \| day: 1` | Draggable stripboard filtered to shoot day 1 |
+| `shots.sheet \| day: 1` | Call sheet rows — verbose text, print-friendly |
 | `scenes` | Scene index: all scenes with colour coding |
 | `scenes \| loc: LG` | Scenes at location LG only |
 | `actor.phone: JD, AM, CC` | Field lookup: phone numbers for listed actors |
@@ -209,7 +210,7 @@ Field lookups omitting the code list show all entries: `actor.phone` lists every
 
 ## Renderers
 
-### Stripboard (`shots` / `shots.strip`)
+### Stripboard (`shots.strip`)
 
 Horizontal grid rows, one per shot. Colour-coded by INT/EXT + DAY/NIGHT. Draggable — drop a strip to reorder, and the new sequence is written back to each shot file's `seq:` frontmatter in a single git commit.
 
