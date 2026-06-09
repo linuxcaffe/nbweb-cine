@@ -834,8 +834,36 @@ button.nb-cine-actor {
 
     // ── Drag + resequence ─────────────────────────────────────────────────────
 
+    function _computeMoves(board, filterDay) {
+        const moves = [];
+        let currentDay = filterDay ?? null;
+        let seqInDay   = 0;
+        for (const child of board.children) {
+            if (child.classList.contains('nb-cine-daybreak')) {
+                const m = child.textContent.match(/\d+/);
+                currentDay = m ? parseInt(m[0]) : null;
+                seqInDay   = 0;
+            } else if (
+                child.classList.contains('nb-cine-strip') &&
+                !child.classList.contains('nb-cine-colheader')
+            ) {
+                seqInDay++;
+                const sel = child.dataset.selector;
+                if (sel) moves.push({ selector: sel, day: currentDay, seq: seqInDay });
+            }
+        }
+        return moves;
+    }
+
     function _wireSort(board, notebook, filterDay) {
         if (!window.Sortable) return;
+
+        // Snapshot board order at render time; onEnd compares against this to find
+        // which shots actually changed — avoids false positives for locked shots
+        // that are on the board but not displaced by the drag.
+        const origBySelector = Object.fromEntries(
+            _computeMoves(board, filterDay).map(m => [m.selector, m])
+        );
 
         Sortable.create(board, {
             animation:     150,
@@ -845,44 +873,34 @@ button.nb-cine-actor {
             ghostClass:    'nb-cine-ghost',
             chosenClass:   'nb-cine-chosen',
 
+            onMove: evt => {
+                // Silently refuse to drag a locked shot
+                if (evt.dragged?.dataset.locked === 'true') return false;
+            },
+
             onEnd: async () => {
-                // Walk DOM order to infer new day and seq for every draggable strip.
-                // Day breaks are fixed markers; everything between them belongs to
-                // the day named by the break above it.
-                const moves = [];
-                let currentDay = filterDay ?? null;  // single-day view has no breaks
-                let seqInDay   = 0;
-
-                for (const child of board.children) {
-                    if (child.classList.contains('nb-cine-daybreak')) {
-                        const m = child.textContent.match(/\d+/);
-                        currentDay = m ? parseInt(m[0]) : null;
-                        seqInDay   = 0;
-                    } else if (
-                        child.classList.contains('nb-cine-strip') &&
-                        !child.classList.contains('nb-cine-colheader')
-                    ) {
-                        seqInDay++;
-                        const sel = child.dataset.selector;
-                        if (sel) moves.push({ selector: sel, day: currentDay, seq: seqInDay });
-                    }
-                }
-
+                const moves = _computeMoves(board, filterDay);
                 if (!moves.length) return;
 
-                // Pre-run lock check: abort and reload if any strip in the new order is locked
-                const lockedNames = [];
+                // Block only if a locked shot's day or seq would actually change
+                const lockedChanged = [];
                 for (const child of board.children) {
-                    if (child.dataset.locked === 'true') {
+                    if (child.dataset.locked !== 'true') continue;
+                    const sel  = child.dataset.selector;
+                    if (!sel) continue;
+                    const orig = origBySelector[sel];
+                    const curr = moves.find(m => m.selector === sel);
+                    if (!orig || !curr) continue;
+                    if (orig.day !== curr.day || orig.seq !== curr.seq) {
                         const lbl = child.querySelector('.nb-cine-id')?.textContent?.trim()
-                                 || child.dataset.selector?.split('/').pop()?.replace('.md','')
+                                 || sel.split('/').pop()?.replace('.md', '')
                                  || '?';
-                        lockedNames.push(lbl);
+                        lockedChanged.push(lbl);
                     }
                 }
-                if (lockedNames.length) {
-                    const s = lockedNames.length === 1 ? '' : 's';
-                    alert(`Can't reorder — locked shot${s}: ${lockedNames.join(', ')}`);
+                if (lockedChanged.length) {
+                    const s = lockedChanged.length === 1 ? '' : 's';
+                    alert(`Can't reorder — locked shot${s}: ${lockedChanged.join(', ')}`);
                     _bust(notebook);
                     _loadCineBlock(board.closest('.nb-cine-block'));
                     return;
@@ -936,11 +954,11 @@ button.nb-cine-actor {
 
         listItemIcon: note => {
             const p = note.selector || note.path || '';
-            if (/\/shots\//.test(p))     return '🎬';
-            if (/\/actors\//.test(p))    return '🧑';
-            if (/\/locations\//.test(p)) return '📍';
-            if (/\/script\//.test(p))    return '📜';
-            if (/\/resou/.test(p))       return '🎁';
+            if (/[:/]shots\//.test(p))     return '🎬';
+            if (/[:/]actors\//.test(p))    return '🧑';
+            if (/[:/]locations\//.test(p)) return '📍';
+            if (/[:/]script\//.test(p))    return '📜';
+            if (/[:/]resou/.test(p))       return '🎁';
             return null;
         },
 
