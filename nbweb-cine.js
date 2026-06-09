@@ -106,6 +106,24 @@ button.nb-cine-actor {
 .nb-script-dialogue { margin: 0 0 8px; padding: 0 15% 0 25%; }
 .nb-script-paren    { margin: 0; padding: 0 22% 0 32%; font-style: italic; }
 
+/* Scene index grid */
+.nb-cine-scene-index { width: 100%; }
+.nb-cine-scene-row {
+    display: grid;
+    grid-template-columns: 4ch 4ch 4ch 8ch 1fr;
+    align-items: center;
+    gap: 0 6px;
+    padding: 2px 8px;
+    border-bottom: 1px solid rgba(0,0,0,0.12);
+    min-height: 1.8em;
+    color: #111;
+}
+.nb-cine-si-no  { font-weight: bold; text-align: center; }
+.nb-cine-si-ie  { text-align: center; }
+.nb-cine-si-dn  { text-align: center; }
+.nb-cine-si-loc { font-weight: bold; }
+.nb-cine-si-syn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Drag handles */
 .nb-cine-strip:not(.nb-cine-colheader) { cursor: grab; }
 .nb-cine-strip:not(.nb-cine-colheader):active { cursor: grabbing; }
@@ -236,6 +254,71 @@ button.nb-cine-actor {
         return div;
     }
 
+    // ── Scene index ───────────────────────────────────────────────────────────
+
+    function _buildSceneIndex(el, data, filter) {
+        const { scenes, locations, config } = data;
+
+        let filtered = scenes;
+        if (filter.loc) filtered = filtered.filter(s => s.loc === filter.loc);
+
+        el.innerHTML = '';
+
+        const hdr = document.createElement('div');
+        hdr.className = 'nb-cine-header';
+        hdr.innerHTML = `<span class="nb-cine-title">🎬 ${_esc(config?.project || 'Scenes')}</span>`;
+        const refBtn = document.createElement('button');
+        refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
+        refBtn.addEventListener('click', () => { _bust(NbNav.notebook); _loadCineBlock(el); });
+        hdr.appendChild(refBtn);
+        el.appendChild(hdr);
+
+        if (!filtered.length) {
+            el.insertAdjacentHTML('beforeend', '<div class="nb-cine-empty">No scenes found</div>');
+            return;
+        }
+
+        const table = document.createElement('div');
+        table.className = 'nb-cine-scene-index';
+
+        // Column header
+        table.insertAdjacentHTML('beforeend',
+            `<div class="nb-cine-scene-row nb-cine-colheader">` +
+            `<span class="nb-cine-si-no">Sc</span>` +
+            `<span class="nb-cine-si-ie">I/E</span>` +
+            `<span class="nb-cine-si-dn">D/N</span>` +
+            `<span class="nb-cine-si-loc">Loc</span>` +
+            `<span class="nb-cine-si-syn">Synopsis</span>` +
+            `</div>`
+        );
+
+        for (const sc of filtered) {
+            const locSel  = locations[sc.loc];
+            const locHtml = locSel
+                ? `<button class="nb-cine-link nb-cine-si-loc" data-selector="${_esc(locSel)}">${_esc(sc.loc)}</button>`
+                : `<span class="nb-cine-si-loc">${_esc(sc.loc)}</span>`;
+
+            const row = document.createElement('div');
+            row.className = `nb-cine-scene-row nb-cine-strip-${sc.int_ext + sc.day_night}`;
+            row.innerHTML =
+                `<button class="nb-cine-link nb-cine-si-no" data-selector="${_esc(sc.selector)}">${_esc(sc.scene_no)}</button>` +
+                `<span class="nb-cine-si-ie">${_esc(sc.int_ext)}</span>` +
+                `<span class="nb-cine-si-dn">${_esc(sc.day_night)}</span>` +
+                locHtml +
+                `<span class="nb-cine-si-syn">${_esc(sc.synopsis)}</span>`;
+            table.appendChild(row);
+        }
+
+        el.appendChild(table);
+
+        el.querySelectorAll('.nb-cine-link[data-selector]').forEach(btn =>
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                NbMain.openNote(btn.dataset.selector);
+            })
+        );
+    }
+
     // ── Script renderer ───────────────────────────────────────────────────────
 
     function _parseScriptBody(raw) {
@@ -327,6 +410,8 @@ button.nb-cine-actor {
 
         if (field === 'shots') {
             _buildStripboard(el, data, filter, notebook);
+        } else if (field === 'scenes') {
+            _buildSceneIndex(el, data, filter);
         } else {
             el.innerHTML = `<span class="nb-cine-error">unknown cine query: ${_esc(field)}</span>`;
             return;
