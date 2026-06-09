@@ -379,10 +379,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 : `<span class="nb-cine-actor" title="${_esc(tip)}">${_esc(code)}</span>`;
         }).join('');
 
-        // Resource count — tooltip lists resources
-        const resList  = (shot.resources || []).filter(Boolean);
+        // Resource count — handles block-scalar dict, YAML list, or legacy CSV array
+        const _res = shot.resources;
+        const resList = Array.isArray(_res)
+            ? _res.filter(Boolean)
+            : (_res && typeof _res === 'object')
+                ? Object.entries(_res).map(([k, v]) => `${k}: ${v}`)
+                : [];
         const resCount = resList.length;
-        const resTip   = resList.join(', ');
+        const resTip   = resList.join('\n');
 
         // Desc — tooltip shows full description for when it's truncated
         const descFull = (shot.desc || '').trim();
