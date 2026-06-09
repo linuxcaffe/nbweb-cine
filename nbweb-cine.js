@@ -106,6 +106,41 @@ button.nb-cine-actor {
 .nb-script-dialogue { margin: 0 0 8px; padding: 0 15% 0 25%; }
 .nb-script-paren    { margin: 0; padding: 0 22% 0 32%; font-style: italic; }
 
+/* Shot sheet rows */
+.nb-cine-sheet-row {
+    padding: 8px 12px; border-bottom: 1px solid var(--border, #444);
+}
+.nb-cine-sheet-head {
+    display: flex; gap: 12px; align-items: baseline;
+    font-weight: bold; margin-bottom: 2px;
+}
+.nb-cine-sheet-shotid { font-size: 0.85em; opacity: 0.7; min-width: 9ch; flex-shrink: 0; }
+.nb-cine-sheet-slug   { font-size: 0.95em; text-transform: uppercase; letter-spacing: 0.04em; }
+.nb-cine-sheet-desc   { white-space: pre-wrap; margin: 2px 0 4px; font-size: 0.9em; line-height: 1.45; }
+.nb-cine-sheet-meta   { font-size: 0.82em; opacity: 0.75; }
+.nb-cine-sheet-break  {
+    padding: 4px 12px; font-style: italic; font-size: 0.85em;
+    border-bottom: 1px solid var(--border, #444);
+}
+
+/* Field lookup table */
+.nb-cine-lookup-table { width: 100%; }
+.nb-cine-lookup-row {
+    display: grid;
+    grid-template-columns: 5ch 1fr 2fr;
+    align-items: baseline; gap: 0 10px;
+    padding: 4px 8px; font-size: 0.9em;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+.nb-cine-lookup-code    { font-weight: bold; }
+.nb-cine-lookup-name    { color: var(--text-muted, #888); font-size: 0.88em; }
+.nb-cine-lookup-val     { }
+.nb-cine-lookup-missing { opacity: 0.4; font-style: italic; }
+.nb-cine-lookup-pre     {
+    margin: 0; white-space: pre-wrap; font-family: inherit;
+    font-size: 0.9em; line-height: 1.4;
+}
+
 /* Scene index grid */
 .nb-cine-scene-index { width: 100%; }
 .nb-cine-scene-row {
@@ -149,20 +184,45 @@ button.nb-cine-actor {
     }
 
     // ── Query parser ──────────────────────────────────────────────────────────
-    // "shots | day: 1" → { field: 'shots', filter: { day: 1 } }
+    // "shots | day: 1"            → { field:'shots', format:'',      filter:{day:1}, codes:[] }
+    // "shots.sheet | day: 1"      → { field:'shots', format:'sheet', filter:{day:1}, codes:[] }
+    // "actor.phone: JD, AM, CC"   → { field:'actor', format:'phone', filter:{},      codes:['JD','AM','CC'] }
 
     function _parseQuery(text) {
-        const [lhs, rhs = ''] = text.split('|').map(s => s.trim());
-        const field = lhs.trim().split(/\s+/)[0] || '';
+        const pipeIdx = text.indexOf('|');
+        let lhs, rhs = '';
+        if (pipeIdx >= 0) {
+            lhs = text.slice(0, pipeIdx).trim();
+            rhs = text.slice(pipeIdx + 1).trim();
+        } else {
+            lhs = text.trim();
+        }
+
+        // "field.format: code, code" — colon on lhs means code list
+        const colonIdx = lhs.indexOf(':');
+        let fieldPart, codes = [];
+        if (colonIdx >= 0) {
+            fieldPart = lhs.slice(0, colonIdx).trim();
+            codes = lhs.slice(colonIdx + 1).split(',').map(s => s.trim()).filter(Boolean);
+        } else {
+            fieldPart = lhs.split(/\s+/)[0] || '';
+        }
+
+        const dotIdx = fieldPart.indexOf('.');
+        const field  = dotIdx >= 0 ? fieldPart.slice(0, dotIdx) : fieldPart;
+        const format = dotIdx >= 0 ? fieldPart.slice(dotIdx + 1) : '';
+
+        // Pipe-side filter: "day: 1, actor: JD"
         const filter = {};
         for (const part of rhs.split(',')) {
-            const [k, v] = part.split(':').map(s => s.trim());
-            if (k && v !== undefined && v !== '') {
-                const n = Number(v);
-                filter[k] = isNaN(n) ? v : n;
-            }
+            const ci = part.indexOf(':');
+            if (ci < 1) continue;
+            const k = part.slice(0, ci).trim();
+            const v = part.slice(ci + 1).trim();
+            if (k && v !== '') { const n = Number(v); filter[k] = isNaN(n) ? v : n; }
         }
-        return { field, filter };
+
+        return { field, format, filter, codes };
     }
 
     // ── Data cache ────────────────────────────────────────────────────────────
@@ -215,7 +275,7 @@ button.nb-cine-actor {
         }
 
         // Loc
-        const locSel  = locations[shot.loc];
+        const locSel  = locations[shot.loc]?.selector;
         const locHtml = locSel
             ? _linkBtn(shot.loc, locSel, 'nb-cine-loc')
             : `<span class="nb-cine-loc">${_esc(shot.loc)}</span>`;
@@ -231,7 +291,7 @@ button.nb-cine-actor {
 
         // Actor codes
         const actorsHtml = (shot.actors || []).map(code => {
-            const sel = actors[code];
+            const sel = actors[code]?.selector;
             return sel
                 ? _linkBtn(code, sel, 'nb-cine-actor')
                 : `<span class="nb-cine-actor">${_esc(code)}</span>`;
@@ -293,7 +353,7 @@ button.nb-cine-actor {
         );
 
         for (const sc of filtered) {
-            const locSel  = locations[sc.loc];
+            const locSel  = locations[sc.loc]?.selector;
             const locHtml = locSel
                 ? `<button class="nb-cine-link nb-cine-si-loc" data-selector="${_esc(locSel)}">${_esc(sc.loc)}</button>`
                 : `<span class="nb-cine-si-loc">${_esc(sc.loc)}</span>`;
@@ -381,6 +441,161 @@ button.nb-cine-actor {
                `</div></div>`;
     }
 
+    // ── Shot sheet renderer (shots.sheet) ────────────────────────────────────
+
+    function _buildShotSheet(el, data, filter, notebook) {
+        const { shots, actors, locations, config } = data;
+
+        let filtered = shots;
+        if (filter.day   !== undefined) filtered = filtered.filter(s => s.day === filter.day);
+        if (filter.scene !== undefined) filtered = filtered.filter(s => String(s.scene) === String(filter.scene));
+        if (filter.actor)               filtered = filtered.filter(s => s.actors.includes(filter.actor));
+
+        el.innerHTML = '';
+        const hdr = document.createElement('div');
+        hdr.className = 'nb-cine-header';
+        hdr.innerHTML = `<span class="nb-cine-title">📋 ${_esc(config?.project || 'Shot Sheet')}</span>`;
+        const refBtn = document.createElement('button');
+        refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
+        refBtn.addEventListener('click', () => { _bust(NbNav.notebook); _loadCineBlock(el); });
+        hdr.appendChild(refBtn);
+        el.appendChild(hdr);
+
+        if (!filtered.length) {
+            el.insertAdjacentHTML('beforeend', '<div class="nb-cine-empty">No shots found</div>');
+            return;
+        }
+
+        let currentDay = null;
+        for (const shot of filtered) {
+            if (shot.day !== null && shot.day !== currentDay) {
+                currentDay = shot.day;
+                el.insertAdjacentHTML('beforeend',
+                    `<div class="nb-cine-daybreak">SHOOT DAY ${currentDay}</div>`);
+            }
+
+            if (shot.type === 'lunch' || shot.type === 'move') {
+                el.insertAdjacentHTML('beforeend',
+                    `<div class="nb-cine-sheet-break nb-cine-strip-${shot.type}">${_esc(_descFirst(shot.desc) || shot.type.toUpperCase())}</div>`);
+                continue;
+            }
+
+            const ie = shot.int_ext ? shot.int_ext + '.' : '';
+            const dn = shot.day_night || '';
+            const locEntry = locations[shot.loc];
+            const locName  = locEntry?.meta?.location || shot.loc;
+            const locSel   = locEntry?.selector;
+            const slug = `${ie} ${_esc(shot.loc)} — ${dn}`;
+
+            const actorLines = (shot.actors || []).map(code => {
+                const a    = actors[code];
+                const name = a?.meta?.name || code;
+                const char = a?.meta?.character || '';
+                const sel  = a?.selector;
+                const label = char ? `${name} (${char})` : name;
+                return sel
+                    ? `<button class="nb-cine-link" data-selector="${_esc(sel)}">${_esc(label)}</button>`
+                    : _esc(label);
+            }).join(', ');
+
+            const resources = (shot.resources || []).filter(Boolean).join(', ');
+            const tech = [
+                shot.cameras  ? `Cam: ${shot.cameras}`   : '',
+                shot.lens     ? `Lens: ${shot.lens}`      : '',
+                shot.platform ? `Plt: ${shot.platform}`   : '',
+            ].filter(Boolean).join(' · ');
+
+            const card = document.createElement('div');
+            card.className = 'nb-cine-sheet-row';
+            card.dataset.selector = shot.selector;
+            card.innerHTML =
+                `<div class="nb-cine-sheet-head">` +
+                    `<span class="nb-cine-sheet-shotid">` +
+                        `<button class="nb-cine-link" data-selector="${_esc(shot.selector)}">Sc.${_esc(shot.scene)} / ${_esc(shot.shot)}</button>` +
+                    `</span>` +
+                    `<span class="nb-cine-sheet-slug">${ie} ` +
+                        (locSel ? `<button class="nb-cine-link" data-selector="${_esc(locSel)}">${_esc(locName)}</button>` : _esc(locName)) +
+                        ` — ${_esc(dn)}` +
+                    `</span>` +
+                `</div>` +
+                `<div class="nb-cine-sheet-desc">${_esc(shot.desc || '')}</div>` +
+                (actorLines ? `<div class="nb-cine-sheet-meta">Cast: ${actorLines}</div>` : '') +
+                (tech       ? `<div class="nb-cine-sheet-meta">${_esc(tech)}${resources ? ' · Res: ' + _esc(resources) : ''}</div>` : '');
+
+            el.appendChild(card);
+        }
+
+        el.querySelectorAll('.nb-cine-link[data-selector]').forEach(btn =>
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                NbMain.openNote(btn.dataset.selector);
+            })
+        );
+    }
+
+    // ── Field lookup renderer (actor.phone, location.address, …) ─────────────
+
+    function _buildFieldLookup(el, data, resource, fieldName, codes) {
+        const table = data[resource + 's'] || data[resource] || {};  // actors, locations, resources
+        const config = data.config;
+
+        el.innerHTML = '';
+        const hdr = document.createElement('div');
+        hdr.className = 'nb-cine-header';
+        hdr.innerHTML = `<span class="nb-cine-title">${_esc(resource + '.' + fieldName)}</span>`;
+        const refBtn = document.createElement('button');
+        refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
+        refBtn.addEventListener('click', () => { _bust(NbNav.notebook); _loadCineBlock(el); });
+        hdr.appendChild(refBtn);
+        el.appendChild(hdr);
+
+        // If no codes given, show all
+        const keys = codes.length ? codes : Object.keys(table);
+
+        if (!keys.length) {
+            el.insertAdjacentHTML('beforeend', `<div class="nb-cine-empty">No ${_esc(resource)} found</div>`);
+            return;
+        }
+
+        const rows = document.createElement('div');
+        rows.className = 'nb-cine-lookup-table';
+        for (const code of keys) {
+            const entry = table[code];
+            if (!entry) {
+                rows.insertAdjacentHTML('beforeend',
+                    `<div class="nb-cine-lookup-row">` +
+                    `<span class="nb-cine-lookup-code">${_esc(code)}</span>` +
+                    `<span class="nb-cine-lookup-val nb-cine-lookup-missing">not found</span></div>`);
+                continue;
+            }
+            const raw = entry.meta?.[fieldName];
+            let valHtml;
+            if (raw === undefined || raw === null || raw === '') {
+                valHtml = `<em style="opacity:0.4">—</em>`;
+            } else {
+                const s = String(raw).trim();
+                valHtml = s.includes('\n')
+                    ? `<pre class="nb-cine-lookup-pre">${_esc(s)}</pre>`
+                    : _esc(s);
+            }
+            const nameField = entry.meta?.name || entry.meta?.location || code;
+            rows.insertAdjacentHTML('beforeend',
+                `<div class="nb-cine-lookup-row">` +
+                `<button class="nb-cine-link nb-cine-lookup-code" data-selector="${_esc(entry.selector)}">${_esc(code)}</button>` +
+                `<span class="nb-cine-lookup-name">${_esc(nameField)}</span>` +
+                `<span class="nb-cine-lookup-val">${valHtml}</span>` +
+                `</div>`);
+        }
+        el.appendChild(rows);
+
+        el.querySelectorAll('.nb-cine-link[data-selector]').forEach(btn =>
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                NbMain.openNote(btn.dataset.selector);
+            })
+        );
+    }
+
     // ── Block loader ──────────────────────────────────────────────────────────
 
     async function _loadCineBlock(el) {
@@ -394,7 +609,7 @@ button.nb-cine-actor {
             return;
         }
 
-        const { field, filter } = _parseQuery(el.dataset.query || '');
+        const { field, format, filter, codes } = _parseQuery(el.dataset.query || '');
 
         let data;
         try {
@@ -409,15 +624,21 @@ button.nb-cine-actor {
         }
 
         if (field === 'shots') {
-            _buildStripboard(el, data, filter, notebook);
+            if (format === 'sheet') {
+                _buildShotSheet(el, data, filter, notebook);
+            } else {
+                _buildStripboard(el, data, filter, notebook);
+            }
         } else if (field === 'scenes') {
             _buildSceneIndex(el, data, filter);
+        } else if (format && ['actor','location','resource'].includes(field)) {
+            _buildFieldLookup(el, data, field, format, codes);
         } else {
-            el.innerHTML = `<span class="nb-cine-error">unknown cine query: ${_esc(field)}</span>`;
+            el.innerHTML = `<span class="nb-cine-error">unknown cine query: ${_esc(field + (format ? '.'+format : ''))}</span>`;
             return;
         }
 
-        // Wire link clicks
+        // Wire link clicks (renderers also wire their own, this catches any stragglers)
         el.querySelectorAll('.nb-cine-link[data-selector]').forEach(btn =>
             btn.addEventListener('click', e => {
                 e.stopPropagation();
