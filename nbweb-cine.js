@@ -15,10 +15,11 @@
 }
 .nb-cine-title { font-weight: bold; opacity: 0.9; }
 
-/* Column layout — shared by header row and all strips */
+/* Column layout — shared by header row and all strips
+   D/N | I/E | ID (1-1a) | Loc | Description | Actors | Res */
 .nb-cine-strip {
     display: grid;
-    grid-template-columns: 3ch 3ch 3ch 4ch 6ch 6ch 1fr auto 3ch;
+    grid-template-columns: 3ch 3ch 8ch 6ch 1fr auto 3ch;
     align-items: center;
     gap: 0 6px;
     padding: 2px 8px;
@@ -53,15 +54,21 @@
 }
 
 /* Cell classes */
-.nb-cine-seq      { text-align: right; opacity: 0.6; }
 .nb-cine-dn       { text-align: center; }
 .nb-cine-ie       { text-align: center; }
-.nb-cine-scene    { text-align: center; }
-.nb-cine-shotnum  { font-weight: bold; }
+.nb-cine-id       { font-weight: bold; }
 .nb-cine-loc      { font-weight: bold; }
 .nb-cine-desc     { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nb-cine-actors   { display: flex; flex-wrap: wrap; gap: 2px; }
-.nb-cine-rescount { text-align: right; opacity: 0.7; }
+.nb-cine-rescount { text-align: right; opacity: 0.7; cursor: default; }
+
+/* shots.line — single-line compact view */
+.nb-cine-board-line .nb-cine-strip {
+    grid-template-columns: 3ch 3ch 8ch 6ch 1fr auto;
+    min-height: 1.5em; padding: 1px 8px; font-size: 0.9em;
+}
+.nb-cine-board-line .nb-cine-colheader { font-size: 0.78em; }
+.nb-cine-board-line .nb-cine-rescount  { display: none; }
 
 /* Clickable cells */
 .nb-cine-link {
@@ -212,14 +219,16 @@ button.nb-cine-actor {
         const field  = dotIdx >= 0 ? fieldPart.slice(0, dotIdx) : fieldPart;
         const format = dotIdx >= 0 ? fieldPart.slice(dotIdx + 1) : '';
 
-        // Pipe-side filter: "day: 1, actor: JD"
+        // Pipe-side filter: "day: 1, actor: JD", "day: """ → null (unscheduled)
         const filter = {};
         for (const part of rhs.split(',')) {
             const ci = part.indexOf(':');
             if (ci < 1) continue;
             const k = part.slice(0, ci).trim();
             const v = part.slice(ci + 1).trim();
-            if (k && v !== '') { const n = Number(v); filter[k] = isNaN(n) ? v : n; }
+            if (!k) continue;
+            if (v === '""' || v === "''") { filter[k] = null; continue; }
+            if (v !== '') { const n = Number(v); filter[k] = isNaN(n) ? v : n; }
         }
 
         return { field, format, filter, codes };
@@ -261,55 +270,56 @@ button.nb-cine-actor {
         div.className = `nb-cine-strip nb-cine-strip-${_colorClass(shot)}`;
         div.dataset.selector = shot.selector;
 
-        // Special strips (lunch, move) — minimal columns
+        // Special strips (lunch, move) — label spans desc column
         if (shot.type === 'lunch' || shot.type === 'move') {
             div.innerHTML =
-                `<span class="nb-cine-seq">${_esc(String(shot.seq))}</span>` +
                 `<span class="nb-cine-dn"></span><span class="nb-cine-ie"></span>` +
-                `<span class="nb-cine-scene"></span><span class="nb-cine-shotnum"></span>` +
-                `<span class="nb-cine-loc"></span>` +
-                `<span class="nb-cine-desc">${_esc(_descFirst(shot.desc))}</span>` +
-                `<span class="nb-cine-actors"></span>` +
-                `<span class="nb-cine-rescount"></span>`;
+                `<span class="nb-cine-id"></span><span class="nb-cine-loc"></span>` +
+                `<span class="nb-cine-desc" style="grid-column:5/-1">${_esc(_descFirst(shot.desc))}</span>`;
             return div;
         }
 
-        // Loc
-        const locSel  = locations[shot.loc]?.selector;
-        const locHtml = locSel
-            ? _linkBtn(shot.loc, locSel, 'nb-cine-loc')
-            : `<span class="nb-cine-loc">${_esc(shot.loc)}</span>`;
+        // Loc — tooltip shows full location name
+        const locEntry   = locations[shot.loc];
+        const locSel     = locEntry?.selector;
+        const locTitle   = locEntry?.meta?.location || shot.loc;
+        const locHtml    = locSel
+            ? `<button class="nb-cine-link nb-cine-loc" data-selector="${_esc(locSel)}" title="${_esc(locTitle)}">${_esc(shot.loc)}</button>`
+            : `<span class="nb-cine-loc" title="${_esc(locTitle)}">${_esc(shot.loc)}</span>`;
 
-        // Scene → script file
-        const sceneSel  = `${notebook}:script/${shot.scene}.md`;
-        const sceneHtml = shot.scene
-            ? _linkBtn(shot.scene, sceneSel, 'nb-cine-scene')
-            : `<span class="nb-cine-scene"></span>`;
+        // Combined scene-shot ID "1-1a" → links to shot note; tooltip shows scene link path
+        const shotId   = shot.scene && shot.shot ? `${shot.scene}-${shot.shot}` : (shot.shot || shot.filename);
+        const idHtml   = `<button class="nb-cine-link nb-cine-id" data-selector="${_esc(shot.selector)}" title="Sc.${_esc(String(shot.scene))} / ${_esc(shot.shot)}">${_esc(shotId)}</button>`;
 
-        // Shot → the shot note itself
-        const shotHtml = _linkBtn(shot.shot || shot.filename, shot.selector, 'nb-cine-shotnum');
-
-        // Actor codes
+        // Actor codes — tooltip shows name (character)
         const actorsHtml = (shot.actors || []).map(code => {
-            const sel = actors[code]?.selector;
+            const entry = actors[code];
+            const sel   = entry?.selector;
+            const name  = entry?.meta?.name || code;
+            const char  = entry?.meta?.character || '';
+            const tip   = char ? `${name} (${char})` : name;
             return sel
-                ? _linkBtn(code, sel, 'nb-cine-actor')
-                : `<span class="nb-cine-actor">${_esc(code)}</span>`;
+                ? `<button class="nb-cine-link nb-cine-actor" data-selector="${_esc(sel)}" title="${_esc(tip)}">${_esc(code)}</button>`
+                : `<span class="nb-cine-actor" title="${_esc(tip)}">${_esc(code)}</span>`;
         }).join('');
 
-        // Resource count
-        const resCount = (shot.resources || []).filter(Boolean).length;
+        // Resource count — tooltip lists resources
+        const resList  = (shot.resources || []).filter(Boolean);
+        const resCount = resList.length;
+        const resTip   = resList.join(', ');
+
+        // Desc — tooltip shows full description for when it's truncated
+        const descFull = (shot.desc || '').trim();
+        const descLine = _descFirst(descFull);
 
         div.innerHTML =
-            `<span class="nb-cine-seq">${_esc(String(shot.seq))}</span>` +
             `<span class="nb-cine-dn">${_esc(shot.day_night)}</span>` +
             `<span class="nb-cine-ie">${_esc(shot.int_ext)}</span>` +
-            sceneHtml +
-            shotHtml +
+            idHtml +
             locHtml +
-            `<span class="nb-cine-desc">${_esc(_descFirst(shot.desc))}</span>` +
+            `<span class="nb-cine-desc" title="${_esc(descFull)}">${_esc(descLine)}</span>` +
             `<span class="nb-cine-actors">${actorsHtml}</span>` +
-            `<span class="nb-cine-rescount">${resCount || ''}</span>`;
+            `<span class="nb-cine-rescount" title="${_esc(resTip)}">${resCount || ''}</span>`;
 
         return div;
     }
@@ -447,14 +457,21 @@ button.nb-cine-actor {
         const { shots, actors, locations, config } = data;
 
         let filtered = shots;
-        if (filter.day   !== undefined) filtered = filtered.filter(s => s.day === filter.day);
+        if (filter.day !== undefined) {
+            filtered = filter.day === null
+                ? filtered.filter(s => s.day == null || s.day === '')
+                : filtered.filter(s => s.day === filter.day);
+        }
         if (filter.scene !== undefined) filtered = filtered.filter(s => String(s.scene) === String(filter.scene));
         if (filter.actor)               filtered = filtered.filter(s => s.actors.includes(filter.actor));
 
         el.innerHTML = '';
         const hdr = document.createElement('div');
         hdr.className = 'nb-cine-header';
-        hdr.innerHTML = `<span class="nb-cine-title">📋 ${_esc(config?.project || 'Shot Sheet')}</span>`;
+        const sheetDayLabel = filter.day === null      ? ' · Unscheduled'
+                            : filter.day !== undefined ? ` · Day ${filter.day}`
+                            : '';
+        hdr.innerHTML = `<span class="nb-cine-title">📋 ${_esc(config?.project || 'Shot Sheet')}${_esc(sheetDayLabel)}</span>`;
         const refBtn = document.createElement('button');
         refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
         refBtn.addEventListener('click', () => { _bust(NbNav.notebook); _loadCineBlock(el); });
@@ -468,10 +485,13 @@ button.nb-cine-actor {
 
         let currentDay = null;
         for (const shot of filtered) {
-            if (shot.day !== null && shot.day !== currentDay) {
-                currentDay = shot.day;
-                el.insertAdjacentHTML('beforeend',
-                    `<div class="nb-cine-daybreak">SHOOT DAY ${currentDay}</div>`);
+            if (filter.day === undefined) {
+                const thisDay = shot.day ?? null;
+                if (thisDay !== currentDay) {
+                    currentDay = thisDay;
+                    el.insertAdjacentHTML('beforeend',
+                        `<div class="nb-cine-daybreak">${thisDay != null ? 'SHOOT DAY ' + _esc(String(thisDay)) : 'UNSCHEDULED'}</div>`);
+                }
             }
 
             if (shot.type === 'lunch' || shot.type === 'move') {
@@ -598,6 +618,78 @@ button.nb-cine-actor {
 
     // ── Block loader ──────────────────────────────────────────────────────────
 
+    // ── Shot line renderer (shots.line) ──────────────────────────────────────
+
+    function _buildShotLine(el, data, filter, notebook) {
+        const { shots, actors, locations, config } = data;
+
+        let filtered = shots;
+        if (filter.day !== undefined) {
+            filtered = filter.day === null
+                ? filtered.filter(s => s.day == null || s.day === '')
+                : filtered.filter(s => s.day === filter.day);
+        }
+        if (filter.scene !== undefined) filtered = filtered.filter(s => String(s.scene) === String(filter.scene));
+        if (filter.actor)               filtered = filtered.filter(s => s.actors.includes(filter.actor));
+
+        el.innerHTML = '';
+        const hdr = document.createElement('div');
+        hdr.className = 'nb-cine-header';
+        const lineDayLabel = filter.day === null      ? ' · Unscheduled'
+                           : filter.day !== undefined ? ` · Day ${filter.day}`
+                           : ' · All shots';
+        hdr.innerHTML = `<span class="nb-cine-title">📄 ${_esc(config?.project || 'Shots')}${_esc(lineDayLabel)}</span>`;
+        const refBtn = document.createElement('button');
+        refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
+        refBtn.addEventListener('click', () => { _bust(notebook); _loadCineBlock(el); });
+        hdr.appendChild(refBtn);
+        el.appendChild(hdr);
+
+        if (!filtered.length) {
+            el.insertAdjacentHTML('beforeend', '<div class="nb-cine-empty">No shots found</div>');
+            return;
+        }
+
+        const board = document.createElement('div');
+        board.className = 'nb-cine-board nb-cine-board-line';
+
+        board.insertAdjacentHTML('beforeend',
+            `<div class="nb-cine-strip nb-cine-colheader">` +
+            `<span class="nb-cine-dn">D/N</span>` +
+            `<span class="nb-cine-ie">I/E</span>` +
+            `<span class="nb-cine-id">ID</span>` +
+            `<span class="nb-cine-loc">Loc</span>` +
+            `<span class="nb-cine-desc">Description</span>` +
+            `<span class="nb-cine-actors">Actors</span>` +
+            `</div>`
+        );
+
+        let currentDay = null;
+        for (const shot of filtered) {
+            if (filter.day === undefined) {
+                const thisDay = shot.day ?? null;
+                if (thisDay !== currentDay) {
+                    currentDay = thisDay;
+                    board.insertAdjacentHTML('beforeend',
+                        `<div class="nb-cine-daybreak">${thisDay != null ? 'DAY&nbsp;' + _esc(String(thisDay)) : 'UNSCHEDULED'}</div>`);
+                }
+            }
+            if (shot.type === 'lunch' || shot.type === 'move') continue; // skip special strips in line view
+            board.appendChild(_buildStrip(shot, actors, locations, notebook));
+        }
+
+        el.appendChild(board);
+
+        el.querySelectorAll('.nb-cine-link[data-selector]').forEach(btn =>
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                NbMain.openNote(btn.dataset.selector);
+            })
+        );
+    }
+
+    // ── Block loader ──────────────────────────────────────────────────────────
+
     async function _loadCineBlock(el) {
         el.classList.remove('nb-collapsed');
         el.innerHTML = '<span class="nb-spin">⟳</span>';
@@ -626,6 +718,8 @@ button.nb-cine-actor {
         if (field === 'shots') {
             if (format === 'sheet') {
                 _buildShotSheet(el, data, filter, notebook);
+            } else if (format === 'line') {
+                _buildShotLine(el, data, filter, notebook);
             } else {
                 _buildStripboard(el, data, filter, notebook);
             }
@@ -651,9 +745,13 @@ button.nb-cine-actor {
         const { shots, actors, locations, config } = data;
 
         let filtered = shots;
-        if (filter.day    !== undefined) filtered = filtered.filter(s => s.day === filter.day);
-        if (filter.scene  !== undefined) filtered = filtered.filter(s => String(s.scene) === String(filter.scene));
-        if (filter.actor)                filtered = filtered.filter(s => s.actors.includes(filter.actor));
+        if (filter.day !== undefined) {
+            filtered = filter.day === null
+                ? filtered.filter(s => s.day == null || s.day === '')
+                : filtered.filter(s => s.day === filter.day);
+        }
+        if (filter.scene !== undefined) filtered = filtered.filter(s => String(s.scene) === String(filter.scene));
+        if (filter.actor)               filtered = filtered.filter(s => s.actors.includes(filter.actor));
 
         el.innerHTML = '';
 
@@ -661,7 +759,9 @@ button.nb-cine-actor {
         const hdr = document.createElement('div');
         hdr.className = 'nb-cine-header';
         const projectName = config?.project || 'Stripboard';
-        const dayLabel    = filter.day !== undefined ? ` · Day ${filter.day}` : ' · Master Board';
+        const dayLabel    = filter.day === null    ? ' · Unscheduled'
+                          : filter.day !== undefined ? ` · Day ${filter.day}`
+                          : ' · Master Board';
         hdr.innerHTML = `<span class="nb-cine-title">🎬 ${_esc(projectName)}${_esc(dayLabel)}</span>`;
         const refBtn = document.createElement('button');
         refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
@@ -682,11 +782,9 @@ button.nb-cine-actor {
         // Column header row
         board.insertAdjacentHTML('beforeend',
             `<div class="nb-cine-strip nb-cine-colheader">` +
-            `<span class="nb-cine-seq">#</span>` +
             `<span class="nb-cine-dn">D/N</span>` +
             `<span class="nb-cine-ie">I/E</span>` +
-            `<span class="nb-cine-scene">Sc</span>` +
-            `<span class="nb-cine-shotnum">Shot</span>` +
+            `<span class="nb-cine-id">ID</span>` +
             `<span class="nb-cine-loc">Loc</span>` +
             `<span class="nb-cine-desc">Description</span>` +
             `<span class="nb-cine-actors">Actors</span>` +
@@ -696,13 +794,16 @@ button.nb-cine-actor {
 
         let currentDay = null;
         for (const shot of filtered) {
-            // Day break between days (master board only)
-            if (filter.day === undefined && shot.day !== null && shot.day !== currentDay) {
-                currentDay = shot.day;
-                const brk = document.createElement('div');
-                brk.className = 'nb-cine-daybreak';
-                brk.innerHTML = `<span>DAY&nbsp;${_esc(String(shot.day))}</span>`;
-                board.appendChild(brk);
+            // Day break between days (master board and unfiltered views)
+            if (filter.day === undefined) {
+                const thisDay = shot.day ?? null;
+                if (thisDay !== currentDay) {
+                    currentDay = thisDay;
+                    const brk = document.createElement('div');
+                    brk.className = 'nb-cine-daybreak';
+                    brk.innerHTML = `<span>${thisDay != null ? 'DAY&nbsp;' + _esc(String(thisDay)) : 'UNSCHEDULED'}</span>`;
+                    board.appendChild(brk);
+                }
             }
             board.appendChild(_buildStrip(shot, actors, locations, notebook));
         }
@@ -743,12 +844,7 @@ button.nb-cine-actor {
                     ) {
                         seqInDay++;
                         const sel = child.dataset.selector;
-                        if (sel) {
-                            moves.push({ selector: sel, day: currentDay, seq: seqInDay });
-                            // Optimistic update — seq label reflects new position immediately
-                            const seqEl = child.querySelector('.nb-cine-seq');
-                            if (seqEl) seqEl.textContent = String(seqInDay);
-                        }
+                        if (sel) moves.push({ selector: sel, day: currentDay, seq: seqInDay });
                     }
                 }
 
