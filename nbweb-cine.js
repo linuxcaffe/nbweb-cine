@@ -112,6 +112,15 @@ button.nb-cine-actor {
 .nb-script-dialogue { margin: 0 0 8px; padding: 0 15% 0 25%; }
 .nb-script-paren    { margin: 0; padding: 0 22% 0 32%; font-style: italic; }
 
+/* Plain script view */
+.nb-cine-plain-script { padding: 16px 24px; min-height: 100%; }
+.nb-cine-plain-pre {
+    font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+    font-size: 0.9em; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word;
+    margin: 0; color: var(--fg, #ccc);
+}
+
 /* Shot sheet rows */
 .nb-cine-sheet-row {
     padding: 8px 12px; border-bottom: 1px solid var(--border, #444);
@@ -290,6 +299,11 @@ button.nb-cine-actor {
         const div = document.createElement('div');
         div.className = `nb-cine-strip nb-cine-strip-${_colorClass(shot)}`;
         div.dataset.selector = shot.selector;
+        if (shot.locked) {
+            div.dataset.locked = 'true';
+            div.title = '🔒 Locked';
+            div.style.cursor = 'not-allowed';
+        }
 
         // Special strips (lunch, move) — label spans desc column
         if (shot.type === 'lunch' || shot.type === 'move') {
@@ -854,6 +868,24 @@ button.nb-cine-actor {
 
                 if (!moves.length) return;
 
+                // Pre-run lock check: abort and reload if any strip in the new order is locked
+                const lockedNames = [];
+                for (const child of board.children) {
+                    if (child.dataset.locked === 'true') {
+                        const lbl = child.querySelector('.nb-cine-id')?.textContent?.trim()
+                                 || child.dataset.selector?.split('/').pop()?.replace('.md','')
+                                 || '?';
+                        lockedNames.push(lbl);
+                    }
+                }
+                if (lockedNames.length) {
+                    const s = lockedNames.length === 1 ? '' : 's';
+                    alert(`Can't reorder — locked strip${s}: ${lockedNames.join(', ')}`);
+                    _bust(notebook);
+                    _loadCineBlock(board.closest('.nb-cine-block'));
+                    return;
+                }
+
                 try {
                     const r = await fetch('/api/cine/resequence', {
                         method:  'POST',
@@ -879,7 +911,26 @@ button.nb-cine-actor {
 
         detect: notebooks => notebooks.filter(nb => nb.cine !== null && nb.cine !== undefined),
 
-        previewRenderer: note => _renderScript(note),
+        previewRenderers: [
+            {
+                id:     'screenplay',
+                icon:   '🎬',
+                label:  'Screenplay format',
+                detect: note => note.meta?.scene_no != null,
+                render: note => _renderScript(note),
+            },
+            {
+                id:     'plain',
+                icon:   '📄',
+                label:  'Plain text',
+                detect: note => note.meta?.scene_no != null,
+                render: note => {
+                    if (note.meta?.scene_no == null) return null;
+                    const body = (note.body || '').trim();
+                    return `<div class="nb-cine-plain-script"><pre class="nb-cine-plain-pre">${_esc(body)}</pre></div>`;
+                },
+            },
+        ],
 
         listItemIcon: note => {
             const p = note.selector || note.path || '';
