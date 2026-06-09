@@ -1124,14 +1124,25 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 render: note => _renderScript(note),
             },
             {
-                id:     'plain',
-                icon:   '📄',
-                label:  'Plain text',
+                id:     'markdown',
+                icon:   '📝',
+                label:  'Markdown',
                 detect: note => note.meta?.scene_no != null,
                 render: note => {
                     if (note.meta?.scene_no == null) return null;
                     const body = (note.body || '').trim();
-                    return `<div class="nb-cine-plain-script"><pre class="nb-cine-plain-pre">${_esc(body)}</pre></div>`;
+                    if (typeof marked === 'undefined')
+                        return `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
+                    // Pre-process [[wikilinks]] into nb-wiki-link spans before marked runs;
+                    // _enrichRendered will then attach click handlers to them.
+                    const withLinks = body.replace(
+                        /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+                        (_, target, label) => {
+                            const t = target.trim();
+                            return `<span class="nb-wiki-link" data-selector="${_esc(t)}"${label ? '' : ' data-autolabel="1"'}>${_esc(label?.trim() || t)}</span>`;
+                        }
+                    );
+                    return `<div class="nb-cine-plain-script nb-rendered">${marked.parse(withLinks)}</div>`;
                 },
             },
         ],
@@ -1153,8 +1164,26 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 for (const el of container.querySelectorAll('.nb-cine-block')) {
                     await _loadCineBlock(el);
                 }
+                // Enrich shot-cue tooltips with desc from cached board data
+                const cues = [...container.querySelectorAll('.nb-cine-shot-cue[data-selector]')];
+                if (!cues.length) return;
+                const nb = typeof NbNav !== 'undefined' && NbNav.notebook !== '_all'
+                    ? NbNav.notebook : null;
+                if (!nb) return;
+                try {
+                    const data  = await _fetchData(nb);
+                    const byId  = new Map((data.shots || []).map(s => [s.shot, s]));
+                    for (const cue of cues) {
+                        const shot = byId.get(cue.dataset.selector);
+                        if (shot?.desc) cue.title = `${cue.dataset.selector}: ${shot.desc}`;
+                    }
+                } catch (_) {}
             },
         }],
+
+        hideExtrasCSS: `
+#nb-preview-content.nb-extras-hidden .nb-cine-shot-cue { display: none; }
+`,
 
         editorKeybindings: note => note.meta?.scene_no != null ? [{
             key:    '[',
