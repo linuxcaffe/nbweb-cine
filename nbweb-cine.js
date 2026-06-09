@@ -16,10 +16,10 @@
 .nb-cine-title { font-weight: bold; opacity: 0.9; }
 
 /* Column layout — shared by header row and all strips
-   D/N | I/E | ID (1-1a) | Loc | Description | Actors | Res */
+   DN/IE | ID (1-1a) | Loc | Description | Actors | Res */
 .nb-cine-strip {
     display: grid;
-    grid-template-columns: 3ch 3ch 8ch 6ch 1fr auto 3ch;
+    grid-template-columns: 4ch 8ch 6ch 1fr auto 3ch;
     align-items: center;
     gap: 0 6px;
     padding: 2px 8px;
@@ -54,8 +54,7 @@
 }
 
 /* Cell classes */
-.nb-cine-dn       { text-align: center; }
-.nb-cine-ie       { text-align: center; }
+.nb-cine-dnie     { text-align: center; font-size: 0.85em; letter-spacing: 0.05em; }
 .nb-cine-id       { font-weight: bold; }
 .nb-cine-loc      { font-weight: bold; }
 .nb-cine-desc     { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -64,7 +63,7 @@
 
 /* shots.line — single-line compact view */
 .nb-cine-board-line .nb-cine-strip {
-    grid-template-columns: 3ch 3ch 8ch 6ch 1fr auto;
+    grid-template-columns: 4ch 8ch 6ch 1fr auto;
     min-height: 1.5em; padding: 1px 8px; font-size: 0.9em;
 }
 .nb-cine-board-line .nb-cine-colheader { font-size: 0.78em; }
@@ -273,9 +272,9 @@ button.nb-cine-actor {
         // Special strips (lunch, move) — label spans desc column
         if (shot.type === 'lunch' || shot.type === 'move') {
             div.innerHTML =
-                `<span class="nb-cine-dn"></span><span class="nb-cine-ie"></span>` +
+                `<span class="nb-cine-dnie"></span>` +
                 `<span class="nb-cine-id"></span><span class="nb-cine-loc"></span>` +
-                `<span class="nb-cine-desc" style="grid-column:5/-1">${_esc(_descFirst(shot.desc))}</span>`;
+                `<span class="nb-cine-desc" style="grid-column:4/-1">${_esc(_descFirst(shot.desc))}</span>`;
             return div;
         }
 
@@ -312,9 +311,10 @@ button.nb-cine-actor {
         const descFull = (shot.desc || '').trim();
         const descLine = _descFirst(descFull);
 
+        const dn = (shot.day_night || '').charAt(0).toUpperCase();
+        const ie = (shot.int_ext   || '').charAt(0).toUpperCase();
         div.innerHTML =
-            `<span class="nb-cine-dn">${_esc(shot.day_night)}</span>` +
-            `<span class="nb-cine-ie">${_esc(shot.int_ext)}</span>` +
+            `<span class="nb-cine-dnie" title="${_esc(shot.day_night)} / ${_esc(shot.int_ext)}">${dn}${ie}</span>` +
             idHtml +
             locHtml +
             `<span class="nb-cine-desc" title="${_esc(descFull)}">${_esc(descLine)}</span>` +
@@ -655,8 +655,7 @@ button.nb-cine-actor {
 
         board.insertAdjacentHTML('beforeend',
             `<div class="nb-cine-strip nb-cine-colheader">` +
-            `<span class="nb-cine-dn">D/N</span>` +
-            `<span class="nb-cine-ie">I/E</span>` +
+            `<span class="nb-cine-dnie" title="Day/Night · Int/Ext">DN</span>` +
             `<span class="nb-cine-id">ID</span>` +
             `<span class="nb-cine-loc">Loc</span>` +
             `<span class="nb-cine-desc">Description</span>` +
@@ -782,8 +781,7 @@ button.nb-cine-actor {
         // Column header row
         board.insertAdjacentHTML('beforeend',
             `<div class="nb-cine-strip nb-cine-colheader">` +
-            `<span class="nb-cine-dn">D/N</span>` +
-            `<span class="nb-cine-ie">I/E</span>` +
+            `<span class="nb-cine-dnie" title="Day/Night · Int/Ext">DN</span>` +
             `<span class="nb-cine-id">ID</span>` +
             `<span class="nb-cine-loc">Loc</span>` +
             `<span class="nb-cine-desc">Description</span>` +
