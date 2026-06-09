@@ -891,7 +891,7 @@ button.nb-cine-actor {
                     const orig = origBySelector[sel];
                     const curr = moves.find(m => m.selector === sel);
                     if (!orig || !curr) continue;
-                    if (orig.day !== curr.day || orig.seq !== curr.seq) {
+                    if (orig.day !== curr.day) {
                         const lbl = child.querySelector('.nb-cine-id')?.textContent?.trim()
                                  || sel.split('/').pop()?.replace('.md', '')
                                  || '?';
