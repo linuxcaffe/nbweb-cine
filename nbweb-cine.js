@@ -88,6 +88,14 @@ button.nb-cine-actor {
 .nb-cine-empty { padding: 12px 8px; opacity: 0.6; }
 .nb-cine-error { padding: 8px; color: #c66; }
 
+/* Sub-field table (shots.camera, shots.tech.lights, …) */
+.nb-cine-sf-table { width: 100%; border-collapse: collapse; }
+.nb-cine-sf-row { display: grid; grid-template-columns: 6em 1fr; gap: 8px; padding: 4px 8px; align-items: baseline; border-bottom: 1px solid var(--border); }
+.nb-cine-sf-hdr { font-size: .8em; font-weight: 600; opacity: .6; border-bottom: 2px solid var(--border); }
+.nb-cine-sf-id  { font-family: monospace; font-size: .9em; }
+.nb-cine-sf-val { font-size: .88em; white-space: pre-wrap; }
+.nb-cine-subtitle { font-size: .8em; opacity: .6; margin-left: 8px; }
+
 /* Screenplay preview — paper page */
 .nb-cine-screenplay {
     padding: 24px; background: var(--bg, #1a1a1a); min-height: 100%;
@@ -710,6 +718,100 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // ── Block loader ──────────────────────────────────────────────────────────
 
+    // ── Sub-field query resolver ──────────────────────────────────────────────
+    // Sub-block fields searched for flat lookups (order = priority on name collision).
+    const _SHOT_SUBBLOCKS = ['tech', 'art', 'resources'];
+
+    // Resolve a dotted or flat path against a shot record.
+    //   'tech.camera'  → shot.tech.camera  (explicit)
+    //   'camera'       → first sub-block containing 'camera' key  (flat)
+    //   'desc'         → shot.desc  (top-level fallback)
+    // Returns the value (string, number, dict, …) or null.
+    function _resolveSubfield(shot, path) {
+        if (path.includes('.')) {
+            const dot   = path.indexOf('.');
+            const block = path.slice(0, dot);
+            const key   = path.slice(dot + 1);
+            const sub   = shot[block];
+            if (sub && typeof sub === 'object' && !Array.isArray(sub))
+                return sub[key] ?? null;
+            return null;
+        }
+        for (const block of _SHOT_SUBBLOCKS) {
+            const sub = shot[block];
+            if (sub && typeof sub === 'object' && !Array.isArray(sub) && path in sub)
+                return sub[path];
+        }
+        // Top-level fallback (e.g. 'desc', 'lens', 'platform')
+        return shot[path] ?? null;
+    }
+
+    // Format a resolved value for display.
+    function _fmtSubValue(val) {
+        if (val == null)                                    return '';
+        if (typeof val === 'object' && !Array.isArray(val))
+            return Object.entries(val).map(([k, v]) => `${k}: ${v}`).join('\n');
+        if (Array.isArray(val))                             return val.join(', ');
+        return String(val);
+    }
+
+    // ── Sub-field table renderer (shots.<anything-not-a-keyword>) ─────────────
+    // Renders a two-column table: shot-id | resolved value, one row per shot.
+    // Shots without the field are omitted unless every shot lacks it (then shows help).
+    function _buildSubfieldTable(el, data, path, filter, notebook) {
+        const { shots, config } = data;
+        const filtered  = _filterShots(shots, filter);
+        const fieldLabel = path.includes('.') ? path.split('.').pop() : path;
+        const rows = filtered
+            .map(s => ({ shot: s, val: _resolveSubfield(s, path) }))
+            .filter(r => r.val != null && r.val !== '');
+
+        el.innerHTML = '';
+        const hdr = document.createElement('div');
+        hdr.className = 'nb-cine-header';
+        hdr.innerHTML =
+            `<span class="nb-cine-title">🔍 ${_esc(fieldLabel)}</span>` +
+            `<span class="nb-cine-subtitle">${rows.length} shot${rows.length !== 1 ? 's' : ''}</span>`;
+        const refBtn = document.createElement('button');
+        refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
+        refBtn.addEventListener('click', () => { _bust(notebook); _loadCineBlock(el); });
+        hdr.appendChild(refBtn);
+        el.appendChild(hdr);
+
+        if (!rows.length) {
+            el.insertAdjacentHTML('beforeend',
+                `<div class="nb-cine-empty">No shots have field <code>${_esc(path)}</code></div>`);
+            return;
+        }
+
+        const table = document.createElement('div');
+        table.className = 'nb-cine-sf-table';
+        // Header row
+        table.insertAdjacentHTML('beforeend',
+            `<div class="nb-cine-sf-row nb-cine-sf-hdr">` +
+            `<span class="nb-cine-sf-id">Shot</span>` +
+            `<span class="nb-cine-sf-val">${_esc(fieldLabel)}</span></div>`);
+
+        for (const { shot, val } of rows) {
+            const shotId = `${shot.scene}-${shot.shot}`;
+            const text   = _fmtSubValue(val);
+            const row    = document.createElement('div');
+            row.className = 'nb-cine-sf-row';
+            const btn = document.createElement('button');
+            btn.className = 'nb-cine-link nb-cine-sf-id';
+            btn.dataset.selector = shot.selector;
+            btn.textContent = shotId;
+            btn.title = shot.desc || '';
+            row.appendChild(btn);
+            const valEl = document.createElement('span');
+            valEl.className = 'nb-cine-sf-val';
+            valEl.textContent = text;
+            row.appendChild(valEl);
+            table.appendChild(row);
+        }
+        el.appendChild(table);
+    }
+
     // ── Shot line renderer (shots.line) ──────────────────────────────────────
 
     function _buildShotLine(el, data, filter, notebook) {
@@ -803,8 +905,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 _buildStripboard(el, data, filter, notebook);
             } else if (format === 'sheet') {
                 _buildShotSheet(el, data, filter, notebook);
+            } else if (format && format !== 'line') {
+                _buildSubfieldTable(el, data, format, filter, notebook);
             } else {
-                _buildShotLine(el, data, filter, notebook);  // default: shots / shots.line
+                _buildShotLine(el, data, filter, notebook);  // shots / shots.line
             }
         } else if (field === 'scenes') {
             _buildSceneIndex(el, data, filter);
