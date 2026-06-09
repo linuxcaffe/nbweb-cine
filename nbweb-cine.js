@@ -112,6 +112,47 @@ button.nb-cine-actor {
 .nb-script-dialogue { margin: 0 0 8px; padding: 0 15% 0 25%; }
 .nb-script-paren    { margin: 0; padding: 0 22% 0 32%; font-style: italic; }
 
+/* Shot cue superscripts — [[1c]] inside screenplay body */
+sup.nb-cine-shot-cue {
+    font-size: 0.62em; font-family: 'Courier New', Courier, monospace;
+    color: #888; font-style: normal; font-weight: normal;
+    cursor: pointer; user-select: none; margin-left: 1px;
+}
+sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
+
+/* Insert Shot overlay */
+.nb-cine-insert-overlay {
+    position: fixed; inset: 0; z-index: 9000;
+    background: rgba(0,0,0,.45);
+    display: flex; align-items: center; justify-content: center;
+}
+.nb-cine-insert-card {
+    background: var(--bg2, #222); border: 1px solid var(--border, #555);
+    border-radius: 8px; padding: 20px 24px; min-width: 320px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6);
+    font-family: var(--font, sans-serif);
+}
+.nb-cine-insert-card h4 {
+    margin: 0 0 14px; font-size: .95em;
+    color: var(--text-muted, #aaa); font-weight: 600; letter-spacing: .04em;
+}
+.nb-cine-insert-card label {
+    display: block; font-size: .82em; color: var(--text-muted, #aaa);
+    margin-bottom: 2px; margin-top: 10px;
+}
+.nb-cine-insert-card label:first-of-type { margin-top: 0; }
+.nb-cine-insert-card input,
+.nb-cine-insert-card textarea {
+    width: 100%; box-sizing: border-box;
+    background: var(--bg, #1a1a1a); color: var(--text, #eee);
+    border: 1px solid var(--border, #555); border-radius: 4px;
+    padding: 6px 8px; font-size: .9em;
+}
+.nb-cine-insert-card textarea { resize: vertical; min-height: 56px; }
+.nb-cine-insert-btns {
+    display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;
+}
+
 /* Plain script view */
 .nb-cine-plain-script { padding: 16px 24px; min-height: 100%; }
 .nb-cine-plain-pre {
@@ -462,6 +503,15 @@ button.nb-cine-actor {
         return chunks;
     }
 
+    // Escape text but turn [[id]] into clickable superscript shot cues.
+    function _renderChunkText(text) {
+        return text.split(/(\[\[[^\]]+\]\])/).map((seg, i) => {
+            if (i % 2 === 0) return _esc(seg);
+            const id = seg.slice(2, -2);
+            return `<sup class="nb-cine-shot-cue nb-wiki-link" data-selector="${_esc(id)}" title="Shot ${_esc(id)}">${_esc(id)}</sup>`;
+        }).join('');
+    }
+
     function _renderScript(note) {
         const meta = note.meta || {};
         if (meta.scene_no === undefined) return null;
@@ -474,10 +524,11 @@ button.nb-cine-actor {
 
         const bodyHtml = _parseScriptBody(note.raw).map(c => {
             if (c.type === 'br')       return '';
-            if (c.type === 'action')   return `<p class="nb-script-action">${_esc(c.text)}</p>`;
-            if (c.type === 'char')     return `<p class="nb-script-char">${_esc(c.text)}</p>`;
-            if (c.type === 'dialogue') return `<p class="nb-script-dialogue">${_esc(c.text)}</p>`;
-            if (c.type === 'paren')    return `<p class="nb-script-paren">${_esc(c.text)}</p>`;
+            const t = _renderChunkText(c.text);
+            if (c.type === 'action')   return `<p class="nb-script-action">${t}</p>`;
+            if (c.type === 'char')     return `<p class="nb-script-char">${t}</p>`;
+            if (c.type === 'dialogue') return `<p class="nb-script-dialogue">${t}</p>`;
+            if (c.type === 'paren')    return `<p class="nb-script-paren">${t}</p>`;
             return '';
         }).join('');
 
@@ -922,6 +973,139 @@ button.nb-cine-actor {
         });
     }
 
+    // ── Insert Shot keybinding (Ctrl+[) ──────────────────────────────────────────
+
+    function _nextShotId(raw, sceneNo) {
+        const pat = new RegExp(`\\[\\[${sceneNo}([a-z])\\]\\]`, 'g');
+        const letters = [...raw.matchAll(pat)].map(m => m[1]).sort();
+        const last = letters.length ? letters[letters.length - 1] : null;
+        return last ? `${sceneNo}${String.fromCharCode(last.charCodeAt(0) + 1)}` : `${sceneNo}a`;
+    }
+
+    function _showInsertShotOverlay(suggested, onConfirm, onCancel) {
+        const overlay = document.createElement('div');
+        overlay.className = 'nb-cine-insert-overlay';
+        overlay.innerHTML = `
+            <div class="nb-cine-insert-card">
+                <h4>INSERT SHOT</h4>
+                <label>Shot ID</label>
+                <input id="nb-cine-shot-id" type="text" value="${_esc(suggested)}" autocomplete="off" spellcheck="false">
+                <label>Description</label>
+                <textarea id="nb-cine-shot-desc" rows="2" placeholder="Brief shot description…"></textarea>
+                <label>Actors (comma-separated)</label>
+                <input id="nb-cine-shot-actors" type="text" placeholder="e.g. JD, TM">
+                <div class="nb-cine-insert-btns">
+                    <button id="nb-cine-insert-cancel" class="nb-tool-btn">Cancel</button>
+                    <button id="nb-cine-insert-ok" class="nb-tool-btn nb-btn-primary">Create &amp; Insert</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        const idInput    = overlay.querySelector('#nb-cine-shot-id');
+        const descInput  = overlay.querySelector('#nb-cine-shot-desc');
+        const actInput   = overlay.querySelector('#nb-cine-shot-actors');
+        const okBtn      = overlay.querySelector('#nb-cine-insert-ok');
+        const cancelBtn  = overlay.querySelector('#nb-cine-insert-cancel');
+
+        // Select all in ID field so user can type directly
+        idInput.focus();
+        idInput.select();
+
+        const confirm = () => {
+            const shotId = idInput.value.trim();
+            if (!shotId) { idInput.focus(); return; }
+            overlay.remove();
+            onConfirm({ shotId, desc: descInput.value.trim(), actors: actInput.value.trim() });
+        };
+        const cancel = () => { overlay.remove(); onCancel(); };
+
+        okBtn.addEventListener('click', confirm);
+        cancelBtn.addEventListener('click', cancel);
+        overlay.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirm(); }
+            if (e.key === 'Escape') cancel();
+        });
+    }
+
+    async function _createShotFromTemplate(notebook, sceneMeta, shotId, desc, actors) {
+        // Look for a template named 'shot' in the notebook; fall back to built-in.
+        let content = null;
+        try {
+            const r = await fetch(`/api/templates?notebook=${encodeURIComponent(notebook)}`);
+            if (r.ok) {
+                const d = await r.json();
+                const tpl = (d.templates || []).find(t => /^shot$/i.test(t.name));
+                if (tpl) {
+                    const tr = await fetch(`/api/template?path=${encodeURIComponent(tpl.path)}`);
+                    if (tr.ok) content = (await tr.json()).content;
+                }
+            }
+        } catch (_) {}
+
+        const today = new Date();
+        const dateStr = today.toISOString().slice(0, 10);
+        const vars = {
+            shot_id:   shotId,
+            scene:     String(sceneMeta.scene_no ?? ''),
+            desc:      desc,
+            actors:    actors,
+            loc:       String(sceneMeta.loc       ?? ''),
+            day_night: String(sceneMeta.day_night  ?? ''),
+            int_ext:   String(sceneMeta.int_ext    ?? ''),
+            date:      dateStr,
+        };
+
+        if (content) {
+            // Substitute {{var}} placeholders in the template
+            content = content.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
+        } else {
+            // Built-in fallback frontmatter
+            content = [
+                '---',
+                `scene: ${vars.scene}`,
+                `shot: ${shotId}`,
+                `type: shot`,
+                `day_night: ${vars.day_night}`,
+                `int_ext: ${vars.int_ext}`,
+                `loc: ${vars.loc}`,
+                `desc: ${desc ? `|\n  ${desc.replace(/\n/g, '\n  ')}` : ''}`,
+                `actors: ${actors}`,
+                `resources:`,
+                `---`,
+            ].join('\n');
+        }
+
+        await fetch('/api/notes', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ notebook, folder: 'shots', title: shotId, content }),
+        });
+    }
+
+    async function _insertShotAction(ta, note) {
+        const sceneNo = note?.meta?.scene_no;
+        if (sceneNo == null) return;
+
+        const savedPos = ta.selectionStart;
+        const suggested = _nextShotId(ta.value, sceneNo);
+
+        _showInsertShotOverlay(suggested, async ({ shotId, desc, actors }) => {
+            // Insert [[shotId]] at saved cursor position
+            const ins    = `[[${shotId}]]`;
+            ta.value     = ta.value.slice(0, savedPos) + ins + ta.value.slice(savedPos);
+            const newPos = savedPos + ins.length;
+            ta.focus();
+            ta.setSelectionRange(newPos, newPos);
+
+            // Create the shot note (fire and forget — no await needed)
+            _createShotFromTemplate(note.notebook, note.meta, shotId, desc, actors)
+                .catch(e => console.warn('NbWeb-cine: shot creation failed', e));
+        }, () => {
+            ta.focus();
+            ta.setSelectionRange(savedPos, savedPos);
+        });
+    }
+
     // ── Plugin registration ───────────────────────────────────────────────────
 
     NbWeb.registerModule('cine', {
@@ -971,6 +1155,15 @@ button.nb-cine-actor {
                 }
             },
         }],
+
+        editorKeybindings: note => note.meta?.scene_no != null ? [{
+            key:    '[',
+            ctrl:   true,
+            shift:  false,
+            alt:    false,
+            label:  'Insert shot reference (Ctrl+[)',
+            action: _insertShotAction,
+        }] : [],
     });
 
 })();
