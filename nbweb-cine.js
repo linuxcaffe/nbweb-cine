@@ -827,7 +827,9 @@ button.nb-cine-actor {
         }
 
         el.appendChild(board);
-        _wireSort(board, notebook, filter.day);
+        // Skip drag if the containing note is locked
+        const _noteLocked = el.closest('#nb-preview-content')?.dataset.noteLocked === 'true';
+        if (!_noteLocked) _wireSort(board, notebook, filter.day);
     }
 
     // ── Drag + resequence ─────────────────────────────────────────────────────
