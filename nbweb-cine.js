@@ -618,7 +618,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     : _esc(label);
             }).join(', ');
 
-            const resources = (shot.resources || []).filter(Boolean).join(', ');
+            const _sr = shot.resources;
+            const resources = Array.isArray(_sr)
+                ? _sr.filter(Boolean).join(', ')
+                : (_sr && typeof _sr === 'object')
+                    ? Object.entries(_sr).map(([k, v]) => `${k}: ${v}`).join(' · ')
+                    : '';
             const tech = [
                 shot.cameras  ? `Cam: ${shot.cameras}`   : '',
                 shot.lens     ? `Lens: ${shot.lens}`      : '',
