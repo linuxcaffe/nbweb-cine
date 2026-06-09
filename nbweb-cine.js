@@ -82,6 +82,30 @@ button.nb-cine-actor {
 .nb-cine-empty { padding: 12px 8px; opacity: 0.6; }
 .nb-cine-error { padding: 8px; color: #c66; }
 
+/* Screenplay preview — paper page */
+.nb-cine-screenplay {
+    padding: 24px; background: var(--bg, #1a1a1a); min-height: 100%;
+}
+.nb-script-page {
+    max-width: 640px; margin: 0 auto;
+    background: #fff; color: #111;
+    font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+    font-size: 12pt; line-height: 1.55;
+    padding: 72px 72px 96px;
+    box-shadow: 0 4px 28px rgba(0,0,0,.5);
+}
+.nb-script-slug {
+    font-weight: bold; text-transform: uppercase;
+    border-bottom: 1px solid #222;
+    padding-bottom: 6px; margin-bottom: 24px;
+    letter-spacing: .05em;
+}
+.nb-script-scene-tag { float: right; font-weight: normal; opacity: .45; font-size: .85em; }
+.nb-script-action   { margin: 0 0 12px; }
+.nb-script-char     { margin: 18px 0 0; padding-left: 38%; text-transform: uppercase; }
+.nb-script-dialogue { margin: 0 0 8px; padding: 0 15% 0 25%; }
+.nb-script-paren    { margin: 0; padding: 0 22% 0 32%; font-style: italic; }
+
 /* Drag handles */
 .nb-cine-strip:not(.nb-cine-colheader) { cursor: grab; }
 .nb-cine-strip:not(.nb-cine-colheader):active { cursor: grabbing; }
@@ -212,6 +236,68 @@ button.nb-cine-actor {
         return div;
     }
 
+    // ── Script renderer ───────────────────────────────────────────────────────
+
+    function _parseScriptBody(raw) {
+        let text = raw || '';
+        if (text.startsWith('---')) {
+            const end = text.indexOf('\n---', 3);
+            if (end !== -1) text = text.slice(end + 4).trimStart();
+        }
+        const chunks = [];
+        let afterChar = false;
+        for (const line of text.split('\n')) {
+            const indent  = line.search(/\S/);
+            const trimmed = line.trim();
+            if (!trimmed) {
+                afterChar = false;
+                if (chunks.length && chunks[chunks.length - 1].type !== 'br')
+                    chunks.push({ type: 'br' });
+                continue;
+            }
+            // Character name: 3+ spaces of indent, all-uppercase (parens/numbers allowed)
+            if (indent >= 3 && /^[A-Z][A-Z0-9\s\(\)\.\-\'\,]+$/.test(trimmed)) {
+                afterChar = true;
+                chunks.push({ type: 'char', text: trimmed });
+                continue;
+            }
+            if (afterChar && trimmed.startsWith('(') && trimmed.endsWith(')')) {
+                chunks.push({ type: 'paren', text: trimmed }); continue;
+            }
+            if (afterChar) {
+                afterChar = false;
+                chunks.push({ type: 'dialogue', text: trimmed }); continue;
+            }
+            chunks.push({ type: 'action', text: trimmed });
+        }
+        return chunks;
+    }
+
+    function _renderScript(note) {
+        const meta = note.meta || {};
+        if (meta.scene_no === undefined) return null;
+
+        const ie  = String(meta.int_ext  || '').toUpperCase().startsWith('I') ? 'INT.' : 'EXT.';
+        const dn  = String(meta.day_night|| '').toUpperCase().startsWith('D') ? 'DAY'  : 'NIGHT';
+        const loc = String(meta.loc      || '').toUpperCase();
+        const slug     = `${ie} ${loc} — ${dn}`;
+        const sceneTag = `SCENE ${meta.scene_no}`;
+
+        const bodyHtml = _parseScriptBody(note.raw).map(c => {
+            if (c.type === 'br')       return '';
+            if (c.type === 'action')   return `<p class="nb-script-action">${_esc(c.text)}</p>`;
+            if (c.type === 'char')     return `<p class="nb-script-char">${_esc(c.text)}</p>`;
+            if (c.type === 'dialogue') return `<p class="nb-script-dialogue">${_esc(c.text)}</p>`;
+            if (c.type === 'paren')    return `<p class="nb-script-paren">${_esc(c.text)}</p>`;
+            return '';
+        }).join('');
+
+        return `<div class="nb-cine-screenplay"><div class="nb-script-page">` +
+               `<div class="nb-script-slug"><span class="nb-script-scene-tag">${_esc(sceneTag)}</span>${_esc(slug)}</div>` +
+               `<div class="nb-script-body">${bodyHtml}</div>` +
+               `</div></div>`;
+    }
+
     // ── Block loader ──────────────────────────────────────────────────────────
 
     async function _loadCineBlock(el) {
@@ -258,9 +344,10 @@ button.nb-cine-actor {
     function _buildStripboard(el, data, filter, notebook) {
         const { shots, actors, locations, config } = data;
 
-        const filtered = filter.day !== undefined
-            ? shots.filter(s => s.day === filter.day)
-            : shots;
+        let filtered = shots;
+        if (filter.day    !== undefined) filtered = filtered.filter(s => s.day === filter.day);
+        if (filter.scene  !== undefined) filtered = filtered.filter(s => String(s.scene) === String(filter.scene));
+        if (filter.actor)                filtered = filtered.filter(s => s.actors.includes(filter.actor));
 
         el.innerHTML = '';
 
@@ -385,6 +472,8 @@ button.nb-cine-actor {
         helpUrl:     '/plugins/nbweb-cine.md',
 
         detect: notebooks => notebooks.filter(nb => nb.cine !== null && nb.cine !== undefined),
+
+        previewRenderer: note => _renderScript(note),
 
         codeblockRenderers: [{
             lang: 'cine',
