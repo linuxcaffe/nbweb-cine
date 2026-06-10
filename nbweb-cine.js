@@ -583,7 +583,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             return;
         }
 
-        let currentDay = null;
+        let currentDay = undefined;
         for (const shot of filtered) {
             if (filter.day === undefined) {
                 const thisDay = shot.day ?? null;
@@ -854,7 +854,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             `</div>`
         );
 
-        let currentDay = null;
+        let currentDay = undefined;
         for (const shot of filtered) {
             if (filter.day === undefined) {
                 const thisDay = shot.day ?? null;
@@ -975,7 +975,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             `</div>`
         );
 
-        let currentDay = null;
+        let currentDay = undefined;
         for (const shot of filtered) {
             // Day break between days (master board and unfiltered views)
             if (filter.day === undefined) {
