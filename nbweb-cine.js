@@ -288,6 +288,31 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     border-style: dashed;
 }
 
+/* Lane + button */
+.nb-cine-lane-label { position: relative; }
+.nb-cine-lane-add {
+    display: block; width: 100%; margin-top: 6px;
+    background: rgba(255,255,255,0.07); border: 1px dashed rgba(255,255,255,0.2);
+    border-radius: 3px; color: inherit; cursor: pointer;
+    font-size: 1em; padding: 1px 0; opacity: 0.5;
+    transition: opacity 0.15s;
+}
+.nb-cine-lane-add:hover { opacity: 1; background: rgba(255,255,255,0.12); }
+.nb-cine-add-btn { margin-left: 4px; }
+
+/* Inline story creation */
+.nb-cine-inline-add {
+    display: flex; gap: 4px; align-items: center;
+    padding: 4px; background: var(--bg2, #1e2228);
+    border: 1px dashed var(--border, #555); border-radius: 4px;
+    min-width: 10em;
+}
+.nb-cine-inline-input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: inherit; font-family: inherit; font-size: 0.85em;
+    padding: 2px 4px; min-width: 8em;
+}
+
 /* Size variants */
 .nb-cine-storylines-large .nb-cine-storyline-row { min-height: 120px; }
 .nb-cine-storylines-large .nb-cine-lane-cards    { gap: 10px; padding: 10px; }
@@ -959,6 +984,55 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         );
     }
 
+    // ── Story creation ────────────────────────────────────────────────────────
+
+    function _showInlineStoryInput(container, laneStem, notebook, blockEl, size) {
+        // Remove any existing inline input first
+        container.querySelector('.nb-cine-inline-add')?.remove();
+
+        const wrap = document.createElement('div');
+        wrap.className = 'nb-cine-inline-add';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Story title… Enter to create';
+        input.className = 'nb-cine-inline-input';
+        wrap.appendChild(input);
+
+        const cancel = document.createElement('button');
+        cancel.textContent = '✕'; cancel.className = 'nb-tw-btn';
+        cancel.addEventListener('click', () => wrap.remove());
+        wrap.appendChild(cancel);
+
+        container.appendChild(wrap);
+        input.focus();
+
+        async function _submit() {
+            const title = input.value.trim();
+            if (!title) { wrap.remove(); return; }
+            input.disabled = true;
+            await _createStory(notebook, title, laneStem || '');
+            _bust(notebook);
+            _loadCineBlock(blockEl);
+        }
+
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter')  { e.preventDefault(); _submit(); }
+            if (e.key === 'Escape') { wrap.remove(); }
+        });
+    }
+
+    async function _createStory(notebook, title, storyline) {
+        const r = await fetch('/api/cine/story/create', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify({ notebook, title, storyline }),
+        });
+        const d = await r.json();
+        if (!d.ok) throw new Error(d.error || 'create failed');
+        return d.selector;
+    }
+
     // ── Storylines board ──────────────────────────────────────────────────────
 
     function _buildStorylines(el, data, notebook, size = 'small') {
@@ -973,6 +1047,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
         refBtn.addEventListener('click', () => { _bust(notebook); _loadCineBlock(el); });
         hdr.appendChild(refBtn);
+        const addBtn = document.createElement('button');
+        addBtn.className = 'nb-tw-btn nb-cine-add-btn'; addBtn.title = 'Add story (unassigned)'; addBtn.textContent = '+';
+        addBtn.addEventListener('click', () => _showInlineStoryInput(board, null, notebook, el, size));
+        hdr.appendChild(addBtn);
         el.appendChild(hdr);
 
         const board = document.createElement('div');
@@ -1061,6 +1139,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const label = document.createElement('div');
             label.className = 'nb-cine-lane-label';
             label.textContent = laneTitle;
+            if (laneStem !== '__orphans__') {
+                const laneAdd = document.createElement('button');
+                laneAdd.className = 'nb-cine-lane-add'; laneAdd.textContent = '+';
+                laneAdd.title = `Add story to ${laneTitle}`;
+                laneAdd.addEventListener('click', e => {
+                    e.stopPropagation();
+                    _showInlineStoryInput(row.querySelector('.nb-cine-lane-cards'), laneStem, notebook, el, size);
+                });
+                label.appendChild(laneAdd);
+            }
             row.appendChild(label);
 
             const cardZone = document.createElement('div');
