@@ -287,6 +287,28 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     opacity: 0.6; cursor: default; border-left-color: #555;
     border-style: dashed;
 }
+
+/* Size variants */
+.nb-cine-storylines-large .nb-cine-storyline-row { min-height: 120px; }
+.nb-cine-storylines-large .nb-cine-lane-cards    { gap: 10px; padding: 10px; }
+.nb-cine-story-large {
+    min-width: 12em; max-width: 20em;
+    font-size: 0.88em; padding: 8px 10px;
+}
+.nb-cine-story-large .nb-cine-story-title { font-size: 1em; margin-bottom: 5px; }
+.nb-cine-story-meta {
+    display: grid; grid-template-columns: auto 1fr;
+    gap: 1px 8px; margin-top: 6px;
+    font-size: 0.85em; opacity: 0.8;
+}
+.nb-cine-story-meta dt {
+    font-weight: bold; opacity: 0.7;
+    white-space: nowrap;
+}
+.nb-cine-story-meta dd {
+    margin: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+}
 `;
 
     if (!document.getElementById('nb-cine-styles')) {
@@ -939,7 +961,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // ── Storylines board ──────────────────────────────────────────────────────
 
-    function _buildStorylines(el, data, notebook) {
+    function _buildStorylines(el, data, notebook, size = 'small') {
         const { lanes, stories, orphan_scenes, config } = data;
 
         el.innerHTML = '';
@@ -954,7 +976,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         el.appendChild(hdr);
 
         const board = document.createElement('div');
-        board.className = 'nb-cine-storylines-board';
+        board.className = `nb-cine-storylines-board nb-cine-storylines-${size}`;
         el.appendChild(board);
 
         // One row per lane, plus orphans row at bottom
@@ -982,12 +1004,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             cards.sort((a, b) => a.seq - b.seq);
         }
 
-        function _buildCard(story) {
+        function _buildCard(story, cardSize = 'small') {
             const card = document.createElement('div');
-            card.className = 'nb-cine-story-card';
-            card.dataset.selector = story.selector;
+            card.className = `nb-cine-story-card nb-cine-story-${cardSize}`;
+            card.dataset.selector  = story.selector;
             card.dataset.storyline = story.storyline || '';
-            card.dataset.seq = story.seq ?? 999;
+            card.dataset.seq       = story.seq ?? 999;
 
             const titleEl = document.createElement('div');
             titleEl.className = 'nb-cine-story-title';
@@ -1005,6 +1027,23 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     return `<span class="nb-cine-scene-chip nb-cine-scene-unresolved">${_esc(ref.ref)}</span>`;
                 }).join('');
                 card.appendChild(scenesEl);
+            }
+
+            // Large: show additional meta fields (skip structural fields)
+            if (cardSize === 'large') {
+                const skip = new Set(['title','storyline','seq','scenes','color','lock']);
+                const extras = Object.entries(story.meta || {})
+                    .filter(([k]) => !skip.has(k) && k !== 'scenes_raw');
+                if (extras.length) {
+                    const metaEl = document.createElement('dl');
+                    metaEl.className = 'nb-cine-story-meta';
+                    for (const [k, v] of extras) {
+                        if (!v && v !== 0) continue;
+                        metaEl.innerHTML +=
+                            `<dt>${_esc(k)}</dt><dd>${_esc(String(v).trim())}</dd>`;
+                    }
+                    if (metaEl.children.length) card.appendChild(metaEl);
+                }
             }
 
             card.addEventListener('click', e => {
@@ -1026,7 +1065,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             const cardZone = document.createElement('div');
             cardZone.className = 'nb-cine-lane-cards';
-            cards.forEach(story => cardZone.appendChild(_buildCard(story)));
+            cards.forEach(story => cardZone.appendChild(_buildCard(story, size)));
             row.appendChild(cardZone);
 
             return { row, cardZone };
@@ -1145,7 +1184,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         } else if (field === 'scenes') {
             _buildSceneIndex(el, data, filter);
         } else if (field === 'storylines') {
-            _buildStorylines(el, data, notebook);
+            _buildStorylines(el, data, notebook, format || 'small');
         } else if (format && ['actor','location','resource'].includes(field)) {
             _buildFieldLookup(el, data, field, format, codes);
         } else {
