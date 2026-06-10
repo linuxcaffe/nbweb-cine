@@ -58,6 +58,9 @@
     font-weight: normal; letter-spacing: 0.1em;
 }
 
+/* Invisible placeholder in empty UNSCHEDULED zone — gives SortableJS a drop target */
+.nb-cine-unscheduled-placeholder { height: 4px; min-height: 4px; border: none; background: transparent; cursor: default; padding: 0; }
+
 /* Cell classes */
 .nb-cine-dnie     { text-align: center; font-size: 0.85em; letter-spacing: 0.05em; }
 .nb-cine-id       { font-weight: bold; }
@@ -466,7 +469,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const row = document.createElement('div');
             row.className = `nb-cine-scene-row nb-cine-strip-${sc.int_ext + sc.day_night}`;
             row.innerHTML =
-                `<button class="nb-cine-link nb-cine-si-no" data-selector="${_esc(sc.selector)}">${_esc(sc.scene_no)}</button>` +
+                `<button class="nb-cine-link nb-cine-si-no" data-selector="${_esc(sc.selector)}">${_esc(sc.alias || sc.scene_no)}</button>` +
                 `<span class="nb-cine-si-ie">${_esc(sc.int_ext)}</span>` +
                 `<span class="nb-cine-si-dn">${_esc(sc.day_night)}</span>` +
                 locHtml +
@@ -1338,6 +1341,21 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             label:  'Insert shot reference (Ctrl+[)',
             action: _insertShotAction,
         }] : [],
+
+        sortOptions: [{
+            id:    'alias',
+            label: 'Alias',
+            sort:  notes => [...notes].sort((a, b) => {
+                const va = a.meta?.alias;
+                const vb = b.meta?.alias;
+                const na = Number(va), nb = Number(vb);
+                if (!isNaN(na) && !isNaN(nb)) return na - nb;
+                if (va == null && vb == null) return 0;
+                if (va == null) return 1;
+                if (vb == null) return -1;
+                return String(va).localeCompare(String(vb));
+            }),
+        }],
     });
 
 })();
