@@ -58,8 +58,15 @@
     font-weight: normal; letter-spacing: 0.1em;
 }
 
-/* Invisible placeholder in empty UNSCHEDULED zone — gives SortableJS a drop target */
-.nb-cine-unscheduled-placeholder { height: 4px; min-height: 4px; border: none; background: transparent; cursor: default; padding: 0; }
+/* Drop zone shown in UNSCHEDULED area when all shots are scheduled */
+.nb-cine-unscheduled-placeholder {
+    min-height: 44px; margin: 4px 6px; padding: 0 12px;
+    border: 1px dashed rgba(255,255,255,0.15); border-radius: 3px;
+    display: flex; align-items: center;
+    color: rgba(255,255,255,0.2); font-size: 0.75em; letter-spacing: 0.08em;
+    cursor: default; user-select: none;
+}
+.nb-cine-unscheduled-placeholder:hover { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.4); }
 
 /* Cell classes */
 .nb-cine-dnie     { text-align: center; font-size: 0.85em; letter-spacing: 0.05em; }
@@ -1403,11 +1410,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             uBrk.className = 'nb-cine-daybreak' + (hasUnscheduled ? '' : ' nb-cine-daybreak-empty');
             uBrk.innerHTML = '<span>UNSCHEDULED</span>';
             board.appendChild(uBrk);
-            // When zone is empty, insert a minimal placeholder so SortableJS has
-            // a drop target — otherwise there's no DOM element to land on.
+            // When zone is empty, insert a visible drop zone so SortableJS has
+            // a target — otherwise there's no DOM element to land on.
             if (!hasUnscheduled) {
                 const ph = document.createElement('div');
                 ph.className = 'nb-cine-unscheduled-placeholder';
+                ph.textContent = 'drag here to unschedule';
                 board.appendChild(ph);
             }
         }
