@@ -186,6 +186,8 @@ Bill walks in. The ceiling fan turns.
 
 `toolbar: true` pins a shortcut button to the nb-web toolbar for quick access.
 
+`lock:` (any truthy value) prevents the script from being edited in nb-web — the Edit button is replaced by an Unlock button. Useful for approved pages.
+
 ---
 
 ## The `cine` codeblock query language
@@ -214,8 +216,9 @@ field[.format] [: code, code, …] [| filter: value, filter: value, …]
 | `shots \| scene: 2` | All shots in scene 2 |
 | `shots \| day: ""` | Unscheduled shots (no day assigned yet) |
 | `shots.line \| day: 1` | Compact single-line list, explicit (same as default) |
-| `shots.strip` | Draggable stripboard — all days; drag to resequence |
+| `shots.strip` | Draggable stripboard — all days + UNSCHEDULED zone at top |
 | `shots.strip \| day: 1` | Draggable stripboard filtered to shoot day 1 |
+| `shots.strip \| day: ""` | Draggable view of unscheduled shots only |
 | `shots.sheet \| day: 1` | Call sheet rows — verbose text, print-friendly |
 | `scenes` | Scene index: all scenes with colour coding |
 | `scenes \| loc: LG` | Scenes at location LG only |
