@@ -124,6 +124,10 @@ lock:
 
 The three sub-block fields (`tech`, `art`, `cast`) are freeform YAML block scalars — write whatever lines make sense for your production. They render as a `<pre>` block in the frontmatter table and are preserved verbatim on drag/resequence.
 
+**`day: ""`** marks a shot as unscheduled — it appears in the UNSCHEDULED zone at the top of the master stripboard and is excluded from day-filtered queries.
+
+**`lock:`** with no value (or any truthy value: `lock: true`) pins a shot in place on the stripboard. Locked shots cannot be dragged; an attempt to drag them across a day break shows an alert and reverts. A locked shot in the UNSCHEDULED zone acts as a permanent drop-target anchor, ensuring the zone is always available regardless of the rest of the schedule.
+
 ### Actor file frontmatter
 
 ```yaml
@@ -273,6 +277,16 @@ Three-column table: code | name | field value. Any frontmatter field from actor,
 The stripboard uses [SortableJS](https://sortablejs.github.io/Sortable/) with `forceFallback: true`. Drag any strip to a new position; on drop the plugin walks the DOM to infer the new day and sequence order, then calls `/api/cine/resequence` to patch `day:` and `seq:` frontmatter in all affected files — one git commit for the whole operation.
 
 Day break headers are non-draggable dividers. Strips can be dragged across day breaks to move a shot to a different shoot day.
+
+### UNSCHEDULED zone
+
+The master board (`shots.strip` with no day filter) always shows an **UNSCHEDULED** header at the top. Shots with `day: ""` appear there. Drag any scheduled shot above the DAY 1 header to unschedule it — the backend writes `day: ""` back to the file. Drag an unscheduled shot down past a day header to schedule it.
+
+When all shots are scheduled the zone shows a faint *"drag here to unschedule"* drop target. For a permanent anchor — so the zone is always open — add a locked placeholder shot with `day: ""` and `lock: true`.
+
+### Lock
+
+Set `lock:` (or `lock: true`) in a shot's frontmatter to pin it in place. The drag handle is still visible, but any attempt to move the shot across a day break is blocked with an alert and the board reverts. Useful for confirmed shots that must not be accidentally rescheduled.
 
 ---
 
