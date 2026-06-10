@@ -215,7 +215,9 @@ field[.format] [: code, code, …] [| filter: value, filter: value, …]
 | `shots.sheet \| day: 1` | Call sheet rows — verbose text, print-friendly |
 | `scenes` | Scene index: all scenes with colour coding |
 | `scenes \| loc: LG` | Scenes at location LG only |
-| `storylines` | 2D storylines board — draggable story cards across named lanes |
+| `storylines` | 2D storylines board — small cards (title only), default size |
+| `storylines.small` | Same as `storylines` — compact cards, title only |
+| `storylines.large` | Board with large cards — title, scene chips, and metadata |
 | `actor.phone: JD, AM, CC` | Field lookup: phone numbers for listed actors |
 | `actor.character: JD, AM` | Field lookup: character names |
 | `actor.agent` | Field lookup: all actors, agent field |
@@ -249,7 +251,16 @@ Compact table: scene number, I/E, D/N, location code, synopsis. Colour-coded row
 
 ### Screenplay preview
 
-Opening a script file (`script/1.md`) in nb-web automatically renders it as a screenplay page: Courier font, Hollywood margins, slug line, action, character cues, dialogue, parentheticals. No codeblock needed — the plugin detects `scene_no:` frontmatter and takes over the preview renderer.
+Opening a script file (`script/1.md`) in nb-web automatically renders it as a screenplay page: Courier font, Hollywood margins, slug line, action, character cues, dialogue, parentheticals. No codeblock needed — the plugin detects `type: scene` (or legacy `scene_no:`) frontmatter and takes over the preview renderer.
+
+Two toggle buttons appear in the preview toolbar:
+
+| Button | Mode |
+|--------|------|
+| 🎬 | Screenplay view — formatted page with Hollywood margins |
+| 📝 | Raw markdown view — plain text with frontmatter table |
+
+The last-used mode is remembered per note via `localStorage`.
 
 ### Field lookup (`actor.phone`, `location.address`, …)
 
@@ -353,6 +364,29 @@ Scene references resolve against the `script/` folder. Resolved scenes appear as
 
 The "No story" row at the bottom of the board shows all scenes in `script/` that are not referenced by any story card. Use it to spot scenes that haven't been assigned a story context yet.
 
+### Card sizes
+
+The board has two display modes toggled by the **▦/▤** button in the block header:
+
+| Size | Content |
+|------|---------|
+| Small (default) | Title only — high density, good for arranging structure |
+| Large | Title + scene chips + all frontmatter fields — full detail view |
+
+The toggle state is persisted in `localStorage` per notebook. You can also set the default size in the query:
+
+```
+```cine
+storylines.large
+```
+```
+
+### Adding story cards inline
+
+Each lane has a **+** button on its right end. Click it to open an inline text field — type a title and press **Enter** to create the card immediately. The card is assigned the next available `seq` in the lane and the lane's `storyline:` stem is set automatically. Press **Escape** to cancel without creating.
+
+A global **+** in the block header creates an unassigned card (no `storyline:` set) — it appears in the "No story" row until dragged into a lane.
+
 ---
 
 ## Call sheet assembly
@@ -395,6 +429,7 @@ NbWeb-cine adds two endpoints to nb-web's Flask backend (`app.py`):
 | `/api/cine/data` | GET | All shots, scenes, actors, locations, resources, lanes, stories, orphan_scenes, config for a notebook |
 | `/api/cine/resequence` | POST | Batch-update `day:` and `seq:` frontmatter after a stripboard drag |
 | `/api/cine/story/resequence` | POST | Batch-update `storyline:` and `seq:` frontmatter after a storylines drag |
+| `/api/cine/story/create` | POST | Create a new story card — slugifies title, auto-assigns `seq`, updates `.index`, commits |
 
 Data is cached in the frontend for 30 seconds. The ↻ refresh button in each block header busts the cache.
 
