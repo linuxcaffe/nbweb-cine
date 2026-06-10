@@ -636,13 +636,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     function _renderScript(note) {
         const meta = note.meta || {};
-        if (meta.scene_no === undefined) return null;
+        if (meta.scene_no === undefined && note.type !== 'scene') return null;
 
         const ie  = String(meta.int_ext  || '').toUpperCase().startsWith('I') ? 'INT.' : 'EXT.';
         const dn  = String(meta.day_night|| '').toUpperCase().startsWith('D') ? 'DAY'  : 'NIGHT';
         const loc = String(meta.loc      || '').toUpperCase();
         const slug     = `${ie} ${loc} — ${dn}`;
-        const sceneTag = `SCENE ${meta.scene_no}`;
+        const sceneTag = `SCENE ${meta.scene_no ?? meta.alias ?? ''}`;
 
         const bodyHtml = _parseScriptBody(note.raw).map(c => {
             if (c.type === 'br')       return '';
@@ -1634,16 +1634,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 id:     'screenplay',
                 icon:   '🎬',
                 label:  'Screenplay format',
-                detect: note => note.meta?.scene_no != null,
+                detect: note => note.meta?.scene_no != null || note.type === 'scene',
                 render: note => _renderScript(note),
             },
             {
                 id:     'markdown',
                 icon:   '📝',
                 label:  'Markdown',
-                detect: note => note.meta?.scene_no != null,
+                detect: note => note.meta?.scene_no != null || note.type === 'scene',
                 render: note => {
-                    if (note.meta?.scene_no == null) return null;
+                    if (note.meta?.scene_no == null && note.type !== 'scene') return null;
                     const body = (note.body || '').trim();
                     if (typeof marked === 'undefined')
                         return `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
