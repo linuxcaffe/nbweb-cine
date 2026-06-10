@@ -1403,6 +1403,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             uBrk.className = 'nb-cine-daybreak' + (hasUnscheduled ? '' : ' nb-cine-daybreak-empty');
             uBrk.innerHTML = '<span>UNSCHEDULED</span>';
             board.appendChild(uBrk);
+            // When zone is empty, insert a minimal placeholder so SortableJS has
+            // a drop target — otherwise there's no DOM element to land on.
+            if (!hasUnscheduled) {
+                const ph = document.createElement('div');
+                ph.className = 'nb-cine-unscheduled-placeholder';
+                board.appendChild(ph);
+            }
         }
 
         let currentDay = null;  // null = UNSCHEDULED already rendered above
