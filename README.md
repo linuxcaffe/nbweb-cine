@@ -97,22 +97,32 @@ MyFilm/
 ---
 scene: 1
 shot: 1a
-type: scene          # scene | lunch | move
+type: shot           # shot | lunch | move
 day: 1               # shoot day number
 seq: 3               # position within the day (rewritten on drag)
 day_night: N         # D | N
 int_ext: I           # I | E
+loc: LG              # location code
 desc: |
   Bill walks in. Alice pretends to read.
   The ceiling fan turns.
-loc: LG              # location code
-cameras: A, B
-lens: wide
-platform: hh         # hh = handheld, sticks, crane, …
-actors: JD, AM
-resources: Extras, Food
+tech: |
+  camera: A-cam with 18mm, B-cam with 35mm
+  sound: wild traffic noise
+  lights: neon sign flicker for cu
+  grip: 10ft dolly
+art: |
+  props: chopsticks, whiskey
+  hair: Terry's bad plastered-down crisis look
+  wardrobe: cheap rumpled brown suit
+cast: |
+  actors: JD, AM, CC
+  extras: 9
+lock:
 ---
 ```
+
+The three sub-block fields (`tech`, `art`, `cast`) are freeform YAML block scalars — write whatever lines make sense for your production. They render as a `<pre>` block in the frontmatter table and are preserved verbatim on drag/resequence.
 
 ### Actor file frontmatter
 
