@@ -148,10 +148,13 @@ notes: city permit required
 
 ```yaml
 ---
-scene_no: 1
+type: scene
+alias: 1
 int_ext: I
 day_night: N
 loc: LG
+toolbar: true
+lock:
 ---
 
 INT. LEE GARDENS — NIGHT
@@ -161,6 +164,10 @@ Bill walks in. The ceiling fan turns.
                     BILL
           Where is everybody?
 ```
+
+`type: scene` registers the file as a scene note — it gets the 📜 icon, appears in `cine scenes`, and carries full `meta` in list responses. `alias:` is the scene number (see [Alias](#alias) below). `scene_no:` is the legacy field and still accepted.
+
+`toolbar: true` pins a shortcut button to the nb-web toolbar for quick access.
 
 ---
 
@@ -291,6 +298,33 @@ Data is cached in the frontend for 30 seconds. The ↻ refresh button in each bl
 ## Frontmatter display
 
 Any shot, scene, actor, or location note opened in nb-web shows its frontmatter fields as a clean label/value table above the note body — a core nb-web feature that kicks in whenever no special renderer has consumed the frontmatter. No configuration needed.
+
+---
+
+## Alias
+
+Any note can carry an `alias:` frontmatter field — a short, mutable label that is displayed in place of the filename wherever wikilinks render.
+
+```yaml
+---
+type: scene
+alias: 5
+---
+```
+
+**The problem it solves:** scene numbers change constantly during development. If links were stored as `[[5]]` and scene 5 becomes scene 7, every link breaks. With alias, the link is written against the stable filename:
+
+```markdown
+[[lg-establish]]        ← stored in the file, never changes
+```
+
+…and displayed as `5` (the alias). Renumber the scene by changing `alias: 5` to `alias: 7` — all links update automatically on next page load (display is session-cached; Ctrl+R refreshes).
+
+**Wikilink display priority:** `alias` → `title` → filename stem.
+
+**Sort by alias:** the Sort dropdown includes an **Alias** option when the cine module is active. Numeric aliases sort numerically; string aliases sort alphabetically; notes without an alias sort last.
+
+**Scene index:** the `Sc` column in `cine scenes` shows `alias` when set, falling back to `scene_no`. Scenes sort by `alias || scene_no`.
 
 ---
 
