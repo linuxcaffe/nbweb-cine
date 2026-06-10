@@ -1035,7 +1035,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // ── Storylines board ──────────────────────────────────────────────────────
 
-    function _buildStorylines(el, data, notebook, size = 'small') {
+    const _SL_SIZE_KEY = nb => `nb-cine-sl-size-${nb}`;
+
+    function _buildStorylines(el, data, notebook, defaultSize = 'small') {
+        // Persist size preference per notebook; query sets the default
+        const stored = localStorage.getItem(_SL_SIZE_KEY(notebook));
+        const size   = stored || defaultSize;
+
         const { lanes, stories, orphan_scenes, config } = data;
 
         el.innerHTML = '';
@@ -1043,10 +1049,23 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const hdr = document.createElement('div');
         hdr.className = 'nb-cine-header';
         hdr.innerHTML = `<span class="nb-cine-title">🧵 ${_esc(config?.project || 'Storylines')}</span>`;
+
         const refBtn = document.createElement('button');
         refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
         refBtn.addEventListener('click', () => { _bust(notebook); _loadCineBlock(el); });
         hdr.appendChild(refBtn);
+
+        const sizeBtn = document.createElement('button');
+        sizeBtn.className = 'nb-tw-btn nb-cine-size-btn';
+        sizeBtn.title = size === 'large' ? 'Switch to small cards' : 'Switch to large cards';
+        sizeBtn.textContent = size === 'large' ? '▤' : '▦';
+        sizeBtn.addEventListener('click', () => {
+            const next = size === 'large' ? 'small' : 'large';
+            localStorage.setItem(_SL_SIZE_KEY(notebook), next);
+            _loadCineBlock(el);
+        });
+        hdr.appendChild(sizeBtn);
+
         const addBtn = document.createElement('button');
         addBtn.className = 'nb-tw-btn nb-cine-add-btn'; addBtn.title = 'Add story (unassigned)'; addBtn.textContent = '+';
         addBtn.addEventListener('click', () => _showInlineStoryInput(board, null, notebook, el, size));
