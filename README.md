@@ -524,4 +524,4 @@ Working and in active use. The core loop — shoot → drag stripboard → print
 
 ## License
 
-MIT
+[AGPL v3](LICENSE) — software always free, your data always yours.
