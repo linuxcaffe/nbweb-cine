@@ -484,7 +484,7 @@ Working and in active use. The core loop — shoot → drag stripboard → print
 - [x] Storylines size variants (`small`/`large`) with toggle persistence
 - [x] Inline story card creation per lane
 - [x] Card body peek panel while dragging
-- [ ] Drag to unscheduled (stripboard → day: "")
+- [x] Drag to unscheduled (stripboard → day: "")
 - [ ] `nbweb:plugin?url=…` one-click install scheme
 - [ ] Print/export CSS for call sheets
 - [ ] `weather` query (wttr.in integration for call sheet header)
