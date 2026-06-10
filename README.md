@@ -243,7 +243,7 @@ All code cells are clickable links to the underlying note.
 
 ### Shot sheet (`shots.sheet`)
 
-Card layout, one card per shot. Shows full description text, full actor names with characters, location name, and a technical line (cameras · lens · platform). Designed to print clean in black and white — the Second AD's territory.
+Card layout, one card per shot. Shows full description text, full actor names with characters, location name, and the `tech:`, `art:`, and `cast:` sub-blocks. Designed to print clean in black and white — the Second AD's territory.
 
 ### Scene index (`scenes`)
 
@@ -288,9 +288,13 @@ storylines
 
 ### What it looks like
 
-Each **lane** is a horizontal row with a named label on the left. Story cards sit in slots across the lane. Drag any card to a new slot in the same lane, or drop it into a different lane entirely. On drop, `storyline:` and `seq:` are written back to the card files in a single git commit — the same pattern as the stripboard.
+Each **lane** is a horizontal row with a named label on the left. Story cards sit in a single scrollable row across the lane — lanes scroll horizontally, so a lane can hold as many cards as the story needs. Drag any card to a new slot in the same lane, or drop it into a different lane entirely. On drop, `storyline:` and `seq:` are written back to the card files in a single git commit — the same pattern as the stripboard.
 
 A **"No story"** row at the bottom shows any scenes not yet claimed by any story card. It is read-only — it exists to surface gaps in coverage.
+
+### Body peek while dragging
+
+When you begin dragging a card, the card's full note body renders as formatted markdown in a panel immediately below the board. This lets you read the card's details — character arcs, draft notes, whatever you've written there — while deciding where to place it. The peek panel closes automatically when you drop the card.
 
 ### Project structure
 
