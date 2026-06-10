@@ -1681,6 +1681,37 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         detect: notebooks => notebooks.filter(nb => nb.cine !== null && nb.cine !== undefined),
 
+        requirementCheck: async () => {
+            const cineNbs = NbWeb.notebooks().filter(nb => nb.cine != null);
+            if (cineNbs.length) return { ok: true };
+            return { ok: false, markdownFile: '/plugins/requirements/cine-requirements.md' };
+        },
+
+        pluginContent: el => {
+            const cineNbs = NbWeb.notebooks().filter(nb => nb.cine != null);
+            if (!cineNbs.length) return;
+            el.innerHTML = `
+                <div class="nb-plugin-section">
+                    <div class="nb-plugin-section-title">Active projects</div>
+                    ${cineNbs.map(nb => {
+                        const project = nb.cine?.project || nb.name;
+                        const aka     = nb.cine?.aka ? ` <span style="opacity:0.5;font-size:0.85em">aka ${_esc(nb.cine.aka)}</span>` : '';
+                        return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+                            <span>🎬</span>
+                            <strong>${_esc(project)}</strong>${aka}
+                            <button class="nb-tool-btn nb-cine-plug-link"
+                                data-nb="${_esc(nb.name)}"
+                                style="margin-left:auto">Shots</button>
+                            <button class="nb-tool-btn nb-cine-plug-link"
+                                data-nb="${_esc(nb.name)}" data-type="storyline">Storylines</button>
+                        </div>`;
+                    }).join('')}
+                </div>`;
+            el.querySelectorAll('.nb-cine-plug-link').forEach(btn => {
+                btn.addEventListener('click', () => NbNav.switchNotebook(btn.dataset.nb));
+            });
+        },
+
         previewRenderers: [
             {
                 id:     'screenplay',
@@ -1768,6 +1799,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             label:  'Insert shot reference (Ctrl+[)',
             action: _insertShotAction,
         }] : [],
+
+        listDefaults: { listType: 'shot', sortOrder: 'alias' },
 
         sortOptions: [{
             id:    'alias',
