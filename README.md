@@ -474,8 +474,17 @@ alias: 5
 
 ## Status
 
-Early but working. The core loop — shoot → drag stripboard → print call sheet — is functional. On the horizon:
+Working and in active use. The core loop — shoot → drag stripboard → print call sheet — is functional. The storylines board is live. On the horizon:
 
+- [x] Draggable stripboard with day/seq write-back
+- [x] Scene index with alias sort
+- [x] `alias:` field — stable wikilink identity, mutable display label
+- [x] Screenplay preview with 🎬/📝 renderer toggle
+- [x] Storylines board — lanes, draggable story cards, cross-lane drag
+- [x] Storylines size variants (`small`/`large`) with toggle persistence
+- [x] Inline story card creation per lane
+- [x] Card body peek panel while dragging
+- [ ] Drag to unscheduled (stripboard → day: "")
 - [ ] `nbweb:plugin?url=…` one-click install scheme
 - [ ] Print/export CSS for call sheets
 - [ ] `weather` query (wttr.in integration for call sheet header)
