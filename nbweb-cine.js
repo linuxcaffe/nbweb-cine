@@ -256,10 +256,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     word-break: break-word;
 }
 .nb-cine-lane-cards {
-    display: flex; flex-wrap: wrap; gap: 6px;
+    display: flex; flex-wrap: nowrap; gap: 6px;
     padding: 6px; flex: 1; min-height: 70px;
     align-content: flex-start;
+    overflow-x: auto;
 }
+.nb-cine-card-peek {
+    border-top: 1px solid var(--border, #444);
+    padding: 12px 20px; font-size: 0.9em;
+    background: var(--bg2, #1e2228);
+    max-height: 320px; overflow-y: auto;
+}
+.nb-cine-card-peek-title {
+    font-weight: bold; margin-bottom: 8px;
+    opacity: 0.6; font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.nb-cine-card-peek .nb-rendered { padding: 0; }
 .nb-cine-story-card {
     background: var(--bg2, #1e2228);
     border: 1px solid var(--border, #444);
@@ -1084,6 +1096,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         board.className = `nb-cine-storylines-board nb-cine-storylines-${size}`;
         el.appendChild(board);
 
+        const peek = document.createElement('div');
+        peek.className = 'nb-cine-card-peek';
+        peek.hidden = true;
+        el.appendChild(peek);
+
         // One row per lane, plus orphans row at bottom
         const allLanes = [...(lanes || [])];
         const hasOrphans = orphan_scenes?.length > 0;
@@ -1196,11 +1213,31 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             if (typeof Sortable !== 'undefined') {
                 sortables.push(Sortable.create(cardZone, {
-                    group:           'storylines',
-                    animation:       150,
-                    forceFallback:   true,
-                    fallbackOnBody:  true,
-                    onEnd(evt) { _onStoryDrop(el, board, notebook); },
+                    group:          'storylines',
+                    animation:      150,
+                    forceFallback:  true,
+                    fallbackOnBody: true,
+                    async onStart(evt) {
+                        const sel = evt.item?.dataset?.selector;
+                        if (!sel) return;
+                        peek.hidden = false;
+                        peek.innerHTML = '<div class="nb-cine-card-peek-title">…</div>';
+                        try {
+                            const r = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`);
+                            const d = await r.json();
+                            const body = d.body?.trim();
+                            const html = body
+                                ? (window.marked?.parse ? window.marked.parse(body) : `<pre>${_esc(body)}</pre>`)
+                                : '<em style="opacity:0.45">No body text.</em>';
+                            peek.innerHTML =
+                                `<div class="nb-cine-card-peek-title">${_esc(d.title || sel)}</div>` +
+                                `<div class="nb-rendered">${html}</div>`;
+                        } catch { peek.hidden = true; }
+                    },
+                    onEnd(evt) {
+                        peek.hidden = true;
+                        _onStoryDrop(el, board, notebook);
+                    },
                 }));
             }
         }
