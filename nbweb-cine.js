@@ -1078,12 +1078,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                         body:    JSON.stringify({ notebook, moves }),
                     });
                     const d = await r.json();
+                    _bust(notebook);
                     if (d.errors?.length) {
                         const names = d.errors.map(e => e.selector?.split('/').pop()?.replace('.md','') ?? e.selector).join(', ');
                         alert(`Resequence partial failure — ${d.errors.length} shot(s) not saved: ${names}`);
+                        _loadCineBlock(board.closest('.nb-cine-block'));
                     }
-                    _bust(notebook);
-                    _loadCineBlock(board.closest('.nb-cine-block'));
                 } catch (e) {
                     console.error('NbWeb-cine resequence failed:', e);
                     alert('Resequence failed — order not saved. Check console for details.');
