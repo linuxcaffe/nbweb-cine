@@ -371,8 +371,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             ? `<button class="nb-cine-link nb-cine-loc" data-selector="${_esc(locSel)}" title="${_esc(locTitle)}">${_esc(shot.loc)}</button>`
             : `<span class="nb-cine-loc" title="${_esc(locTitle)}">${_esc(shot.loc)}</span>`;
 
-        // Combined scene-shot ID "1-1a" → links to shot note; tooltip shows scene link path
-        const shotId   = shot.scene && shot.shot ? `${shot.scene}-${shot.shot}` : (shot.shot || shot.filename);
+        // Combined scene-shot ID "1.1a" → links to shot note; tooltip shows scene link path
+        const shotId   = shot.scene && shot.shot ? `${shot.scene}.${shot.shot}` : (shot.shot || shot.filename);
         const idHtml   = `<button class="nb-cine-link nb-cine-id" data-selector="${_esc(shot.selector)}" title="Sc.${_esc(String(shot.scene))} / ${_esc(shot.shot)}">${_esc(shotId)}</button>`;
 
         // Actor codes — tooltip shows name (character)
@@ -798,7 +798,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             `<span class="nb-cine-sf-val">${_esc(fieldLabel)}</span></div>`);
 
         for (const { shot, val } of rows) {
-            const shotId = `${shot.scene}-${shot.shot}`;
+            const shotId = `${shot.scene}.${shot.shot}`;
             const text   = _fmtSubValue(val);
             const row    = document.createElement('div');
             row.className = 'nb-cine-sf-row';
@@ -1304,7 +1304,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const scene = String(note.meta.scene ?? '');
             const shot  = String(note.meta.shot  ?? '');
             const desc  = String(note.meta.desc  ?? '').trim().replace(/\s+/g, ' ');
-            const id    = scene ? `${scene}-${shot}` : shot;
+            const id    = scene ? `${scene}.${shot}` : shot;
             return desc ? `${id} — ${desc}` : (id || null);
         },
 
