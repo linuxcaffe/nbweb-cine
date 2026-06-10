@@ -1299,6 +1299,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 #nb-preview-content.nb-extras-hidden .nb-cine-shot-cue { display: none; }
 `,
 
+        listTitle: note => {
+            if (note.type !== 'shot' || !note.meta) return null;
+            const scene = String(note.meta.scene ?? '');
+            const shot  = String(note.meta.shot  ?? '');
+            const desc  = String(note.meta.desc  ?? '').trim().replace(/\s+/g, ' ');
+            const id    = scene ? `${scene}-${shot}` : shot;
+            return desc ? `${id} — ${desc}` : (id || null);
+        },
+
         editorKeybindings: note => note.meta?.scene_no != null ? [{
             key:    '[',
             ctrl:   true,
