@@ -2,6 +2,18 @@
 
 A film production scheduling plugin for [nb-web](https://github.com/linuxcaffe/nb-web).
 
+---
+
+Traditional film production software — Movie Magic, StudioBinder, Celtx — locks your schedule, your script, and your call sheets inside proprietary formats and subscription paywalls. When the project wraps, the data is stranded. When the tool changes its pricing, you're held hostage.
+
+NbWeb-cine takes the opposite position: **your production data is just files**. A shot is a Markdown file with YAML frontmatter. A scene is a Markdown file. Actor contacts, location notes, story cards — all plain text, readable in any editor, version-controlled by git, searchable from the command line, editable on any device without an internet connection. The production lives in a folder. You own it completely.
+
+The plugin is a set of lenses on that folder. The same shot file that appears as a draggable strip on the stripboard appears as a verbose card on the call sheet and as a row in the scene index — the data doesn't change, only the query does. Renumber a scene by changing one field; every reference updates automatically. Restructure your entire shooting order by dragging strips; the git history records every decision. Lock a shot when it's confirmed; the board enforces it.
+
+This is what becomes possible when infrastructure is separated from domain. [nb](https://github.com/xwmx/nb) solved the hard problems — notebook management, git sync, full-text search, cross-linking. [nb-web](https://github.com/linuxcaffe/nb-web) solved the rendering layer. NbWeb-cine just says: here are the fields a film production cares about, here are the views that make them useful. The result is a production scheduling tool that fits in a git repository, costs nothing to run, and will still open its files in twenty years.
+
+---
+
 NbWeb-cine brings the **stripboard** — the traditional paper scheduling tool of the film industry — into your nb notebook. Shot files, scene files, actor contacts, and location notes all live as plain Markdown with YAML frontmatter. The plugin renders them as interactive production documents: draggable stripboards, verbose call sheet rows, scene indexes, screenplay pages, and field-lookup tables for cast and locations.
 
 ---
