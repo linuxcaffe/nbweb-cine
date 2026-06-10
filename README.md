@@ -66,8 +66,11 @@ MyFilm/
 │   ├── lunch_dy1.md       ← special strip (type: lunch)
 │   └── …
 ├── script/
-│   ├── 1.md               ← scene 1 screenplay text
-│   └── 2.md
+│   ├── lg-establish.md    ← scene file (type: scene, alias: 1)
+│   └── wh-showdown.md
+├── storylines/
+│   ├── main-plot.md       ← lane definition (type: storyline)
+│   └── subplot-a.md       ← story card (type: story)
 ├── actors/
 │   ├── jim_dandy.md
 │   └── …
@@ -202,6 +205,7 @@ field[.format] [: code, code, …] [| filter: value, filter: value, …]
 | `shots.sheet \| day: 1` | Call sheet rows — verbose text, print-friendly |
 | `scenes` | Scene index: all scenes with colour coding |
 | `scenes \| loc: LG` | Scenes at location LG only |
+| `storylines` | 2D storylines board — draggable story cards across named lanes |
 | `actor.phone: JD, AM, CC` | Field lookup: phone numbers for listed actors |
 | `actor.character: JD, AM` | Field lookup: character names |
 | `actor.agent` | Field lookup: all actors, agent field |
@@ -251,6 +255,96 @@ Day break headers are non-draggable dividers. Strips can be dragged across day b
 
 ---
 
+## Storylines
+
+The storylines board is a 2D conceptual overview — a 1000-ft view of story structure before committing to a scene order. It sits alongside the stripboard, not above or below it: the stripboard is production logistics, storylines is story development.
+
+```
+```cine
+storylines
+```
+```
+
+### What it looks like
+
+Each **lane** is a horizontal row with a named label on the left. Story cards sit in slots across the lane. Drag any card to a new slot in the same lane, or drop it into a different lane entirely. On drop, `storyline:` and `seq:` are written back to the card files in a single git commit — the same pattern as the stripboard.
+
+A **"No story"** row at the bottom shows any scenes not yet claimed by any story card. It is read-only — it exists to surface gaps in coverage.
+
+### Project structure
+
+Both storyline and story notes live in the `storylines/` folder:
+
+```
+MyFilm/
+└── storylines/
+    ├── main-plot.md        ← type: storyline (lane)
+    ├── subplot-a.md        ← type: storyline (lane)
+    ├── they-lose-the-car.md ← type: story (card)
+    ├── sam-realizes.md     ← type: story (card)
+    └── things-go-bad.md    ← type: story (card)
+```
+
+### Storyline (lane) frontmatter
+
+```yaml
+---
+type: storyline
+title: Main Plot
+color: steelblue
+seq: 1
+---
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | yes | Must be `storyline` |
+| `title` | yes | Lane label shown on the left |
+| `color` | no | Any CSS color — tints the lane label and card borders |
+| `seq` | no | Lane order top-to-bottom (lower = higher) |
+
+### Story card frontmatter
+
+```yaml
+---
+type: story
+title: They lose the car
+storyline: main-plot
+seq: 3
+scenes: 5, 7
+characters: JD, AM
+---
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | yes | Must be `story` |
+| `title` | yes | Card label |
+| `storyline` | yes | Filename stem of the target `storyline` note |
+| `seq` | yes | Slot position within the lane (rewritten on drag) |
+| `scenes` | no | Comma-separated scene references (see below) |
+| `characters` | no | Freeform — any extra metadata is preserved |
+
+Story cards are open-ended: add any frontmatter fields you need — character arcs, emotional beats, draft notes. NbWeb-cine passes arbitrary metadata through and displays it in the standard frontmatter table when you open the card.
+
+### Scene references
+
+The `scenes:` field lists scenes that belong to this story beat, conceptually. It accepts scene aliases, `scene_no` values, or filename stems interchangeably:
+
+```yaml
+scenes: 5, 7        # by alias
+scenes: lg-establish, wh-showdown   # by filename stem
+scenes: 5, lg-establish, 12         # mixed — all work
+```
+
+Scene references resolve against the `script/` folder. Resolved scenes appear as clickable chips on the card. Unresolved references (typos, deleted scenes) appear greyed-out. **Scene files themselves are never modified** — the relationship is owned entirely by the story card.
+
+### Coverage and orphans
+
+The "No story" row at the bottom of the board shows all scenes in `script/` that are not referenced by any story card. Use it to spot scenes that haven't been assigned a story context yet.
+
+---
+
 ## Call sheet assembly
 
 A call sheet is just a regular nb Markdown note with several `cine` blocks on the page:
@@ -288,8 +382,9 @@ NbWeb-cine adds two endpoints to nb-web's Flask backend (`app.py`):
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/cine/data` | GET | All shots, scenes, actors, locations, resources, config for a notebook |
-| `/api/cine/resequence` | POST | Batch-update `day:` and `seq:` frontmatter after a drag operation |
+| `/api/cine/data` | GET | All shots, scenes, actors, locations, resources, lanes, stories, orphan_scenes, config for a notebook |
+| `/api/cine/resequence` | POST | Batch-update `day:` and `seq:` frontmatter after a stripboard drag |
+| `/api/cine/story/resequence` | POST | Batch-update `storyline:` and `seq:` frontmatter after a storylines drag |
 
 Data is cached in the frontend for 30 seconds. The ↻ refresh button in each block header busts the cache.
 

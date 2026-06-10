@@ -236,6 +236,57 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-strip:not(.nb-cine-colheader):active { cursor: grabbing; }
 .nb-cine-ghost  { opacity: 0.35; outline: 2px dashed #888; }
 .nb-cine-chosen { box-shadow: 0 3px 12px rgba(0,0,0,0.35); z-index: 10; position: relative; }
+
+/* ── Storylines board ───────────────────────────────────────────────────── */
+.nb-cine-storylines-board {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 4px 0;
+}
+.nb-cine-storyline-row {
+    display: flex; align-items: flex-start; gap: 0;
+    border-bottom: 1px solid var(--border, #444);
+    min-height: 80px;
+}
+.nb-cine-lane-label {
+    flex: 0 0 9em; padding: 6px 8px;
+    font-size: 0.8em; font-weight: bold; opacity: 0.85;
+    border-right: 2px solid var(--lane-color, #666);
+    background: color-mix(in srgb, var(--lane-color, #444) 15%, var(--bg, #16191e));
+    align-self: stretch; display: flex; align-items: center;
+    word-break: break-word;
+}
+.nb-cine-lane-cards {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 6px; flex: 1; min-height: 70px;
+    align-content: flex-start;
+}
+.nb-cine-story-card {
+    background: var(--bg2, #1e2228);
+    border: 1px solid var(--border, #444);
+    border-left: 3px solid var(--lane-color, #666);
+    border-radius: 4px; padding: 5px 8px;
+    min-width: 8em; max-width: 14em;
+    cursor: grab; user-select: none;
+    font-size: 0.82em;
+}
+.nb-cine-story-card:active { cursor: grabbing; }
+.nb-cine-story-title { font-weight: bold; margin-bottom: 3px; }
+.nb-cine-story-scenes {
+    display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px;
+}
+.nb-cine-scene-chip {
+    background: rgba(255,255,255,0.08); border-radius: 3px;
+    padding: 1px 5px; font-size: 0.85em;
+}
+.nb-cine-scene-unresolved { opacity: 0.5; font-style: italic; }
+.nb-cine-orphan-row .nb-cine-lane-label {
+    border-right-color: #555; opacity: 0.5;
+    background: transparent;
+}
+.nb-cine-orphan-scene {
+    opacity: 0.6; cursor: default; border-left-color: #555;
+    border-style: dashed;
+}
 `;
 
     if (!document.getElementById('nb-cine-styles')) {
@@ -886,6 +937,174 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         );
     }
 
+    // ── Storylines board ──────────────────────────────────────────────────────
+
+    function _buildStorylines(el, data, notebook) {
+        const { lanes, stories, orphan_scenes, config } = data;
+
+        el.innerHTML = '';
+
+        const hdr = document.createElement('div');
+        hdr.className = 'nb-cine-header';
+        hdr.innerHTML = `<span class="nb-cine-title">🧵 ${_esc(config?.project || 'Storylines')}</span>`;
+        const refBtn = document.createElement('button');
+        refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
+        refBtn.addEventListener('click', () => { _bust(notebook); _loadCineBlock(el); });
+        hdr.appendChild(refBtn);
+        el.appendChild(hdr);
+
+        const board = document.createElement('div');
+        board.className = 'nb-cine-storylines-board';
+        el.appendChild(board);
+
+        // One row per lane, plus orphans row at bottom
+        const allLanes = [...(lanes || [])];
+        const hasOrphans = orphan_scenes?.length > 0;
+
+        if (!allLanes.length && !hasOrphans) {
+            board.innerHTML = '<div class="nb-cine-empty">No storylines found — add type:storyline notes to storylines/</div>';
+            return;
+        }
+
+        // Map lane stem → lane object for card placement
+        const laneMap = new Map(allLanes.map(l => [l.stem, l]));
+
+        // Group story cards by lane stem
+        const cardsByLane = new Map();
+        allLanes.forEach(l => cardsByLane.set(l.stem, []));
+        for (const story of (stories || [])) {
+            const key = story.storyline || '';
+            if (!cardsByLane.has(key)) cardsByLane.set(key, []);
+            cardsByLane.get(key).push(story);
+        }
+        // Sort each lane's cards by seq
+        for (const [, cards] of cardsByLane) {
+            cards.sort((a, b) => a.seq - b.seq);
+        }
+
+        function _buildCard(story) {
+            const card = document.createElement('div');
+            card.className = 'nb-cine-story-card';
+            card.dataset.selector = story.selector;
+            card.dataset.storyline = story.storyline || '';
+            card.dataset.seq = story.seq ?? 999;
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'nb-cine-story-title';
+            titleEl.textContent = story.title;
+            card.appendChild(titleEl);
+
+            if (story.scenes?.length) {
+                const scenesEl = document.createElement('div');
+                scenesEl.className = 'nb-cine-story-scenes';
+                scenesEl.innerHTML = story.scenes.map(ref => {
+                    if (ref.selector) {
+                        return `<button class="nb-cine-link nb-cine-scene-chip"
+                            data-selector="${_esc(ref.selector)}">${_esc(ref.ref)}</button>`;
+                    }
+                    return `<span class="nb-cine-scene-chip nb-cine-scene-unresolved">${_esc(ref.ref)}</span>`;
+                }).join('');
+                card.appendChild(scenesEl);
+            }
+
+            card.addEventListener('click', e => {
+                if (e.target.closest('.nb-cine-link')) return;
+                NbMain.openNote(story.selector);
+            });
+            return card;
+        }
+
+        function _buildLaneRow(laneTitle, laneStem, cards, extra = '') {
+            const row = document.createElement('div');
+            row.className = 'nb-cine-storyline-row' + (extra ? ' ' + extra : '');
+            row.dataset.lane = laneStem;
+
+            const label = document.createElement('div');
+            label.className = 'nb-cine-lane-label';
+            label.textContent = laneTitle;
+            row.appendChild(label);
+
+            const cardZone = document.createElement('div');
+            cardZone.className = 'nb-cine-lane-cards';
+            cards.forEach(story => cardZone.appendChild(_buildCard(story)));
+            row.appendChild(cardZone);
+
+            return { row, cardZone };
+        }
+
+        const sortables = [];
+
+        for (const lane of allLanes) {
+            const cards = cardsByLane.get(lane.stem) || [];
+            const { row, cardZone } = _buildLaneRow(lane.title, lane.stem, cards);
+            if (lane.color) row.style.setProperty('--lane-color', lane.color);
+            board.appendChild(row);
+
+            if (typeof Sortable !== 'undefined') {
+                sortables.push(Sortable.create(cardZone, {
+                    group:           'storylines',
+                    animation:       150,
+                    forceFallback:   true,
+                    fallbackOnBody:  true,
+                    onEnd(evt) { _onStoryDrop(el, board, notebook); },
+                }));
+            }
+        }
+
+        // Orphans row — read-only, shows scenes not in any story
+        if (hasOrphans) {
+            const orphanCards = (orphan_scenes || []).map(sc => {
+                const chip = document.createElement('div');
+                chip.className = 'nb-cine-story-card nb-cine-orphan-scene';
+                chip.dataset.selector = sc.selector;
+                const lbl = sc.alias || sc.scene_no || sc.selector.split('/').pop();
+                chip.innerHTML = `<div class="nb-cine-story-title">${_esc(lbl)}</div>`;
+                if (sc.synopsis) {
+                    chip.innerHTML += `<div class="nb-cine-story-scenes">${_esc(sc.synopsis.slice(0, 60))}</div>`;
+                }
+                chip.addEventListener('click', () => NbMain.openNote(sc.selector));
+                return chip;
+            });
+            const { row } = _buildLaneRow('No story', '__orphans__', orphanCards, 'nb-cine-orphan-row');
+            board.appendChild(row);
+        }
+    }
+
+    async function _onStoryDrop(el, board, notebook) {
+        const moves = [];
+        board.querySelectorAll('.nb-cine-storyline-row:not(.nb-cine-orphan-row)').forEach(row => {
+            const laneStem = row.dataset.lane;
+            row.querySelectorAll('.nb-cine-story-card').forEach((card, i) => {
+                moves.push({
+                    selector:  card.dataset.selector,
+                    storyline: laneStem,
+                    seq:       i + 1,
+                });
+            });
+        });
+
+        if (!moves.length) return;
+
+        try {
+            const r = await fetch('/api/cine/story/resequence', {
+                method:  'POST',
+                headers: {'Content-Type': 'application/json'},
+                body:    JSON.stringify({ notebook, moves }),
+            });
+            const d = await r.json();
+            if (d.errors?.length) {
+                alert(`Resequence partial failure — ${d.errors.length} card(s) not saved:\n` +
+                    d.errors.map(e => `${e.selector}: ${e.error}`).join('\n'));
+                _bust(notebook);
+                _loadCineBlock(el);
+            }
+        } catch(e) {
+            alert('Resequence error: ' + e.message);
+            _bust(notebook);
+            _loadCineBlock(el);
+        }
+    }
+
     // ── Block loader ──────────────────────────────────────────────────────────
 
     async function _loadCineBlock(el) {
@@ -925,6 +1144,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             }
         } else if (field === 'scenes') {
             _buildSceneIndex(el, data, filter);
+        } else if (field === 'storylines') {
+            _buildStorylines(el, data, notebook);
         } else if (format && ['actor','location','resource'].includes(field)) {
             _buildFieldLookup(el, data, field, format, codes);
         } else {
