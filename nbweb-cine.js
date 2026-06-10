@@ -288,6 +288,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     border-style: dashed;
 }
 
+/* Header button group — flush right */
+.nb-cine-hdr-btns { display: flex; gap: 2px; margin-left: auto; }
+
 /* Lane + button */
 .nb-cine-lane-label { position: relative; }
 .nb-cine-lane-add {
@@ -1050,13 +1053,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         hdr.className = 'nb-cine-header';
         hdr.innerHTML = `<span class="nb-cine-title">🧵 ${_esc(config?.project || 'Storylines')}</span>`;
 
-        const refBtn = document.createElement('button');
-        refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
-        refBtn.addEventListener('click', () => { _bust(notebook); _loadCineBlock(el); });
-        hdr.appendChild(refBtn);
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'nb-cine-hdr-btns';
+
+        const addBtn = document.createElement('button');
+        addBtn.className = 'nb-tw-btn'; addBtn.title = 'Add story (unassigned)'; addBtn.textContent = '+';
+        addBtn.addEventListener('click', () => _showInlineStoryInput(board, null, notebook, el, size));
+        btnGroup.appendChild(addBtn);
 
         const sizeBtn = document.createElement('button');
-        sizeBtn.className = 'nb-tw-btn nb-cine-size-btn';
+        sizeBtn.className = 'nb-tw-btn';
         sizeBtn.title = size === 'large' ? 'Switch to small cards' : 'Switch to large cards';
         sizeBtn.textContent = size === 'large' ? '▤' : '▦';
         sizeBtn.addEventListener('click', () => {
@@ -1064,12 +1070,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             localStorage.setItem(_SL_SIZE_KEY(notebook), next);
             _loadCineBlock(el);
         });
-        hdr.appendChild(sizeBtn);
+        btnGroup.appendChild(sizeBtn);
 
-        const addBtn = document.createElement('button');
-        addBtn.className = 'nb-tw-btn nb-cine-add-btn'; addBtn.title = 'Add story (unassigned)'; addBtn.textContent = '+';
-        addBtn.addEventListener('click', () => _showInlineStoryInput(board, null, notebook, el, size));
-        hdr.appendChild(addBtn);
+        const refBtn = document.createElement('button');
+        refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
+        refBtn.addEventListener('click', () => { _bust(notebook); _loadCineBlock(el); });
+        btnGroup.appendChild(refBtn);
+
+        hdr.appendChild(btnGroup);
         el.appendChild(hdr);
 
         const board = document.createElement('div');
@@ -1113,7 +1121,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             titleEl.textContent = story.title;
             card.appendChild(titleEl);
 
-            if (story.scenes?.length) {
+            if (cardSize === 'large' && story.scenes?.length) {
                 const scenesEl = document.createElement('div');
                 scenesEl.className = 'nb-cine-story-scenes';
                 scenesEl.innerHTML = story.scenes.map(ref => {
