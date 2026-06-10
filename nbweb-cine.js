@@ -52,6 +52,11 @@
     font-size: 0.8em; padding: 4px 8px;
     border-bottom: 2px solid #444;
 }
+.nb-cine-daybreak-empty {
+    background: transparent; color: #888;
+    border-bottom: 1px dashed #555;
+    font-weight: normal; letter-spacing: 0.1em;
+}
 
 /* Cell classes */
 .nb-cine-dnie     { text-align: center; font-size: 0.85em; letter-spacing: 0.05em; }
@@ -975,16 +980,26 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             `</div>`
         );
 
-        let currentDay = undefined;
+        // Always render UNSCHEDULED zone at top as a persistent drop target.
+        // Faded when empty so it's unobtrusive; shots dragged above DAY 1 land here.
+        if (filter.day === undefined) {
+            const hasUnscheduled = filtered.some(s => s.day == null || s.day === '');
+            const uBrk = document.createElement('div');
+            uBrk.className = 'nb-cine-daybreak' + (hasUnscheduled ? '' : ' nb-cine-daybreak-empty');
+            uBrk.innerHTML = '<span>UNSCHEDULED</span>';
+            board.appendChild(uBrk);
+        }
+
+        let currentDay = null;  // null = UNSCHEDULED already rendered above
         for (const shot of filtered) {
-            // Day break between days (master board and unfiltered views)
+            // Day break on day transitions (master board only; skip null → already rendered)
             if (filter.day === undefined) {
                 const thisDay = shot.day ?? null;
-                if (thisDay !== currentDay) {
+                if (thisDay !== null && thisDay !== currentDay) {
                     currentDay = thisDay;
                     const brk = document.createElement('div');
                     brk.className = 'nb-cine-daybreak';
-                    brk.innerHTML = `<span>${thisDay != null ? 'DAY&nbsp;' + _esc(String(thisDay)) : 'UNSCHEDULED'}</span>`;
+                    brk.innerHTML = `<span>DAY&nbsp;${_esc(String(thisDay))}</span>`;
                     board.appendChild(brk);
                 }
             }
