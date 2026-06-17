@@ -511,7 +511,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
              + `data-selector="${_esc(selector)}">${_esc(text)}</button>`;
     }
 
-    function _buildStrip(shot, actors, locations, notebook) {
+    function _buildStrip(shot, characters, cast, locations, notebook) {
         const div = document.createElement('div');
         div.className = `nb-cine-strip nb-cine-strip-${_colorClass(shot)}`;
         div.dataset.selector = shot.selector;
@@ -543,16 +543,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const shotId   = shot.scene && shortId ? `${shot.scene}.${shortId}` : shortId;
         const idHtml   = `<button class="nb-cine-link nb-cine-id" data-selector="${_esc(shot.selector)}" title="${_esc(shot.title || shotId)}">${_esc(shotId)}</button>`;
 
-        // Actor codes — tooltip shows name (character)
+        // CHARACTER codes → resolve via characters/ → cast/ for display alias + tooltip
         const actorsHtml = (shot.actors || []).map(code => {
-            const entry = actors[code];
-            const sel   = entry?.selector;
-            const name  = entry?.meta?.name || code;
-            const char  = entry?.meta?.character || '';
-            const tip   = char ? `${name} (${char})` : name;
+            const charEntry  = characters[code];
+            const actorStem  = charEntry?.meta?.alias;
+            const actorEntry = cast[actorStem];
+            const display    = actorEntry?.meta?.alias || actorStem || code;
+            const actorName  = actorEntry?.meta?.title || actorStem || code;
+            const charTitle  = charEntry?.meta?.title  || code;
+            const tip        = actorEntry ? `${actorName} as ${charTitle}` : charTitle;
+            const sel        = actorEntry?.selector || charEntry?.selector;
             return sel
-                ? `<button class="nb-cine-link nb-cine-actor" data-selector="${_esc(sel)}" title="${_esc(tip)}">${_esc(code)}</button>`
-                : `<span class="nb-cine-actor" title="${_esc(tip)}">${_esc(code)}</span>`;
+                ? `<button class="nb-cine-link nb-cine-actor" data-selector="${_esc(sel)}" title="${_esc(tip)}">${_esc(display)}</button>`
+                : `<span class="nb-cine-actor" title="${_esc(tip)}">${_esc(display)}</span>`;
         }).join('');
 
         // Resource count — handles block-scalar dict, YAML list, or legacy CSV array
@@ -722,7 +725,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Shot sheet renderer (shots.sheet) ────────────────────────────────────
 
     function _buildShotSheet(el, data, filter, notebook) {
-        const { shots, actors, locations, config } = data;
+        const { shots, characters, cast, locations, config } = data;
 
         let filtered = shots;
         if (filter.day !== undefined) {
@@ -776,11 +779,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const slug = `${ie} ${_esc(shot.loc)} — ${dn}`;
 
             const actorLines = (shot.actors || []).map(code => {
-                const a    = actors[code];
-                const name = a?.meta?.name || code;
-                const char = a?.meta?.character || '';
-                const sel  = a?.selector;
-                const label = char ? `${name} (${char})` : name;
+                const charEntry  = characters[code];
+                const actorStem  = charEntry?.meta?.alias;
+                const actorEntry = cast[actorStem];
+                const actorName  = actorEntry?.meta?.title || actorStem || code;
+                const charTitle  = charEntry?.meta?.title  || code;
+                const label      = actorEntry ? `${actorName} as ${charTitle}` : charTitle;
+                const sel        = actorEntry?.selector || charEntry?.selector;
                 return sel
                     ? `<button class="nb-cine-link" data-selector="${_esc(sel)}">${_esc(label)}</button>`
                     : _esc(label);
@@ -988,7 +993,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Shot line renderer (shots.line) ──────────────────────────────────────
 
     function _buildShotLine(el, data, filter, notebook) {
-        const { shots, actors, locations, config } = data;
+        const { shots, characters, cast, locations, config } = data;
         const filtered = _filterShots(shots, filter);
 
         el.innerHTML = '';
@@ -1033,7 +1038,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 }
             }
             if (shot.type === 'lunch' || shot.type === 'move') continue; // skip special strips in line view
-            board.appendChild(_buildStrip(shot, actors, locations, notebook));
+            board.appendChild(_buildStrip(shot, characters, cast, locations, notebook));
         }
 
         el.appendChild(board);
@@ -1401,7 +1406,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     function _buildStripboard(el, data, filter, notebook) {
-        const { shots, actors, locations, config } = data;
+        const { shots, characters, cast, locations, config } = data;
         const filtered = _filterShots(shots, filter);
 
         el.innerHTML = '';
@@ -1473,7 +1478,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     board.appendChild(brk);
                 }
             }
-            board.appendChild(_buildStrip(shot, actors, locations, notebook));
+            board.appendChild(_buildStrip(shot, characters, cast, locations, notebook));
         }
 
         el.appendChild(board);
