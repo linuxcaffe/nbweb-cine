@@ -1582,22 +1582,26 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Insert Shot keybinding (Ctrl+[) ──────────────────────────────────────────
 
     function _nextShotId(raw, sceneNo) {
-        const pat = new RegExp(`\\[\\[${sceneNo}([a-z])\\]\\]`, 'g');
+        // Match alias suffix inside any wikilink — handles both [[4b]] and [[WH-van-arrive-4b]]
+        const pat = new RegExp(`\\[\\[[^\\]]*${sceneNo}([a-z])(?:[^\\]]*)\\]\\]`, 'g');
         const letters = [...raw.matchAll(pat)].map(m => m[1]).sort();
         const last = letters.length ? letters[letters.length - 1] : null;
         return last ? `${sceneNo}${String.fromCharCode(last.charCodeAt(0) + 1)}` : `${sceneNo}a`;
     }
 
-    function _showInsertShotOverlay(suggested, onConfirm, onCancel) {
+    function _showInsertShotOverlay(suggested, locHint, onConfirm, onCancel) {
+        const suggestedFile = locHint ? `${locHint}-${suggested}` : suggested;
         const overlay = document.createElement('div');
         overlay.className = 'nb-cine-insert-overlay';
         overlay.innerHTML = `
             <div class="nb-cine-insert-card">
                 <h4>INSERT SHOT</h4>
-                <label>Shot ID</label>
+                <label>Alias <span style="font-weight:normal;opacity:.6">(stripboard code)</span></label>
                 <input id="nb-cine-shot-id" type="text" value="${_esc(suggested)}" autocomplete="off" spellcheck="false">
-                <label>Description</label>
-                <textarea id="nb-cine-shot-desc" rows="2" placeholder="Brief shot description…"></textarea>
+                <label>Filename <span style="font-weight:normal;opacity:.6">(stable link target)</span></label>
+                <input id="nb-cine-shot-file" type="text" value="${_esc(suggestedFile)}" autocomplete="off" spellcheck="false">
+                <label>Title</label>
+                <input id="nb-cine-shot-title" type="text" placeholder="Brief descriptive title…" autocomplete="off">
                 <label>Actors (comma-separated)</label>
                 <input id="nb-cine-shot-actors" type="text" placeholder="e.g. JD, TM">
                 <div class="nb-cine-insert-btns">
@@ -1608,20 +1612,29 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         document.body.appendChild(overlay);
 
         const idInput    = overlay.querySelector('#nb-cine-shot-id');
-        const descInput  = overlay.querySelector('#nb-cine-shot-desc');
+        const fileInput  = overlay.querySelector('#nb-cine-shot-file');
+        const titleInput = overlay.querySelector('#nb-cine-shot-title');
         const actInput   = overlay.querySelector('#nb-cine-shot-actors');
         const okBtn      = overlay.querySelector('#nb-cine-insert-ok');
         const cancelBtn  = overlay.querySelector('#nb-cine-insert-cancel');
 
-        // Select all in ID field so user can type directly
+        // When alias changes, keep filename in sync unless user has edited it manually
+        let fileEdited = false;
+        fileInput.addEventListener('input', () => { fileEdited = true; });
+        idInput.addEventListener('input', () => {
+            if (!fileEdited) fileInput.value = locHint ? `${locHint}-${idInput.value.trim()}` : idInput.value.trim();
+        });
+
+        // Select all in alias field so user can type directly
         idInput.focus();
         idInput.select();
 
         const confirm = () => {
-            const shotId = idInput.value.trim();
-            if (!shotId) { idInput.focus(); return; }
+            const alias    = idInput.value.trim();
+            const filename = fileInput.value.trim();
+            if (!alias) { idInput.focus(); return; }
             overlay.remove();
-            onConfirm({ shotId, desc: descInput.value.trim(), actors: actInput.value.trim() });
+            onConfirm({ alias, filename: filename || alias, title: titleInput.value.trim(), actors: actInput.value.trim() });
         };
         const cancel = () => { overlay.remove(); onCancel(); };
 
@@ -1633,7 +1646,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         });
     }
 
-    async function _createShotFromTemplate(notebook, sceneMeta, shotId, desc, actors) {
+    async function _createShotFromTemplate(notebook, sceneMeta, alias, filename, title, actors) {
         // Look for a template named 'shot' in the notebook; fall back to built-in.
         let content = null;
         try {
@@ -1651,9 +1664,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const today = new Date();
         const dateStr = today.toISOString().slice(0, 10);
         const vars = {
-            shot_id:   shotId,
+            shot_id:   alias,
             scene:     String(sceneMeta.scene_no ?? ''),
-            desc:      desc,
+            desc:      title,
             actors:    actors,
             loc:       String(sceneMeta.loc       ?? ''),
             day_night: String(sceneMeta.day_night  ?? ''),
@@ -1669,14 +1682,17 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             content = [
                 '---',
                 `scene: ${vars.scene}`,
-                `shot: ${shotId}`,
+                `shot: ${alias}`,
+                `alias: ${alias}`,
+                `title: ${title}`,
                 `type: shot`,
                 `day_night: ${vars.day_night}`,
                 `int_ext: ${vars.int_ext}`,
                 `loc: ${vars.loc}`,
-                `desc: ${desc ? `|\n  ${desc.replace(/\n/g, '\n  ')}` : ''}`,
-                `actors: ${actors}`,
-                `resources:`,
+                `desc: ${title ? `|\n  ${title.replace(/\n/g, '\n  ')}` : ''}`,
+                `cast: |`,
+                `  actors: ${actors}`,
+                `  extras:`,
                 `---`,
             ].join('\n');
         }
@@ -1684,7 +1700,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         await fetch('/api/notes', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ notebook, folder: 'shots', title: shotId, content }),
+            body:    JSON.stringify({ notebook, folder: 'shots', title: alias, filename, content }),
         });
     }
 
@@ -1694,17 +1710,18 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         const savedPos = ta.selectionStart;
         const suggested = _nextShotId(ta.value, sceneNo);
+        const locHint   = (note.meta?.loc || '').toUpperCase() || null;
 
-        _showInsertShotOverlay(suggested, async ({ shotId, desc, actors }) => {
-            // Insert [[shotId]] at saved cursor position
-            const ins    = `[[${shotId}]]`;
+        _showInsertShotOverlay(suggested, locHint, async ({ alias, filename, title, actors }) => {
+            // Insert [[filename]] — stable link; displays as alias via data-autolabel
+            const ins    = `[[${filename}]]`;
             ta.value     = ta.value.slice(0, savedPos) + ins + ta.value.slice(savedPos);
             const newPos = savedPos + ins.length;
             ta.focus();
             ta.setSelectionRange(newPos, newPos);
 
             // Create the shot note (fire and forget — no await needed)
-            _createShotFromTemplate(note.notebook, note.meta, shotId, desc, actors)
+            _createShotFromTemplate(note.notebook, note.meta, alias, filename, title, actors)
                 .catch(e => console.warn('NbWeb-cine: shot creation failed', e));
         }, () => {
             ta.focus();
