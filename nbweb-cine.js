@@ -533,7 +533,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // Loc — tooltip shows full location name
         const locEntry   = locations[shot.loc];
         const locSel     = locEntry?.selector;
-        const locTitle   = locEntry?.meta?.location || shot.loc;
+        const locTitle   = locEntry?.meta?.title || shot.loc;
         const locHtml    = locSel
             ? `<button class="nb-cine-link nb-cine-loc" data-selector="${_esc(locSel)}" title="${_esc(locTitle)}">${_esc(shot.loc)}</button>`
             : `<span class="nb-cine-loc" title="${_esc(locTitle)}">${_esc(shot.loc)}</span>`;
@@ -774,7 +774,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const ie = shot.int_ext ? shot.int_ext + '.' : '';
             const dn = shot.day_night || '';
             const locEntry = locations[shot.loc];
-            const locName  = locEntry?.meta?.location || shot.loc;
+            const locName  = locEntry?.meta?.title || shot.loc;
             const locSel   = locEntry?.selector;
             const slug = `${ie} ${_esc(shot.loc)} — ${dn}`;
 
@@ -876,7 +876,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     ? `<pre class="nb-cine-lookup-pre">${_esc(s)}</pre>`
                     : _esc(s);
             }
-            const nameField = entry.meta?.name || entry.meta?.location || code;
+            const nameField = entry.meta?.name || entry.meta?.title || code;
             rows.insertAdjacentHTML('beforeend',
                 `<div class="nb-cine-lookup-row">` +
                 `<button class="nb-cine-link nb-cine-lookup-code" data-selector="${_esc(entry.selector)}">${_esc(code)}</button>` +
