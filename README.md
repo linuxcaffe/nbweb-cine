@@ -1,3 +1,7 @@
+---
+toc: true
+---
+
 # NbWeb-cine
 
 A film production scheduling plugin for [nb-web](https://github.com/linuxcaffe/nb-web).
@@ -63,6 +67,32 @@ The plugin activates automatically for any notebook that contains a `.nb-cine.js
 
 ---
 
+## Three-identifier system
+
+Every production note carries three independent identifiers:
+
+| Layer | Convention | Example | Purpose |
+|-------|-----------|---------|---------|
+| **Filename stem** | `WH-captive-cu-4f` | stable anchor | Used in wikilinks — never changes once embedded in scripts |
+| **`alias:`** | `4f` | compact code | Stripboard cells, callsheets, list display, inline script labels |
+| **`title:`** | `Captive CU — Not His First Chair` | human name | Tooltip, full display, search |
+
+This applies to all five production note types:
+
+| Type | Filename stem | `alias:` | `title:` |
+|------|--------------|----------|----------|
+| Scene | `AL-alley` | `2` (scene number) | `The Alley — Kidnapping Witnessed` |
+| Shot | `WH-captive-cu-4f` | `4f` | `Captive CU — Not His First Chair` |
+| Character | `BILL` | `jim_dandy` (actor file stem) | `Bill — Head Waiter, Lee Gardens` |
+| Actor | `jim_dandy` | `JD` | `Jim Dandy` |
+| Location | `lee_gardens` | `LG` | `Lee Gardens Restaurant` |
+
+**Display:** `alias` always takes precedence (`alias → title → filename`). The nb-web list shows `alias — title`.
+
+**Linking:** always embed the filename stem in wikilinks. `[[WH-captive-cu-4f]]` displays as `4f` automatically via `data-autolabel`. Never embed a bare alias (`[[4f]]`) — it won't resolve.
+
+---
+
 ## Project structure
 
 A cine notebook has this directory layout:
@@ -73,26 +103,32 @@ MyFilm/
 ├── stripboard.md          ← master stripboard page
 ├── callsheet_dy_1.md      ← Day 1 call sheet
 ├── shots/
-│   ├── 1a.md              ← one file per shot
-│   ├── 1b.md
+│   ├── LG-establish-1a.md ← {LOC}-{desc}-{alias}.md convention
+│   ├── WH-captive-cu-4f.md
 │   ├── lunch_dy1.md       ← special strip (type: lunch)
 │   └── …
 ├── script/
 │   ├── lg-establish.md    ← scene file (type: scene, alias: 1)
-│   └── wh-showdown.md
-├── storylines/
-│   ├── main-plot.md       ← lane definition (type: storyline)
-│   └── subplot-a.md       ← story card (type: story)
-├── actors/
-│   ├── jim_dandy.md
+│   └── WH-warehouse-bust.md
+├── characters/
+│   ├── BILL.md            ← character role (type: character, ALLCAPS stem)
+│   ├── AMY.md
+│   └── …
+├── cast/
+│   ├── jim_dandy.md       ← actor person (type: actor)
 │   └── …
 ├── locations/
 │   ├── lee_gardens.md
 │   └── …
-└── resouces/              ← (spelling is project-specific, both scanned)
-    ├── car1.md
-    └── …
+├── resources/
+│   ├── car1.md
+│   └── …
+└── storylines/
+    ├── main-plot.md       ← lane definition (type: storyline)
+    └── subplot-a.md       ← story card (type: story)
 ```
+
+`characters/` and `cast/` are siblings, not nested. Characters are immutable roles; cast are the people assigned to them. This separation makes recasting a one-field change with zero shot files touched.
 
 ### `.nb-cine.json`
 
@@ -109,15 +145,17 @@ MyFilm/
 ---
 scene: 1
 shot: 1a
+alias: 1a            # compact display label (stripboard cell, list title)
+title: Lee Gardens Establishing
 type: shot           # shot | lunch | move
 day: 1               # shoot day number
 seq: 3               # position within the day (rewritten on drag)
 day_night: N         # D | N
 int_ext: I           # I | E
-loc: LG              # location code
+loc: LG              # location alias
 desc: |
-  Bill walks in. Alice pretends to read.
-  The ceiling fan turns.
+  High-energy HH establishing shot — last customers,
+  waiters clearing and cashing out. Bill notices Terry.
 tech: |
   camera: A-cam with 18mm, B-cam with 35mm
   sound: wild traffic noise
@@ -128,25 +166,51 @@ art: |
   hair: Terry's bad plastered-down crisis look
   wardrobe: cheap rumpled brown suit
 cast: |
-  actors: JD, AM, CC
+  actors: BILL, AMY, CARLOS   ← CHARACTER codes, not actor codes
   extras: 9
 lock:
 ---
 ```
 
+`cast.actors:` lists **CHARACTER codes** — the ALLCAPS filename stems from `characters/`. These are immutable once a shot is locked. Recasting never touches shot files.
+
 The three sub-block fields (`tech`, `art`, `cast`) are freeform YAML block scalars — write whatever lines make sense for your production. They render as a `<pre>` block in the frontmatter table and are preserved verbatim on drag/resequence.
 
 **`day: ""`** marks a shot as unscheduled — it appears in the UNSCHEDULED zone at the top of the master stripboard and is excluded from day-filtered queries.
 
-**`lock:`** with no value (or any truthy value: `lock: true`) pins a shot in place on the stripboard. Locked shots cannot be dragged; an attempt to drag them across a day break shows an alert and reverts. A locked shot in the UNSCHEDULED zone acts as a permanent drop-target anchor, ensuring the zone is always available regardless of the rest of the schedule.
+**`lock:`** with no value (or any truthy value: `lock: true`) pins a shot in place on the stripboard. Locked shots cannot be dragged; an attempt to drag them across a day break shows an alert and reverts.
+
+### Character file frontmatter
+
+```yaml
+---
+type: character
+title: Bill — Head Waiter, Lee Gardens
+alias: jim_dandy        # actor filename stem — empty means uncast
+description: |
+  Mid-50s, world-weary restaurateur.
+  Owes favours to the wrong people.
+fudge: 12000            # ATL estimate before casting (budget: use this)
+rate:                   # populated from actor note once alias is set
+days:                   # from stripboard schedule
+wardrobe:
+props:
+---
+```
+
+Filename stem (`BILL`) is the immutable CHARACTER code used in shot `cast.actors:` fields.
+
+`alias:` is the actor filename stem (`jim_dandy`). Empty = uncast. Setting it links to `cast/jim_dandy.md`. Recasting = change this field. Zero shot files touched.
+
+Resolution chain: `BILL → characters/BILL.md → alias: jim_dandy → cast/jim_dandy.md → alias: JD`
 
 ### Actor file frontmatter
 
 ```yaml
 ---
-name: Jim Dandy
-code: JD
-character: Bill
+type: actor
+title: Jim Dandy
+alias: JD               # compact code — stripboard cell label
 phone: 123-456-7890
 contact: |
   cel: 123-456-7890
@@ -154,21 +218,24 @@ contact: |
 agent: |
   company: PeoplePower
   phone: 234-567-8910
-unit: hour
-qtty: 20
-cost per: $75.00
+rate: 1500/day
+union:
 ---
 ```
+
+`alias:` is the compact callsheet code (e.g. `JD`). `title:` is the person's name.
 
 ### Location file frontmatter
 
 ```yaml
 ---
-location: Lee Gardens restaurant
-loc_code: LG
+type: location
+title: Lee Gardens Restaurant
+alias: LG               # compact code — stripboard loc column
 address: Spadina, Toronto
-unit: day
-cost per: $1000.00
+pin:
+start:
+end:
 notes: city permit required
 ---
 ```
@@ -178,7 +245,8 @@ notes: city permit required
 ```yaml
 ---
 type: scene
-alias: 1
+alias: 1                # scene number — display code and sort key
+title: Lee Gardens — Late Night Service
 int_ext: I
 day_night: N
 loc: LG
@@ -194,7 +262,7 @@ Bill walks in. The ceiling fan turns.
           Where is everybody?
 ```
 
-`type: scene` registers the file as a scene note — it gets the 📜 icon, appears in `cine scenes`, and carries full `meta` in list responses. `alias:` is the scene number (see [Alias](#alias) below). `scene_no:` is the legacy field and still accepted.
+`type: scene` is the detection marker. `alias:` is the scene number.
 
 `toolbar: true` pins a shortcut button to the nb-web toolbar for quick access.
 
@@ -497,28 +565,48 @@ alias: 5
 
 **Sort by alias:** the Sort dropdown includes an **Alias** option when the cine module is active. Numeric aliases sort numerically; string aliases sort alphabetically; notes without an alias sort last.
 
-**Scene index:** the `Sc` column in `cine scenes` shows `alias` when set, falling back to `scene_no`. Scenes sort by `alias || scene_no`.
+**Scene index:** the `Sc` column in `cine scenes` shows `alias`. Scenes sort numerically by alias.
+
+---
+
+## Ctrl+[ — Insert shot from scene editor
+
+In scene edit mode (`type: scene` notes), **Ctrl+[** opens the Insert Shot dialog:
+
+- **Alias** — auto-suggested as next letter after the last alias found in the scene (e.g. `4f` → suggests `4g`)
+- **Filename** — pre-filled as `{LOC}-{alias}`, stays in sync with alias unless manually edited
+- **Title** — human-readable shot description
+
+On confirm:
+1. `[[filename]]` inserted at cursor (displays as alias automatically)
+2. Scene saved
+3. Shot file created in `shots/` with `alias:`, `title:`, and scene meta (`loc:`, `day_night:`, `int_ext:`, `scene:`) pre-populated
+4. New shot opens in edit mode
 
 ---
 
 ## Status
 
-Working and in active use. The core loop — shoot → drag stripboard → print call sheet — is functional. The storylines board is live. On the horizon:
+Working and in active use. The core loop — edit script → Ctrl+[ shots → drag stripboard → print call sheet — is functional.
 
 - [x] Draggable stripboard with day/seq write-back
+- [x] Drag to unscheduled (`day: ""`)
 - [x] Scene index with alias sort
-- [x] `alias:` field — stable wikilink identity, mutable display label
+- [x] Three-identifier scheme — filename / alias / title on all production types
+- [x] `alias — title` display format in nb-web list for all cine types
+- [x] CHARACTER/actor resolution chain — shots never touch actor names
 - [x] Screenplay preview with 🎬/📝 renderer toggle
+- [x] Ctrl+[ insert shot from scene editor — auto-suggest, create, open
 - [x] Storylines board — lanes, draggable story cards, cross-lane drag
 - [x] Storylines size variants (`small`/`large`) with toggle persistence
 - [x] Inline story card creation per lane
 - [x] Card body peek panel while dragging
-- [x] Drag to unscheduled (stripboard → day: "")
-- [ ] `nbweb:plugin?url=…` one-click install scheme
+- [ ] `alias:` filter in cine codeblock (`shots.line | alias: 1c`)
+- [ ] gen-characters.py — ALLCAPS extraction from scene prose
+- [ ] gen-budget.py — ATL pass using character fudge/rate/days
 - [ ] Print/export CSS for call sheets
-- [ ] `weather` query (wttr.in integration for call sheet header)
-- [ ] Multi-field horizontal table queries (`scenes actors resources | day: 1`)
-- [ ] Plugins page with install/enable/disable UI
+- [ ] `weather` query (wttr.in for call sheet header)
+- [ ] `nbweb:plugin?url=…` one-click install scheme
 
 ---
 
