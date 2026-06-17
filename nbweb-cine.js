@@ -395,6 +395,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 }
 .nb-cine-card-sep { border: none; border-top: 1px solid var(--border, #444); margin: 16px 12px 0; }
 .nb-cine-shot-card .nb-wp-body { padding: 12px 12px 20px; }
+/* nb-cine-card-fm is the togglable field block. Zero horizontal padding so child */
+/* elements keep their own 12px side padding without doubling up from .nb-card.   */
+.nb-cine-card-fm  { padding-left: 0; padding-right: 0; padding-top: 4px; padding-bottom: 8px; }
 `;
 
     if (!document.getElementById('nb-cine-styles')) {
@@ -1942,8 +1945,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             `<span class="nb-cine-loc">${_esc(m.loc || '')}</span>` +
             `<span class="nb-cine-desc">${_esc(m.title || '')}</span>` +
             `<span class="nb-cine-actors"></span><span class="nb-cine-rescount"></span></div>` +
-            `<div class="nb-card" style="border-radius:0 0 8px 8px;margin-top:0">` +
-            `<div class="nb-card-fields">${fields}</div></div>` +
+            (fields ? `<div class="nb-card nb-cine-card-fm" style="border-radius:0 0 8px 8px;margin-top:0">` +
+            `<div class="nb-card-fields">${fields}</div></div>` : '') +
             `${bodyHtml}</div>`;
     }
 
@@ -1988,8 +1991,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             extrasChip,
         ].filter(Boolean).join('');
 
+        // Fields inside .nb-cine-card-fm — toggled visible/hidden by the ◉ extras toggle.
+        // Body stays outside the card box so annotation button is never obscured.
+        const fieldsInner = [
+            subParts.length  ? `<div class="nb-cine-sc-sub">${_esc(subParts.join('  ·  '))}</div>` : '',
+            shotName         ? `<div class="nb-cine-sc-name">${_esc(shotName)}</div>` : '',
+            desc             ? `<div class="nb-cine-sc-desc">${_esc(desc)}</div>` : '',
+            castChipHtml     ? `<div class="nb-cine-sc-cast">${castChipHtml}</div>` : '',
+            _sec('tech', tech),
+            _sec('art', art),
+        ].filter(Boolean).join('');
+
         const bodyHtml = (note.body || '').trim()
-            ? `<hr class="nb-cine-card-sep"><div class="nb-wp-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>`
+            ? `<div class="nb-wp-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>`
             : '';
 
         return `<div class="nb-cine-shot-card">
@@ -2001,12 +2015,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     <span class="nb-cine-actors">${actorCodes.map(c => `<span class="nb-cine-actor">${_esc(c)}</span>`).join('')}</span>
     <span class="nb-cine-rescount"></span>
   </div>
-  ${subParts.length  ? `<div class="nb-cine-sc-sub">${_esc(subParts.join('  ·  '))}</div>` : ''}
-  ${shotName         ? `<div class="nb-cine-sc-name">${_esc(shotName)}</div>` : ''}
-  ${desc             ? `<div class="nb-cine-sc-desc">${_esc(desc)}</div>` : ''}
-  ${castChipHtml     ? `<div class="nb-cine-sc-cast">${castChipHtml}</div>` : ''}
-  ${_sec('tech', tech)}
-  ${_sec('art', art)}
+  ${fieldsInner ? `<div class="nb-card nb-cine-card-fm" style="border-radius:0 0 8px 8px;margin-top:0">${fieldsInner}</div>` : ''}
   ${bodyHtml}
 </div>`;
     }
@@ -2017,6 +2026,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         label:       'NbWeb-cine',
         description: 'Film production scheduling — stripboard, call sheets, script tools',
         helpUrl:     '/plugins/nbweb-cine.md',
+
+        // .nb-cine-card-fm is the togglable field block inside shot and scene cards.
+        // Strip header always stays visible; body/annotation button always accessible.
+        hideExtrasCSS: `
+            #nb-preview-content.nb-extras-hidden .nb-cine-card-fm { display: none; }
+            #nb-preview-content.nb-extras-hidden .nb-cine-card-fm + .nb-wp-body,
+            #nb-preview-content.nb-extras-hidden .nb-cine-card-fm + .nb-card-body { margin-top: 0; }
+        `,
 
         detect: notebooks => notebooks.filter(nb => nb.cine !== null && nb.cine !== undefined),
 
