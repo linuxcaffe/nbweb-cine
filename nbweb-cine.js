@@ -632,7 +632,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const row = document.createElement('div');
             row.className = `nb-cine-scene-row nb-cine-strip-${sc.int_ext + sc.day_night}`;
             row.innerHTML =
-                `<button class="nb-cine-link nb-cine-si-no" data-selector="${_esc(sc.selector)}">${_esc(sc.alias || sc.scene_no)}</button>` +
+                `<button class="nb-cine-link nb-cine-si-no" data-selector="${_esc(sc.selector)}">${_esc(sc.alias)}</button>` +
                 `<span class="nb-cine-si-ie">${_esc(sc.int_ext)}</span>` +
                 `<span class="nb-cine-si-dn">${_esc(sc.day_night)}</span>` +
                 locHtml +
@@ -698,13 +698,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     function _renderScript(note) {
         const meta = note.meta || {};
-        if (meta.scene_no === undefined && note.type !== 'scene') return null;
+        if (note.type !== 'scene') return null;
 
         const ie  = String(meta.int_ext  || '').toUpperCase().startsWith('I') ? 'INT.' : 'EXT.';
         const dn  = String(meta.day_night|| '').toUpperCase().startsWith('D') ? 'DAY'  : 'NIGHT';
         const loc = String(meta.loc      || '').toUpperCase();
         const slug     = `${ie} ${loc} — ${dn}`;
-        const sceneTag = `SCENE ${meta.scene_no ?? meta.alias ?? ''}`;
+        const sceneTag = `SCENE ${meta.alias ?? ''}`;
 
         const bodyHtml = _parseScriptBody(note.raw).map(c => {
             if (c.type === 'br')       return '';
@@ -1300,7 +1300,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 const chip = document.createElement('div');
                 chip.className = 'nb-cine-story-card nb-cine-orphan-scene';
                 chip.dataset.selector = sc.selector;
-                const lbl = sc.alias || sc.scene_no || sc.selector.split('/').pop();
+                const lbl = sc.alias || sc.selector.split('/').pop();
                 chip.innerHTML = `<div class="nb-cine-story-title">${_esc(lbl)}</div>`;
                 if (sc.synopsis) {
                     chip.innerHTML += `<div class="nb-cine-story-scenes">${_esc(sc.synopsis.slice(0, 60))}</div>`;
@@ -1670,7 +1670,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const dateStr = today.toISOString().slice(0, 10);
         const vars = {
             shot_id:   alias,
-            scene:     String(sceneMeta.scene_no ?? ''),
+            scene:     String(sceneMeta.alias ?? ''),
             desc:      title,
             actors:    actors,
             loc:       String(sceneMeta.loc       ?? ''),
@@ -1712,8 +1712,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     async function _insertShotAction(ta, note) {
-        const sceneNo = note?.meta?.scene_no;
-        if (sceneNo == null) return;
+        const sceneNo = note?.meta?.alias;
+        if (sceneNo == null || note?.type !== 'scene') return;
 
         const savedPos = ta.selectionStart;
         const suggested = _nextShotId(ta.value, sceneNo);
@@ -1871,16 +1871,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 id:     'screenplay',
                 icon:   '🎬',
                 label:  'Screenplay format',
-                detect: note => note.meta?.scene_no != null || note.type === 'scene',
+                detect: note => note.type === 'scene',
                 render: note => _renderScript(note),
             },
             {
                 id:     'markdown',
                 icon:   '📝',
                 label:  'Markdown',
-                detect: note => note.meta?.scene_no != null || note.type === 'scene',
+                detect: note => note.type === 'scene',
                 render: note => {
-                    if (note.meta?.scene_no == null && note.type !== 'scene') return null;
+                    if (note.type !== 'scene') return null;
                     const body = (note.body || '').trim();
                     if (typeof marked === 'undefined')
                         return `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
@@ -1947,7 +1947,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             return label ? `${id} ${label}` : (id || null);
         },
 
-        editorKeybindings: note => note.meta?.scene_no != null ? [{
+        editorKeybindings: note => note.type === 'scene' ? [{
             key:    '[',
             ctrl:   true,
             shift:  false,
