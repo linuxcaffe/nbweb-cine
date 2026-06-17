@@ -1,6 +1,10 @@
 // NbWeb-cine — film production scheduling plugin for nb-web
 // Provides: cine fenced code block renderer — shots → stripboard
 // Activates when notebook contains .nb-cine.json
+// @name     NbWeb Cine
+// @version  0.1.0
+// @type     ecosystem
+// @homepage https://openfilmmaker.ca
 (() => {
 
     // ── CSS ───────────────────────────────────────────────────────────────────
@@ -356,6 +360,41 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     margin: 0; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* ── Shot card ───────────────────────────────────────────────────────────── */
+.nb-cine-shot-card { max-width: 680px; }
+
+/* Strip used as card header — slightly taller, rounded top */
+.nb-cine-card-strip.nb-cine-strip {
+    min-height: 2.8em; padding: 4px 12px;
+    border-radius: 4px 4px 0 0;
+    border-bottom: 2px solid rgba(0,0,0,0.18);
+}
+.nb-cine-card-strip .nb-cine-id   { font-size: 1.4em; letter-spacing: -0.01em; }
+.nb-cine-card-strip .nb-cine-dnie { font-size: 0.9em; opacity: 0.85; }
+
+.nb-cine-sc-sub  {
+    font-size: 0.78em; opacity: 0.5; letter-spacing: 0.04em;
+    padding: 5px 12px 0;
+}
+.nb-cine-sc-name { padding: 8px 12px 0; font-style: italic; opacity: 0.8; }
+.nb-cine-sc-desc {
+    padding: 10px 12px 0; line-height: 1.55;
+    white-space: pre-line; color: var(--text, #eee);
+}
+.nb-cine-sc-cast { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 12px 0; }
+.nb-cine-cast-chip {
+    background: var(--bg2, #2a2d35); padding: 2px 10px;
+    border-radius: 12px; font-size: 0.85em; font-weight: bold;
+}
+.nb-cine-cast-extras { font-weight: normal; font-style: italic; opacity: 0.6; }
+.nb-cine-card-sec { margin: 12px 12px 0; }
+.nb-cine-card-sec-lbl {
+    font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.12em;
+    opacity: 0.4; margin-bottom: 3px; padding-left: 2px;
+}
+.nb-cine-card-sep { border: none; border-top: 1px solid var(--border, #444); margin: 16px 12px 0; }
+.nb-cine-shot-card .nb-wp-body { padding: 12px 12px 20px; }
 `;
 
     if (!document.getElementById('nb-cine-styles')) {
@@ -499,9 +538,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             ? `<button class="nb-cine-link nb-cine-loc" data-selector="${_esc(locSel)}" title="${_esc(locTitle)}">${_esc(shot.loc)}</button>`
             : `<span class="nb-cine-loc" title="${_esc(locTitle)}">${_esc(shot.loc)}</span>`;
 
-        // Combined scene-shot ID "1.1a" → links to shot note; tooltip shows scene link path
-        const shotId   = shot.scene && shot.shot ? `${shot.scene}.${shot.shot}` : (shot.shot || shot.filename);
-        const idHtml   = `<button class="nb-cine-link nb-cine-id" data-selector="${_esc(shot.selector)}" title="Sc.${_esc(String(shot.scene))} / ${_esc(shot.shot)}">${_esc(shotId)}</button>`;
+        // Combined scene-alias ID "1.1a" → links to shot note; tooltip shows title
+        const shortId  = shot.alias || shot.shot || shot.filename;
+        const shotId   = shot.scene && shortId ? `${shot.scene}.${shortId}` : shortId;
+        const idHtml   = `<button class="nb-cine-link nb-cine-id" data-selector="${_esc(shot.selector)}" title="${_esc(shot.title || shotId)}">${_esc(shotId)}</button>`;
 
         // Actor codes — tooltip shows name (character)
         const actorsHtml = (shot.actors || []).map(code => {
@@ -1330,15 +1370,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             return;
         }
 
-        if (field === 'shots') {
+        if (field === 'shots' || field === 'shot') {
             if (format === 'strip') {
                 _buildStripboard(el, data, filter, notebook);
             } else if (format === 'sheet') {
                 _buildShotSheet(el, data, filter, notebook);
-            } else if (format && format !== 'line') {
+            } else if (format && format !== 'line' && format !== 'shot') {
                 _buildSubfieldTable(el, data, format, filter, notebook);
             } else {
-                _buildShotLine(el, data, filter, notebook);  // shots / shots.line
+                _buildShotLine(el, data, filter, notebook);  // shots / shots.line / shot
             }
         } else if (field === 'scenes') {
             _buildSceneIndex(el, data, filter);
@@ -1672,6 +1712,83 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         });
     }
 
+    // ── Card renderers ────────────────────────────────────────────────────────
+
+    // Parse a block-scalar sub-field string ("key: value\n...") into an object.
+    function _parseBlock(str) {
+        if (!str || typeof str !== 'string') return {};
+        const out = {};
+        for (const line of str.trim().split('\n')) {
+            const m = line.match(/^([^:]+):\s*(.*)/);
+            if (m) out[m[1].trim()] = m[2].trim();
+        }
+        return out;
+    }
+
+    function _renderShotCard(note) {
+        const m = note.meta || {};
+        const alias    = m.alias     ? String(m.alias)    : '';
+        const scene    = m.scene     != null ? String(m.scene) : '';
+        const shotName = m.shot      ? String(m.shot)     : '';
+        const dn       = (m.day_night || '').toUpperCase();
+        const ie       = (m.int_ext   || '').toUpperCase();
+        const loc      = m.loc  ? String(m.loc)  : '';
+        const day      = m.day  != null ? String(m.day) : '';
+        const desc     = typeof m.desc === 'string' ? m.desc.trim() : '';
+
+        const tech = _parseBlock(typeof m.tech === 'string' ? m.tech : '');
+        const art  = _parseBlock(typeof m.art  === 'string' ? m.art  : '');
+        const cast = _parseBlock(typeof m.cast === 'string' ? m.cast : '');
+
+        // Strip color class from I/E + D/N
+        const colorClass = (ie && dn) ? ie + dn : (ie || dn || 'scene');
+        const dnie       = [dn, ie].filter(Boolean).join('');
+
+        const actorCodes = cast.actors
+            ? cast.actors.split(/,\s*/).map(s => s.trim()).filter(Boolean) : [];
+        const extrasChip = cast.extras
+            ? `<span class="nb-cine-cast-chip nb-cine-cast-extras">+${_esc(cast.extras)} extras</span>` : '';
+
+        const _row = (k, v) => v
+            ? `<div class="nb-contact-row"><span class="nb-contact-label">${_esc(k)}</span><span class="nb-contact-value">${_esc(v)}</span></div>`
+            : '';
+        const _sec = (label, obj) => {
+            const rows = Object.entries(obj).filter(([, v]) => v).map(([k, v]) => _row(k, v)).join('');
+            return rows
+                ? `<div class="nb-cine-card-sec"><div class="nb-cine-card-sec-lbl">${_esc(label)}</div><div class="nb-contact-fields">${rows}</div></div>`
+                : '';
+        };
+
+        const subParts = [scene ? `Sc. ${scene}` : '', day ? `Day ${day}` : ''].filter(Boolean);
+
+        const castChipHtml = [
+            ...actorCodes.map(c => `<span class="nb-cine-cast-chip">${_esc(c)}</span>`),
+            extrasChip,
+        ].filter(Boolean).join('');
+
+        const bodyHtml = (note.body || '').trim()
+            ? `<hr class="nb-cine-card-sep"><div class="nb-wp-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>`
+            : '';
+
+        return `<div class="nb-cine-shot-card">
+  <div class="nb-cine-strip nb-cine-strip-${_esc(colorClass)} nb-cine-card-strip">
+    <span class="nb-cine-dnie">${_esc(dnie)}</span>
+    <span class="nb-cine-id">${_esc(alias || scene)}</span>
+    <span class="nb-cine-loc">${_esc(loc)}</span>
+    <span class="nb-cine-desc"></span>
+    <span class="nb-cine-actors">${actorCodes.map(c => `<span class="nb-cine-actor">${_esc(c)}</span>`).join('')}</span>
+    <span class="nb-cine-rescount"></span>
+  </div>
+  ${subParts.length  ? `<div class="nb-cine-sc-sub">${_esc(subParts.join('  ·  '))}</div>` : ''}
+  ${shotName         ? `<div class="nb-cine-sc-name">${_esc(shotName)}</div>` : ''}
+  ${desc             ? `<div class="nb-cine-sc-desc">${_esc(desc)}</div>` : ''}
+  ${castChipHtml     ? `<div class="nb-cine-sc-cast">${castChipHtml}</div>` : ''}
+  ${_sec('tech', tech)}
+  ${_sec('art', art)}
+  ${bodyHtml}
+</div>`;
+    }
+
     // ── Plugin registration ───────────────────────────────────────────────────
 
     NbWeb.registerModule('cine', {
@@ -1713,6 +1830,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         },
 
         previewRenderers: [
+            {
+                id:       'shot-card',
+                icon:     '🎬',
+                label:    'Shot card',
+                fullCard: true,
+                detect:   note => note.type === 'shot',
+                render:   note => _renderShotCard(note),
+            },
             {
                 id:     'screenplay',
                 icon:   '🎬',
@@ -1785,10 +1910,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         listTitle: note => {
             if (note.type !== 'shot' || !note.meta) return null;
             const scene = String(note.meta.scene ?? '');
-            const shot  = String(note.meta.shot  ?? '');
-            const desc  = String(note.meta.desc  ?? '').trim().replace(/\s+/g, ' ');
-            const id    = scene ? `${scene}.${shot}` : shot;
-            return desc ? `${id} — ${desc}` : (id || null);
+            const alias = String(note.meta.alias ?? note.meta.shot ?? '');
+            const id    = scene && alias ? `${scene}.${alias}` : (alias || scene || '');
+            const title = (note.title || '').trim();
+            const desc  = String(note.meta.desc ?? '').trim().replace(/\s+/g, ' ');
+            const label = title || desc;
+            return label ? `${id} ${label}` : (id || null);
         },
 
         editorKeybindings: note => note.meta?.scene_no != null ? [{
