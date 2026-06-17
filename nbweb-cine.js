@@ -1937,14 +1937,29 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 `,
 
         listTitle: note => {
-            if (note.type !== 'shot' || !note.meta) return null;
-            const scene = String(note.meta.scene ?? '');
-            const alias = String(note.meta.alias ?? note.meta.shot ?? '');
-            const id    = scene && alias ? `${scene}.${alias}` : (alias || scene || '');
+            if (!note.meta) return null;
+            const alias = String(note.meta.alias ?? '').trim();
             const title = (note.title || '').trim();
-            const desc  = String(note.meta.desc ?? '').trim().replace(/\s+/g, ' ');
-            const label = title || desc;
-            return label ? `${id} ${label}` : (id || null);
+
+            if (note.type === 'shot') {
+                const scene = String(note.meta.scene ?? '');
+                const id    = scene && alias ? `${scene}.${alias}` : (alias || scene || '');
+                const label = title || String(note.meta.desc ?? '').trim().split('\n')[0];
+                return id && label ? `${id} — ${label}` : (id || label || null);
+            }
+
+            if (note.type === 'scene' || note.type === 'actor' || note.type === 'location') {
+                return alias && title ? `${alias} — ${title}` : (title || alias || null);
+            }
+
+            if (note.type === 'character') {
+                // alias: is the casting link (actor stem), not a display code;
+                // use the filename stem (BILL, AMY…) as the visible character code
+                const code = (note.filename || '').replace(/\.md$/i, '');
+                return code && title ? `${code} — ${title}` : (title || code || null);
+            }
+
+            return null;
         },
 
         editorKeybindings: note => note.type === 'scene' ? [{
