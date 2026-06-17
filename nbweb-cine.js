@@ -1744,6 +1744,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Card renderers ────────────────────────────────────────────────────────
 
     // Parse a block-scalar sub-field string ("key: value\n...") into an object.
+    // Also handles plain YAML objects (passed through from frontmatter parser).
     function _parseBlock(str) {
         if (!str || typeof str !== 'string') return {};
         const out = {};
@@ -1752,6 +1753,198 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             if (m) out[m[1].trim()] = m[2].trim();
         }
         return out;
+    }
+
+    // ── Shared nb-card helpers ────────────────────────────────────────────────
+    // Rule: ALL frontmatter fields must be exposed in a card, even unknown ones.
+    // Custom renderers may format specific fields differently but may not hide them.
+
+    function _cColor(str) {
+        let h = 0;
+        for (let i = 0; i < (str || '').length; i++) h = (h * 31 + (str || '').charCodeAt(i)) & 0xffff;
+        return `hsl(${h % 360},38%,36%)`;
+    }
+
+    function _cInitials(str) {
+        return (str || '?').split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '?';
+    }
+
+    // Plain-text card row.
+    function _cRow(label, val) {
+        if (val == null || val === '' || val === false) return '';
+        return `<div class="nb-card-row"><span class="nb-card-label">${_esc(label)}</span>` +
+               `<span class="nb-card-value">${_esc(String(val))}</span></div>`;
+    }
+
+    // Card row with an anchor value.
+    function _cLink(label, val, href) {
+        if (!val) return '';
+        return `<div class="nb-card-row"><span class="nb-card-label">${_esc(label)}</span>` +
+               `<span class="nb-card-value"><a href="${_esc(href)}">${_esc(String(val))}</a></span></div>`;
+    }
+
+    // Card row whose value is a wiki-link span (enriched by _enrichRendered).
+    function _cWikiRow(label, selector) {
+        if (!selector) return '';
+        return `<div class="nb-card-row"><span class="nb-card-label">${_esc(label)}</span>` +
+               `<span class="nb-card-value"><span class="nb-wiki-link" data-selector="${_esc(selector)}" data-autolabel>${_esc(selector)}</span></span></div>`;
+    }
+
+    // Expand a block field (multiline string OR plain object) into a sub-section.
+    // rowFn: optional (key, val) → html for each sub-field; defaults to _cRow.
+    function _cBlock(label, v, rowFn) {
+        const fn = rowFn || _cRow;
+        const entries = (typeof v === 'string')
+            ? Object.entries(_parseBlock(v))
+            : (v && typeof v === 'object') ? Object.entries(v) : [];
+        const rows = entries.filter(([, bv]) => bv != null && bv !== '').map(([k, bv]) => fn(k, bv)).join('');
+        if (!rows) return '';
+        return `<div class="nb-card-block">` +
+               `<div class="nb-card-block-key">${_esc(label)}</div>` +
+               `<div class="nb-card-block-fields">${rows}</div></div>`;
+    }
+
+    // Render ALL entries in meta as card rows. Rule: no field may be silently omitted.
+    // customRenderers: { fieldName: (value) → html }  — return '' to suppress a field.
+    // Fields without a custom renderer are auto-rendered: blocks expanded, plain text for scalars.
+    function _cAllFields(meta, customRenderers) {
+        const out = [];
+        for (const [k, v] of Object.entries(meta)) {
+            if (v == null || v === '' || v === false) continue;
+            if (customRenderers && Object.prototype.hasOwnProperty.call(customRenderers, k)) {
+                const h = customRenderers[k](v);
+                if (h) out.push(h);
+                continue;
+            }
+            if (typeof v === 'string' && v.includes('\n')) {
+                out.push(_cBlock(k, v));
+            } else if (v && typeof v === 'object' && !Array.isArray(v)) {
+                out.push(_cBlock(k, v));
+            } else {
+                out.push(_cRow(k, v));
+            }
+        }
+        return out.join('');
+    }
+
+    // Body renders OUTSIDE the .nb-card div — the card's bg3 background is the
+    // visual separator; no <hr> needed.
+    function _cBody(note) {
+        return (note.body || '').trim()
+            ? `<div class="nb-card-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>`
+            : '';
+    }
+
+    // ── Actor card (type: actor) ──────────────────────────────────────────────
+
+    function _renderActorCard(note) {
+        const m    = note.meta || {};
+        const name = m.title || note.title || '';
+        const code = m.alias ? String(m.alias) : '';
+
+        const avatar = `<div class="nb-card-avatar" style="background:${_cColor(name)}">${_esc(_cInitials(name))}</div>`;
+        const sub    = ['Actor', code ? `code: ${code}` : ''].filter(Boolean).join(' · ');
+
+        const fields = _cAllFields(m, {
+            title:   v => _cRow('title', v),
+            alias:   v => _cRow('alias', v),
+            phone:   v => _cLink('phone', v, 'tel:' + String(v).replace(/\s/g, '')),
+            contact: v => _cBlock('contact', v, (k, bv) => {
+                if (k === 'email') return _cLink('email', bv, 'mailto:' + bv);
+                if (k === 'cel' || k === 'phone') return _cLink(k, bv, 'tel:' + String(bv).replace(/\s/g, ''));
+                return _cRow(k, bv);
+            }),
+            agent:   v => _cBlock('agent', v),
+        });
+
+        return `<div class="nb-card">` +
+            `<div class="nb-card-header">${avatar}` +
+            `<div><div class="nb-card-title">${_esc(name)}</div>` +
+            `<div class="nb-card-sub">${_esc(sub)}</div></div></div>` +
+            `<div class="nb-card-fields">${fields}</div>` +
+            `</div>${_cBody(note)}`;
+    }
+
+    // ── Character card (type: character) ─────────────────────────────────────
+
+    function _renderCharacterCard(note) {
+        const m    = note.meta || {};
+        const name = m.title || note.title || '';
+
+        const avatar = `<div class="nb-card-avatar" style="background:${_cColor(note.title)}">${_esc(_cInitials(name))}</div>`;
+        const sub    = 'Character';
+
+        const fields = _cAllFields(m, {
+            title:       v => _cRow('title', v),
+            alias:       v => _cWikiRow('cast', v),   // alias is the cast member's stem
+            description: v => typeof v === 'string' && v.includes('\n')
+                ? _cBlock('description', v)
+                : _cRow('description', v),
+        });
+
+        return `<div class="nb-card">` +
+            `<div class="nb-card-header">${avatar}` +
+            `<div><div class="nb-card-title">${_esc(name)}</div>` +
+            `<div class="nb-card-sub">${_esc(sub)}</div></div></div>` +
+            `<div class="nb-card-fields">${fields}</div>` +
+            `</div>${_cBody(note)}`;
+    }
+
+    // ── Location card (type: location) ───────────────────────────────────────
+
+    function _renderLocationCard(note) {
+        const m    = note.meta || {};
+        const name = m.title || note.title || '';
+        const code = m.alias ? String(m.alias) : '';
+
+        const avatar = `<div class="nb-card-avatar" style="background:${_cColor(name)}">${_esc(code || _cInitials(name))}</div>`;
+        const sub    = ['Location', code ? `code: ${code}` : ''].filter(Boolean).join(' · ');
+
+        const fields = _cAllFields(m, {
+            title:   v => _cRow('title', v),
+            alias:   v => _cRow('alias', v),
+            address: v => {
+                const mq = 'https://maps.google.com/?q=' + encodeURIComponent(String(v));
+                return `<div class="nb-card-row"><span class="nb-card-label">address</span>` +
+                       `<span class="nb-card-value"><a href="${_esc(mq)}" target="_blank" rel="noopener">${_esc(String(v))}</a></span></div>`;
+            },
+            pin: v => v ? _cLink('pin', v, 'https://maps.google.com/?q=' + encodeURIComponent(String(v))) : '',
+        });
+
+        return `<div class="nb-card">` +
+            `<div class="nb-card-header">${avatar}` +
+            `<div><div class="nb-card-title">${_esc(name)}</div>` +
+            `<div class="nb-card-sub">${_esc(sub)}</div></div></div>` +
+            `<div class="nb-card-fields">${fields}</div>` +
+            `</div>${_cBody(note)}`;
+    }
+
+    // ── Scene card (type: scene) — frontmatter card + body ───────────────────
+
+    function _renderSceneCard(note) {
+        const m  = note.meta || {};
+        const ie = (m.int_ext   || '').toUpperCase();
+        const dn = (m.day_night || '').toUpperCase();
+        const colorClass = (ie && dn) ? ie + dn : (ie || dn || 'scene');
+
+        const fields = _cAllFields(m, {
+            day_night: v => _cRow('day/night', v),
+            int_ext:   v => _cRow('int/ext',   v),
+        });
+
+        const bodyHtml = (note.body || '').trim()
+            ? `<div class="nb-card-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
+
+        return `<div class="nb-cine-shot-card">` +
+            `<div class="nb-cine-strip nb-cine-strip-${_esc(colorClass)} nb-cine-card-strip">` +
+            `<span class="nb-cine-dnie">${_esc(dn)}${_esc(ie)}</span>` +
+            `<span class="nb-cine-id">${_esc(m.alias != null ? String(m.alias) : '')}</span>` +
+            `<span class="nb-cine-loc">${_esc(m.loc || '')}</span>` +
+            `<span class="nb-cine-desc">${_esc(m.title || '')}</span>` +
+            `<span class="nb-cine-actors"></span><span class="nb-cine-rescount"></span></div>` +
+            `<div class="nb-card" style="border-radius:0 0 8px 8px;margin-top:0">` +
+            `<div class="nb-card-fields">${fields}</div></div>` +
+            `${bodyHtml}</div>`;
     }
 
     function _renderShotCard(note) {
@@ -1898,6 +2091,38 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     );
                     return `<div class="nb-cine-plain-script nb-rendered">${marked.parse(withLinks)}</div>`;
                 },
+            },
+            {
+                id:     'scene-card',
+                icon:   '🎞',
+                label:  'Scene card',
+                types:  ['scene'],
+                detect: note => note.type === 'scene',
+                render: note => _renderSceneCard(note),
+            },
+            {
+                id:     'actor-card',
+                icon:   '🧑',
+                label:  'Actor card',
+                types:  ['actor'],
+                detect: note => note.type === 'actor',
+                render: note => _renderActorCard(note),
+            },
+            {
+                id:     'character-card',
+                icon:   '🎭',
+                label:  'Character card',
+                types:  ['character'],
+                detect: note => note.type === 'character',
+                render: note => _renderCharacterCard(note),
+            },
+            {
+                id:     'location-card',
+                icon:   '📍',
+                label:  'Location card',
+                types:  ['location'],
+                detect: note => note.type === 'location',
+                render: note => _renderLocationCard(note),
             },
         ],
 
