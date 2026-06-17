@@ -1697,11 +1697,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             ].join('\n');
         }
 
-        await fetch('/api/notes', {
+        const r = await fetch('/api/notes', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ notebook, folder: 'shots', title: alias, filename, content }),
         });
+        const d = await r.json();
+        return d.selector || null;
     }
 
     async function _insertShotAction(ta, note) {
@@ -1720,9 +1722,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             ta.focus();
             ta.setSelectionRange(newPos, newPos);
 
-            // Create the shot note (fire and forget — no await needed)
-            _createShotFromTemplate(note.notebook, note.meta, alias, filename, title, actors)
-                .catch(e => console.warn('NbWeb-cine: shot creation failed', e));
+            // Save the scene, create the shot, open shot in editor
+            try {
+                await NbMain.saveNote();
+                const selector = await _createShotFromTemplate(note.notebook, note.meta, alias, filename, title, actors);
+                if (selector) NbMain.openEditor(selector);
+            } catch(e) {
+                console.warn('NbWeb-cine: shot creation failed', e);
+            }
         }, () => {
             ta.focus();
             ta.setSelectionRange(savedPos, savedPos);
