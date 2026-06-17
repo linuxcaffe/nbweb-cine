@@ -14,6 +14,8 @@ NbWeb-cine takes the opposite position: **your production data is just files**. 
 
 The plugin is a set of lenses on that folder. The same shot file that appears as a draggable strip on the stripboard appears as a verbose card on the call sheet and as a row in the scene index — the data doesn't change, only the query does. Renumber a scene by changing one field; every reference updates automatically. Restructure your entire shooting order by dragging strips; the git history records every decision. Lock a shot when it's confirmed; the board enforces it.
 
+Move a shot to a different day and the budget updates. The live total sits at the top of the stripboard; hit **↻** to recompute from the current schedule in place. Archive the entire production any time as a standard zip of standard text files. You don't need to — git is already tracking every change — but the option is always there, and it will open on any computer in twenty years.
+
 This is what becomes possible when infrastructure is separated from domain. [nb](https://github.com/xwmx/nb) solved the hard problems — notebook management, git sync, full-text search, cross-linking. [nb-web](https://github.com/linuxcaffe/nb-web) solved the rendering layer. NbWeb-cine just says: here are the fields a film production cares about, here are the views that make them useful. The result is a production scheduling tool that fits in a git repository, costs nothing to run, and will still open its files in twenty years.
 
 ---
@@ -521,6 +523,32 @@ Every block is live — refresh the page and it reflects the current schedule.
 
 ---
 
+## Access controls & privacy
+
+Production data has different audiences. The script and shot list belong to the whole crew. Cast contact details and contracts don't. Budget line items belong to the producer, not the dailies PA.
+
+nb-web implements a level hierarchy — `guest → user → office → admin` — and access can be set at three granularities:
+
+- **Notebook-wide** — a production notebook can default to `user`-level; anything narrower needs explicit permission
+- **Per-note** — `access: office` on any file silently hides it from users below that level; it doesn't 403, it simply doesn't appear
+- **Per-block** — hledger and budget codeblocks can be restricted independently of the note that contains them
+
+On a published Quartz crew site, proxy-layer auth (Cloudflare Access, Authelia, or similar) gates the whole site. Per-note `access:` controls what each tier sees once inside. The callsheet URL the crew gets shows scenes and locations; the same note on a producer login shows budget lines too.
+
+For anything that genuinely must not be readable by the server — signed contracts, NDAs, sensitive personal details — nb supports per-file GPG encryption. Encrypted files travel through git version-controlled and backed up, but the content is opaque to anyone without the key. The access control system and encryption are independent and composable: use one, the other, or both.
+
+---
+
+## Production accounting
+
+The same notebook that holds the stripboard holds the books. Budget line items, location fees, cast rates, and actuals all live as plain-text [hledger](https://hledger.org/) journal files alongside the shot and scene files.
+
+The live budget total in the stripboard (see [Budget total in stripboard](#budget-total-in-stripboard)) is the visible surface of a full double-entry accounting engine. The underlying journal can be queried for any report hledger supports — top sheet, cost-to-date, account breakdown by CRTC category — directly from nb-web's hledger codeblock renderer.
+
+Because the accounting data is plain text in the same git repository as the schedule, every budget revision has a commit timestamp, every line item has an author, and the complete financial history of the production archives alongside the creative one.
+
+---
+
 ## Backend endpoints
 
 NbWeb-cine adds two endpoints to nb-web's Flask backend (`app.py`):
@@ -585,6 +613,41 @@ On confirm:
 
 ---
 
+## Budget total in stripboard
+
+The stripboard note can show a live budget total using nb-web's `{{hledger: ...}}` inline query:
+
+```markdown
+Current budget total: {{hledger: balance Expenses --no-total --format '%(total)' -1}}
+```
+
+This resolves on render to e.g. `10,010.00 CAD`. The number format (thousands separator, commodity symbol) comes from a `commodity` directive in the notebook's main journal:
+
+```journal
+commodity 1,000.00 CAD
+```
+
+**Recalc button:** when `.nb-hledger.json` has a `regen_script` field pointing to the budget generator, nb-web adds a `↻` button inline after the total. One click:
+
+1. Runs `.tools/gen-budget.py` (reads current shot day assignments, rewrites `photography-budget.journal`)
+2. Re-fetches the hledger query (cache cleared by regen)
+3. Updates the total in place — no page reload
+
+Configure in `.nb-hledger.json`:
+
+```json
+{
+  "journal": "~/.nb/Takeout/accounting/journals/main.journal",
+  "regen_script": ".tools/gen-budget.py"
+}
+```
+
+The button only appears when `regen_script` is set — notes without it get a plain resolved value.
+
+**gen-budget.py** reads the schedule from `shots/` (day assignments), resolves the CHARACTER→actor chain, and writes hledger transactions to `accounting/journals/photography-budget.journal`. Two-path costing per character: `fudge:` on the character file (pre-cast lump estimate) or `rate × qty` from the cast annotation sidecar once an actor is attached.
+
+---
+
 ## Status
 
 Working and in active use. The core loop — edit script → Ctrl+[ shots → drag stripboard → print call sheet — is functional.
@@ -603,7 +666,7 @@ Working and in active use. The core loop — edit script → Ctrl+[ shots → dr
 - [x] Card body peek panel while dragging
 - [ ] `alias:` filter in cine codeblock (`shots.line | alias: 1c`)
 - [ ] gen-characters.py — ALLCAPS extraction from scene prose
-- [ ] gen-budget.py — ATL pass using character fudge/rate/days
+- [x] gen-budget.py — CHARACTER/actor two-path costing; `↻` recalc button in stripboard
 - [ ] Print/export CSS for call sheets
 - [ ] `weather` query (wttr.in for call sheet header)
 - [ ] `nbweb:plugin?url=…` one-click install scheme

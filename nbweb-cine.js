@@ -1863,6 +1863,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 id:       'shot-card',
                 icon:     '🎬',
                 label:    'Shot card',
+                types:    ['shot'],
                 fullCard: true,
                 detect:   note => note.type === 'shot',
                 render:   note => _renderShotCard(note),
@@ -1871,6 +1872,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 id:     'screenplay',
                 icon:   '🎬',
                 label:  'Screenplay format',
+                types:  ['scene'],
                 detect: note => note.type === 'scene',
                 render: note => _renderScript(note),
             },
@@ -1878,6 +1880,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 id:     'markdown',
                 icon:   '📝',
                 label:  'Markdown',
+                types:  ['scene'],
                 detect: note => note.type === 'scene',
                 render: note => {
                     if (note.type !== 'scene') return null;
