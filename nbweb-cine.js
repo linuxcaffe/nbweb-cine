@@ -364,14 +364,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 /* ── Shot card ───────────────────────────────────────────────────────────── */
 .nb-cine-shot-card { max-width: 680px; }
 
-/* Strip used as card header — slightly taller, rounded top */
-.nb-cine-card-strip.nb-cine-strip {
-    min-height: 2.8em; padding: 4px 12px;
-    border-radius: 4px 4px 0 0;
-    border-bottom: 2px solid rgba(0,0,0,0.18);
-}
-.nb-cine-card-strip .nb-cine-id   { font-size: 1.4em; letter-spacing: -0.01em; }
-.nb-cine-card-strip .nb-cine-dnie { font-size: 0.9em; opacity: 0.85; }
 
 .nb-cine-sc-sub  {
     font-size: 0.78em; opacity: 0.5; letter-spacing: 0.04em;
@@ -482,7 +474,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // filter.day = null → unscheduled; filter.scene = null → no scene assigned;
     // filter.actor = null → shots with no actors.
 
+    const _SHOT_FILTER_KEYS = new Set(['day', 'scene', 'actor', 'shot', 'loc']);
+
     function _filterShots(shots, filter) {
+        // Unknown filter key → return empty rather than silently showing all shots
+        for (const k of Object.keys(filter)) {
+            if (!_SHOT_FILTER_KEYS.has(k)) return [];
+        }
         let f = shots;
         if (filter.day !== undefined)
             f = filter.day === null
@@ -496,6 +494,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             f = filter.actor === null
                 ? f.filter(s => !s.actors?.length)
                 : f.filter(s => s.actors.includes(filter.actor));
+        if (filter.shot !== undefined)
+            f = filter.shot === null
+                ? f.filter(s => !s.shot && !s.alias)
+                : f.filter(s => String(s.shot) === String(filter.shot) ||
+                                String(s.alias) === String(filter.shot));
+        if (filter.loc !== undefined)
+            f = filter.loc === null
+                ? f.filter(s => !s.loc)
+                : f.filter(s => String(s.loc) === String(filter.loc));
         return f;
     }
 
@@ -1002,8 +1009,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         el.innerHTML = '';
         const hdr = document.createElement('div');
         hdr.className = 'nb-cine-header';
-        const lineDayLabel = filter.day === null      ? ' · Unscheduled'
-                           : filter.day !== undefined ? ` · Day ${filter.day}`
+        const lineDayLabel = filter.shot  !== undefined ? ` · Shot ${filter.shot}`
+                           : filter.scene !== undefined ? ` · Scene ${filter.scene}`
+                           : filter.loc   !== undefined ? ` · Loc ${filter.loc}`
+                           : filter.day   === null      ? ' · Unscheduled'
+                           : filter.day   !== undefined ? ` · Day ${filter.day}`
                            : ' · All shots';
         hdr.innerHTML = `<span class="nb-cine-title">📄 ${_esc(config?.project || 'Shots')}${_esc(lineDayLabel)}</span>`;
         const refBtn = document.createElement('button');
@@ -1926,10 +1936,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     function _renderSceneCard(note) {
         const m  = note.meta || {};
-        const ie = (m.int_ext   || '').toUpperCase();
-        const dn = (m.day_night || '').toUpperCase();
-        const colorClass = (ie && dn) ? ie + dn : (ie || dn || 'scene');
-
         const fields = _cAllFields(m, {
             day_night: v => _cRow('day/night', v),
             int_ext:   v => _cRow('int/ext',   v),
@@ -1939,13 +1945,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             ? `<div class="nb-card-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
 
         return `<div class="nb-cine-shot-card">` +
-            `<div class="nb-cine-strip nb-cine-strip-${_esc(colorClass)} nb-cine-card-strip">` +
-            `<span class="nb-cine-dnie">${_esc(dn)}${_esc(ie)}</span>` +
-            `<span class="nb-cine-id">${_esc(m.alias != null ? String(m.alias) : '')}</span>` +
-            `<span class="nb-cine-loc">${_esc(m.loc || '')}</span>` +
-            `<span class="nb-cine-desc">${_esc(m.title || '')}</span>` +
-            `<span class="nb-cine-actors"></span><span class="nb-cine-rescount"></span></div>` +
-            (fields ? `<div class="nb-card nb-cine-card-fm" style="border-radius:0 0 8px 8px;margin-top:0">` +
+            (fields ? `<div class="nb-card nb-cine-card-fm">` +
             `<div class="nb-card-fields">${fields}</div></div>` : '') +
             `${bodyHtml}</div>`;
     }
@@ -2007,17 +2007,123 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             : '';
 
         return `<div class="nb-cine-shot-card">
-  <div class="nb-cine-strip nb-cine-strip-${_esc(colorClass)} nb-cine-card-strip">
-    <span class="nb-cine-dnie">${_esc(dnie)}</span>
-    <span class="nb-cine-id">${_esc(alias || scene)}</span>
-    <span class="nb-cine-loc">${_esc(loc)}</span>
-    <span class="nb-cine-desc"></span>
-    <span class="nb-cine-actors">${actorCodes.map(c => `<span class="nb-cine-actor">${_esc(c)}</span>`).join('')}</span>
-    <span class="nb-cine-rescount"></span>
-  </div>
-  ${fieldsInner ? `<div class="nb-card nb-cine-card-fm" style="border-radius:0 0 8px 8px;margin-top:0">${fieldsInner}</div>` : ''}
+  ${fieldsInner ? `<div class="nb-card nb-cine-card-fm">${fieldsInner}</div>` : ''}
   ${bodyHtml}
 </div>`;
+    }
+
+    // ── Day card (type: day) ─────────────────────────────────────────────────
+
+    function _renderDayCard(note) {
+        const m      = note.meta || {};
+        const dayNo  = m.day != null ? String(m.day) : '';
+        const date   = (m.date || '').trim();
+        const hours  = _parseBlock(typeof m.hours === 'string' ? m.hours : '');
+
+        const dateHtml = date
+            ? `<div class="nb-card-row"><span class="nb-card-label">date</span><span class="nb-card-value">${_esc(date)}</span></div>`
+            : `<div class="nb-card-row"><span class="nb-card-label">date</span><span class="nb-card-value" style="color:var(--text-muted);font-style:italic">unscheduled</span></div>`;
+
+        const hoursRows = Object.entries(hours)
+            .filter(([, v]) => v != null && v !== '')
+            .map(([k, v]) => _cRow(k, v))
+            .join('');
+
+        const hoursHtml = hoursRows
+            ? `<div class="nb-card-block"><div class="nb-card-block-key">hours</div><div class="nb-card-block-fields">${hoursRows}</div></div>`
+            : '';
+
+        const extraFields = _cAllFields(m, {
+            type:  () => '',
+            day:   () => '',
+            date:  () => '',
+            hours: () => '',
+        });
+
+        const fields = [dateHtml, hoursHtml, extraFields].filter(Boolean).join('');
+
+        const bodyHtml = (note.body || '').trim()
+            ? `<div class="nb-card-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
+
+        return `<div class="nb-cine-shot-card">` +
+            `<div class="nb-card nb-cine-card-fm">` +
+            `<div class="nb-card-header"><div class="nb-card-avatar" style="background:var(--accent)">${_esc(dayNo || '?')}</div>` +
+            `<div><div class="nb-card-title">Day ${_esc(dayNo || '—')}</div>` +
+            `<div class="nb-card-sub">${date ? _esc(date) : 'Unscheduled'}</div></div></div>` +
+            `<div class="nb-card-fields">${fields}</div></div>` +
+            `${bodyHtml}</div>`;
+    }
+
+    // ── Resource card (type: resource) ───────────────────────────────────────
+
+    function _renderResourceCard(note) {
+        const m    = note.meta || {};
+        const name = (m.resource || note.title || '').trim();
+        const code = (m.code || '').trim();
+        const unit = (m.unit || 'day').trim().toLowerCase();
+        const hoursType = (m.hours_type || '').trim();
+
+        const unitDisplay = unit === 'hour' && hoursType
+            ? `${unit} (${hoursType} hours)`
+            : unit;
+
+        const fields = _cAllFields(m, {
+            type:       () => '',
+            resource:   () => '',
+            code:       v  => _cRow('code', v),
+            supplier:   v  => _cRow('supplier', v),
+            unit:       () => _cRow('unit', unitDisplay),
+            hours_type: () => '',          // folded into unit row above
+            'cost per': v  => _cRow('cost per', v),
+            start:      v  => _cRow('start', v),
+            end:        v  => _cRow('end', v),
+            lock:       () => '',
+        });
+
+        const bodyHtml = (note.body || '').trim()
+            ? `<div class="nb-card-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
+
+        return `<div class="nb-cine-shot-card">` +
+            `<div class="nb-card nb-cine-card-fm">` +
+            `<div class="nb-card-header">` +
+            `<div class="nb-card-avatar" style="background:${_cColor(code)}">${_esc(_cInitials(code))}</div>` +
+            `<div><div class="nb-card-title">${_esc(name)}</div>` +
+            `<div class="nb-card-sub">${_esc(code)}</div></div></div>` +
+            `<div class="nb-card-fields">${fields}</div></div>` +
+            `${bodyHtml}</div>`;
+    }
+
+    // ── Display label (list display + sort) ──────────────────────────────────
+    // Shared by listTitle and the 'display' sort option so both see the same string.
+
+    function _displayLabel(note) {
+        if (!note.meta) return note.title || note.filename || '';
+        const alias = String(note.meta.alias ?? '').trim();
+        const title = (note.title || '').trim();
+
+        if (note.type === 'shot') {
+            const scene = String(note.meta.scene ?? '');
+            const id    = scene && alias ? `${scene}.${alias}` : (alias || scene || '');
+            const label = title || String(note.meta.desc ?? '').trim().split('\n')[0];
+            return id && label ? `${id} — ${label}` : (id || label || note.filename || '');
+        }
+        if (note.type === 'character') {
+            // alias: is the casting link (actor stem), not a display code
+            const code = (note.filename || '').replace(/\.md$/i, '');
+            return code && title ? `${code} — ${title}` : (title || code || note.filename || '');
+        }
+        if (note.type === 'resource') {
+            const code = (note.meta.code || '').trim();
+            const name = (note.meta.resource || note.title || '').trim();
+            return code && name ? `${code} — ${name}` : (name || code || note.filename || '');
+        }
+        if (note.type === 'day') {
+            const dayNo = note.meta.day != null ? `Day ${note.meta.day}` : '';
+            const date  = (note.meta.date || '').trim();
+            return dayNo && date ? `${dayNo} — ${date}` : (dayNo || date || note.filename || '');
+        }
+        if (alias && title) return `${alias} — ${title}`;
+        return title || alias || note.filename || '';
     }
 
     // ── Plugin registration ───────────────────────────────────────────────────
@@ -2141,6 +2247,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 detect: note => note.type === 'location',
                 render: note => _renderLocationCard(note),
             },
+            {
+                id:     'day-card',
+                icon:   '📅',
+                label:  'Day card',
+                types:  ['day'],
+                detect: note => note.type === 'day',
+                render: note => _renderDayCard(note),
+            },
+            {
+                id:     'resource-card',
+                icon:   '🎁',
+                label:  'Resource card',
+                types:  ['resource'],
+                detect: note => note.type === 'resource',
+                render: note => _renderResourceCard(note),
+            },
         ],
 
         listItemIcon: note => {
@@ -2149,7 +2271,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             if (/[:/]actors\//.test(p))    return '🧑';
             if (/[:/]locations\//.test(p)) return '📍';
             if (/[:/]script\//.test(p))    return '📜';
-            if (/[:/]resou/.test(p))       return '🎁';
+            if (/[:/]resou/.test(p))          return '🎁';
+            if (/[:/]schedule\//.test(p))       return '📅';
+            if (note.type === 'day')           return '📅';
+            if (note.type === 'resource')      return '🎁';
             return null;
         },
 
@@ -2181,31 +2306,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 #nb-preview-content.nb-extras-hidden .nb-cine-shot-cue { display: none; }
 `,
 
-        listTitle: note => {
-            if (!note.meta) return null;
-            const alias = String(note.meta.alias ?? '').trim();
-            const title = (note.title || '').trim();
-
-            if (note.type === 'shot') {
-                const scene = String(note.meta.scene ?? '');
-                const id    = scene && alias ? `${scene}.${alias}` : (alias || scene || '');
-                const label = title || String(note.meta.desc ?? '').trim().split('\n')[0];
-                return id && label ? `${id} — ${label}` : (id || label || null);
-            }
-
-            if (note.type === 'scene' || note.type === 'actor' || note.type === 'location') {
-                return alias && title ? `${alias} — ${title}` : (title || alias || null);
-            }
-
-            if (note.type === 'character') {
-                // alias: is the casting link (actor stem), not a display code;
-                // use the filename stem (BILL, AMY…) as the visible character code
-                const code = (note.filename || '').replace(/\.md$/i, '');
-                return code && title ? `${code} — ${title}` : (title || code || null);
-            }
-
-            return null;
-        },
+        listTitle: note => _displayLabel(note) || null,
 
         editorKeybindings: note => note.type === 'scene' ? [{
             key:    '[',
@@ -2231,6 +2332,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 if (vb == null) return -1;
                 return String(va).localeCompare(String(vb));
             }),
+        }, {
+            id:    'display',
+            label: 'Alias — Title',
+            sort:  notes => [...notes].sort((a, b) =>
+                _displayLabel(a).localeCompare(_displayLabel(b))
+            ),
         }],
     });
 

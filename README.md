@@ -125,6 +125,9 @@ MyFilm/
 ├── resources/
 │   ├── car1.md
 │   └── …
+├── schedule/
+│   ├── day_1.md           ← shoot day record (type: day)
+│   └── …
 └── storylines/
     ├── main-plot.md       ← lane definition (type: storyline)
     └── subplot-a.md       ← story card (type: story)
@@ -241,6 +244,75 @@ end:
 notes: city permit required
 ---
 ```
+
+### Day file frontmatter
+
+```yaml
+---
+type:  day
+day:   1               # shoot day number — links to shots with day: 1
+date:  2026-09-08      # calendar date; absent = hypothetical/unscheduled
+hours: |
+  full_day: 12
+  cast: 8
+  crew: 12
+  location: 10
+---
+```
+
+`day:` is the numeric shoot day, matching the `day:` field on shot notes.
+
+`date:` is optional. When present the day is *hard-scheduled* — the date appears on the DAY banner in shot lists and is used by gen-budget.py for journal dating. Without a date the day is hypothetical.
+
+`hours:` drives per-hour resource costing. Sub-fields correspond to the `hours_type:` field on resource notes:
+
+| Sub-field | Meaning |
+|-----------|---------|
+| `full_day` | Total crew hours on set |
+| `cast` | Hours talent is on set (may differ from full day) |
+| `crew` | Crew-only hours (prep + strike + shoot) |
+| `location` | Hours at the location (may include prep day) |
+
+Add or rename sub-fields freely — they are read by name from the resource `hours_type:` field.
+
+Day notes live in `schedule/`.
+
+### Resource file frontmatter
+
+```yaml
+---
+type:       resource
+resource:   Hero delivery van
+code:       Car1
+supplier:   Props house
+unit:       day          # day | hour
+hours_type: full_day     # which hours bucket to use when unit: hour
+start:      2026-09-08   # first shoot date this resource applies (optional)
+end:        2026-09-10   # last shoot date (optional; open range if omitted)
+lock:
+---
+```
+
+Financial data lives in the **annotation sidecar** (admin-only), not the note:
+
+```yaml
+---
+cost per: 80.00
+unit: day
+---
+```
+
+This keeps the resource visible to `office` level (who can see supplier, scheduling, and billing method) while the actual rate is only visible to `admin`. gen-budget.py reads cost from the annotation sidecar via `parse_rate()` — the same pattern used for cast rates.
+
+`unit: day` — flat rate per scheduled shoot day.
+
+`unit: hour` — rate multiplied by the value of `hours_type` from the day note for that shoot day. For example, a hair & makeup kit billed per cast hour uses `unit: hour` and `hours_type: cast`.
+
+`start:` / `end:` constrain which shoot days the resource applies to. Omit both for a resource that applies to every scheduled day.
+
+`code:` is the compact identifier used in stripboard field lookups (`resource.notes: Car1`) and in the budget journal account path (`Expenses:BTL:Resources:Car1`).
+
+Resource notes live in `resources/`.
 
 ### Scene file frontmatter
 
@@ -644,7 +716,21 @@ Configure in `.nb-hledger.json`:
 
 The button only appears when `regen_script` is set — notes without it get a plain resolved value.
 
-**gen-budget.py** reads the schedule from `shots/` (day assignments), resolves the CHARACTER→actor chain, and writes hledger transactions to `accounting/journals/photography-budget.journal`. Two-path costing per character: `fudge:` on the character file (pre-cast lump estimate) or `rate × qty` from the cast annotation sidecar once an actor is attached.
+**gen-budget.py** reads the schedule from `shots/` (day assignments), resolves the CHARACTER→actor chain, and writes hledger transactions to `accounting/journals/photography-budget.journal`.
+
+Four data sources are loaded:
+
+| Source | Folder | Used for |
+|--------|--------|---------|
+| Shots | `shots/` | Schedule — which characters and locations appear on each day |
+| Characters + Cast | `characters/` + `cast/` | ATL costing via fudge or rate × days |
+| Locations | `locations/` | BTL location fees per day used |
+| Resources | `resources/` | BTL equipment, vehicles, packages |
+| Days | `schedule/` | Hours per day — multiplier for per-hour resources |
+
+**ATL costing (characters):** two-path — `fudge:` on the character file (pre-cast lump estimate) or `rate × qty` from the cast annotation sidecar once an actor is attached.
+
+**BTL costing (resources):** `unit: day` → flat rate per applicable shoot day; `unit: hour` → rate × hours from the day note's `hours.<hours_type>` sub-field. Date-range filtering via `start:` / `end:` on the resource note. A resource with no dates applies to every scheduled day.
 
 ---
 
@@ -664,9 +750,11 @@ Working and in active use. The core loop — edit script → Ctrl+[ shots → dr
 - [x] Storylines size variants (`small`/`large`) with toggle persistence
 - [x] Inline story card creation per lane
 - [x] Card body peek panel while dragging
-- [ ] `alias:` filter in cine codeblock (`shots.line | alias: 1c`)
+- [x] `shot:` and `loc:` filters in `shots.line` codeblock
 - [ ] gen-characters.py — ALLCAPS extraction from scene prose
-- [x] gen-budget.py — CHARACTER/actor two-path costing; `↻` recalc button in stripboard
+- [x] gen-budget.py — CHARACTER/actor two-path costing; resource BTL costing (day + hourly); `↻` recalc button in stripboard
+- [x] `type: day` — shoot day record with hours breakdown; card preview; `schedule/` folder
+- [x] `type: resource` — BTL line item with `unit: day|hour` + `hours_type:`; card preview
 - [ ] Print/export CSS for call sheets
 - [ ] `weather` query (wttr.in for call sheet header)
 - [ ] `nbweb:plugin?url=…` one-click install scheme
