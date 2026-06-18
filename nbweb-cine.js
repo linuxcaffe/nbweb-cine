@@ -249,7 +249,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-chosen { box-shadow: 0 3px 12px rgba(0,0,0,0.35); z-index: 10; position: relative; }
 
 /* ── Storylines board ───────────────────────────────────────────────────── */
-/* Let the rendered prose column escape its 720px cap when it holds a board */
+/* Let the rendered prose column escape its 720px cap when it holds a board.
+   :has() CSS fallback — JS also sets this directly for browsers without :has() */
 #nb-preview-content .nb-rendered:has(.nb-cine-storylines-scroll) {
     max-width: 100%;
 }
@@ -257,9 +258,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     overflow-x: auto;
 }
 .nb-cine-storylines-board {
-    display: inline-flex; flex-direction: column; gap: 2px;
+    display: flex; flex-direction: column; gap: 2px;
     padding: 4px 0;
-    min-width: 100%; vertical-align: top;
+    width: max-content; min-width: 100%;
 }
 .nb-cine-storyline-row {
     display: flex; align-items: flex-start; gap: 0;
@@ -1172,6 +1173,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         scroll.className = 'nb-cine-storylines-scroll';
         scroll.appendChild(board);
         el.appendChild(scroll);
+
+        // JS fallback for browsers without :has() — lift the prose max-width cap
+        const rendered = el.closest('.nb-rendered');
+        if (rendered) rendered.style.maxWidth = '100%';
 
         const peek = document.createElement('div');
         peek.className = 'nb-cine-card-peek';
