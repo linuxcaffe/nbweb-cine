@@ -1174,10 +1174,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         scroll.appendChild(board);
         el.appendChild(scroll);
 
-        // JS fallback for browsers without :has() — lift the prose max-width cap
-        const rendered = el.closest('.nb-rendered');
-        if (rendered) rendered.style.maxWidth = '100%';
-
         const peek = document.createElement('div');
         peek.className = 'nb-cine-card-peek';
         peek.hidden = true;
