@@ -249,6 +249,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-chosen { box-shadow: 0 3px 12px rgba(0,0,0,0.35); z-index: 10; position: relative; }
 
 /* ── Storylines board ───────────────────────────────────────────────────── */
+/* Let the rendered prose column escape its 720px cap when it holds a board */
+#nb-preview-content .nb-rendered:has(.nb-cine-storylines-scroll) {
+    max-width: 100%;
+}
 .nb-cine-storylines-scroll {
     overflow-x: auto;
 }
