@@ -1829,7 +1829,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             if (typeof Sortable !== 'undefined') {
                 Sortable.create(msCardZone, {
-                    group:          { name: 'milestones-row', pull: true, put: false },
+                    group:          { name: 'milestones-row', pull: true, put: true },
                     animation:      150,
                     forceFallback:  true,
                     fallbackOnBody: true,
