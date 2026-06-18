@@ -383,6 +383,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-lane-add-end:hover { opacity: 1; background: rgba(255,255,255,0.07); }
 .nb-cine-story-card:active { cursor: grabbing; }
 .nb-cine-story-title { font-weight: bold; margin-bottom: 3px; }
+/* Gold title when story has a matching nb-web tool */
+.nb-cine-has-tool .nb-cine-story-title,
+.nb-cine-has-tool .nb-cine-sl-story-prose-title,
+.nb-cine-has-tool .nb-cine-sl-script-story-title { color: #c8960c; font-weight: 800; }
 .nb-cine-story-scenes {
     display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px;
 }
@@ -1500,6 +1504,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             if (mode === 'plotline' && story.story_seq != null)
                 card.classList.add('nb-cine-promoted');
+            if (story.meta?.tool) card.classList.add('nb-cine-has-tool');
 
             // Storyline card: apply home plotline's accent colour
             if (mode === 'storyline') {
@@ -2062,6 +2067,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                             ? `<div class="nb-cine-sl-story-body">${_esc(item.body_preview)}</div>` : '';
                         const card = document.createElement('div');
                         card.className = 'nb-cine-sl-story-prose';
+                        if (item.meta?.tool) card.classList.add('nb-cine-has-tool');
                         card.dataset.selector = item.selector;
                         if (color) card.style.borderLeftColor = color;
                         card.innerHTML =
@@ -2084,6 +2090,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                         } else {
                             const block = document.createElement('div');
                             block.className = 'nb-cine-sl-script-story';
+                            if (item.meta?.tool) block.classList.add('nb-cine-has-tool');
                             const titleEl = document.createElement('div');
                             titleEl.className = 'nb-cine-sl-script-story-title';
                             titleEl.textContent = item.title;
