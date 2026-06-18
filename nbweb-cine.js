@@ -1965,7 +1965,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }
 
         const { field, format, filter, codes } = _parseQuery(el.dataset.query || '');
-        const _project = (field === 'storyline-board' || field === 'storyline-story') ? (el.dataset.project || '') : '';
+        const _project = (field === 'storyline-board' || field === 'storyline-story' || field === 'storyline-script') ? (el.dataset.project || '') : '';
 
         let data;
         try {
