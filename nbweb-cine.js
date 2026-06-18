@@ -1788,12 +1788,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             } catch(e) { alert('Milestone demote failed: ' + e.message); }
         }
 
-        // Milestones on the row are those with a milestone_seq; unsequenced sit below
         const promotedMilestones = [...milestones]
             .filter(m => m.milestone_seq !== null && m.milestone_seq !== undefined)
             .sort((a, b) => a.milestone_seq - b.milestone_seq);
-        const unpinnedMilestones = milestones.filter(
-            m => m.milestone_seq === null || m.milestone_seq === undefined);
 
         // Always show the milestone row (+ button bootstraps the first milestone)
         {
@@ -1809,24 +1806,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             msCardZone.className = 'nb-cine-lane-cards';
             promotedMilestones.forEach(m => msCardZone.appendChild(_buildMilestoneCard(m)));
             msRow.appendChild(msCardZone);
-
-            // Ghost + slot for adding / dragging on unpinned milestones
-            if (unpinnedMilestones.length) {
-                const unpinnedPool = document.createElement('div');
-                unpinnedPool.className = 'nb-cine-lane-cards';
-                unpinnedPool.style.cssText = 'opacity:0.45; border-left:1px dashed rgba(255,255,255,0.15); padding-left:6px; min-width:3em;';
-                unpinnedPool.title = 'Drag to promote';
-                unpinnedMilestones.forEach(m => unpinnedPool.appendChild(_buildMilestoneCard(m)));
-                msRow.appendChild(unpinnedPool);
-
-                if (typeof Sortable !== 'undefined') {
-                    Sortable.create(unpinnedPool, {
-                        group: { name: 'milestones', pull: 'clone', put: ['milestones-row'] },
-                        animation: 150, forceFallback: true, fallbackOnBody: true,
-                        onEnd() { /* no-op — source pool is read-only display */ },
-                    });
-                }
-            }
 
             const msAdd = document.createElement('button');
             msAdd.className = 'nb-cine-lane-add-end'; msAdd.textContent = '+';
@@ -1850,9 +1829,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             if (typeof Sortable !== 'undefined') {
                 Sortable.create(msCardZone, {
-                    group: { name: 'milestones-row', pull: false, put: ['milestones'] },
-                    animation: 150, forceFallback: true, fallbackOnBody: true,
-                    onAdd() { _resequenceMilestones(msCardZone).then(_refresh); },
+                    group:          { name: 'milestones-row', pull: true, put: false },
+                    animation:      150,
+                    forceFallback:  true,
+                    fallbackOnBody: true,
                     onEnd(evt) { if (evt.to === msCardZone) _resequenceMilestones(msCardZone); },
                 });
             }
