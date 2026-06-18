@@ -449,7 +449,7 @@ Set `lock:` (or `lock: true`) in a shot's frontmatter to pin it in place. The dr
 
 ## Storylines
 
-The storylines board is a 2D conceptual overview — a 1000-ft view of story structure before committing to a scene order. It sits alongside the stripboard, not above or below it: the stripboard is production logistics, storylines is story development.
+The storylines board is a 2D conceptual overview — a 1000-ft view of story structure before committing to a scene order. It sits alongside the stripboard, not above it: the stripboard is production logistics, storylines is story development.
 
 ```
 ```cine
@@ -457,36 +457,91 @@ storylines
 ```
 ```
 
-### What it looks like
+### Board layout
 
-Each **lane** is a horizontal row with a named label on the left. Story cards sit in a single scrollable row across the lane — lanes scroll horizontally, so a lane can hold as many cards as the story needs. Drag any card to a new slot in the same lane, or drop it into a different lane entirely. On drop, `storyline:` and `seq:` are written back to the card files in a single git commit — the same pattern as the stripboard.
+The board has three horizontal layers stacked top to bottom:
 
-A **"No story"** row at the bottom shows any scenes not yet claimed by any story card. It is read-only — it exists to surface gaps in coverage.
+| Layer | Type | Purpose |
+|-------|------|---------|
+| **Storyline track** | `type: storyline` | One row — the master story spine. Cards dragged here are "promoted" to the main arc. |
+| **Plotline rows** | `type: plotline` | One row per named arc (character, theme, subplot). Story cards live here until promoted. |
+| **Milestone row** | `type: milestone` | One row — structural markers: act breaks, picture lock, key turning points. Can also be promoted to the storyline track. |
+
+All rows scroll horizontally. Lane labels on the left are sticky.
+
+### Promote / demote
+
+**Storyline track** — the top row acts as the master spine. Drag any story card (from a plotline row) up to the storyline track to promote it; it gets a `story_seq:` field and appears in story-view and script-view. Drag it back down to demote (or use the `−` button that appears on hover). Milestone cards can be promoted to the storyline track the same way.
+
+**Plotline rows** — cards can be dragged between plotline lanes to reassign an arc. A card's `plotline:` and `seq:` are updated on drop.
+
+**Milestone row** — milestones have their own `milestone_seq:` for position in the milestone row, independent of `story_seq:` for position on the storyline track. A milestone can have both set simultaneously.
 
 ### Body peek while dragging
 
-When you begin dragging a card, the card's full note body renders as formatted markdown in a panel immediately below the board. This lets you read the card's details — character arcs, draft notes, whatever you've written there — while deciding where to place it. The peek panel closes automatically when you drop the card.
+When you start dragging a plotline card, its full note body renders as formatted markdown in a peek panel on the right side of the board. Useful for reading the card's details — character arcs, draft notes — while choosing where to place it. The panel closes when you drop.
+
+### Card sizes
+
+Three zoom levels, cycled with the **▦** button in the board toolbar:
+
+| Size | Min height | Content |
+|------|-----------|---------|
+| `small` | 80px | Title only — high density, good for structure work |
+| `medium` | 130px | Title + desc + first paragraph of body |
+| `large` | 180px | Title + desc + body + scene chips + all frontmatter |
+
+Size is persisted in `localStorage` per notebook.
+
+### Views
+
+Three views share the same `el.dataset.query` slot and switch in place:
+
+| Button | Query | Description |
+|--------|-------|-------------|
+| **▦** | `storyline-board` | Interactive drag board (overlay) |
+| **📖** | `storyline-story` | Prose cards: promoted stories + milestone bars in `story_seq` order |
+| **≡** | `storyline-script` | Full body of each promoted story rendered as markdown, interleaved with milestone bars |
+
+The `▦` button appears in story-view and script-view toolbars. The **≡/☰** button toggles between story-view and script-view. The board's **📖** button returns to story-view.
+
+Script-view fetches each story's full note body asynchronously and renders it with `marked.parse()`. It is a read-only continuous document — click any title or milestone bar to open the note.
 
 ### Project structure
 
-Both storyline and story notes live in the `storylines/` folder:
+All storyline-related notes live in `storylines/`. Use a named subfolder for multi-project notebooks:
 
 ```
 MyFilm/
 └── storylines/
-    ├── main-plot.md        ← type: storyline (lane)
-    ├── subplot-a.md        ← type: storyline (lane)
-    ├── they-lose-the-car.md ← type: story (card)
-    ├── sam-realizes.md     ← type: story (card)
-    └── things-go-bad.md    ← type: story (card)
+    ├── main-plot.md          ← type: storyline  (the master spine)
+    ├── bill-arc.md           ← type: plotline   (character arc lane)
+    ├── subplot-heist.md      ← type: plotline   (subplot lane)
+    ├── they-lose-the-car.md  ← type: story      (story card)
+    ├── sam-realizes.md       ← type: story      (story card)
+    ├── picture-lock.md       ← type: milestone
+    └── end-of-act-2.md       ← type: milestone
 ```
 
-### Storyline (lane) frontmatter
+Multi-project notebooks scope storylines to a subfolder:
+
+```
+MyNotebook/
+└── storylines/
+    └── makemovies/           ← project subfolder
+        ├── main-plot.md
+        ├── they-lose-the-car.md
+        └── …
+```
+
+The `el.dataset.project` attribute on the codeblock element holds the active project scope. `_loadCineBlock` passes it to `_fetchData` so all three views fetch scoped data.
+
+### Plotline (lane) frontmatter
 
 ```yaml
 ---
-type: storyline
-title: Main Plot
+type: plotline
+title: Bill's Arc
 color: steelblue
 seq: 1
 ---
@@ -494,10 +549,22 @@ seq: 1
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `type` | yes | Must be `storyline` |
+| `type` | yes | Must be `plotline` |
 | `title` | yes | Lane label shown on the left |
 | `color` | no | Any CSS color — tints the lane label and card borders |
 | `seq` | no | Lane order top-to-bottom (lower = higher) |
+
+### Storyline (master spine) frontmatter
+
+```yaml
+---
+type: storyline
+title: Main Storyline
+seq: 0
+---
+```
+
+Exactly one `type: storyline` note per project. It defines the master spine row at the top of the board. Additional plotline rows are `type: plotline`.
 
 ### Story card frontmatter
 
@@ -505,10 +572,11 @@ seq: 1
 ---
 type: story
 title: They lose the car
-storyline: main-plot
+plotline: bill-arc
 seq: 3
+story_seq: 7
 scenes: 5, 7
-characters: JD, AM
+desc: Bill realises the car is gone — stakes escalate
 ---
 ```
 
@@ -516,16 +584,37 @@ characters: JD, AM
 |-------|----------|-------------|
 | `type` | yes | Must be `story` |
 | `title` | yes | Card label |
-| `storyline` | yes | Filename stem of the target `storyline` note |
-| `seq` | yes | Slot position within the lane (rewritten on drag) |
-| `scenes` | no | Comma-separated scene references (see below) |
-| `characters` | no | Freeform — any extra metadata is preserved |
+| `plotline` | yes | Filename stem of the home plotline lane |
+| `seq` | yes | Position within the plotline lane (rewritten on drag) |
+| `story_seq` | auto | Position on the master storyline track; absent = not promoted |
+| `desc` | no | One-line description — shown on medium/large cards and in story-view |
+| `scenes` | no | Comma-separated scene references |
 
-Story cards are open-ended: add any frontmatter fields you need — character arcs, emotional beats, draft notes. NbWeb-cine passes arbitrary metadata through and displays it in the standard frontmatter table when you open the card.
+Story cards are open-ended: any additional frontmatter fields are preserved and displayed in the standard table when the note is opened.
+
+### Milestone frontmatter
+
+```yaml
+---
+type: milestone
+title: End of Act II
+milestone_seq: 3
+story_seq: 12
+---
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | yes | Must be `milestone` |
+| `title` | yes | Label shown on the card and in bars |
+| `milestone_seq` | auto | Position in the milestone row (rewritten on drag); absent = not on the row |
+| `story_seq` | auto | Position on the master storyline track; absent = not promoted |
+
+Milestones are structurally independent from plotlines — they mark points in time that cut across all arcs. Use them for act breaks, lock dates, turning points. A milestone can appear in both the milestone row (`milestone_seq`) and the storyline track (`story_seq`) simultaneously.
 
 ### Scene references
 
-The `scenes:` field lists scenes that belong to this story beat, conceptually. It accepts scene aliases, `scene_no` values, or filename stems interchangeably:
+The `scenes:` field lists scenes conceptually belonging to a story card. Accepts scene aliases, `scene_no` values, or filename stems:
 
 ```yaml
 scenes: 5, 7        # by alias
@@ -533,34 +622,15 @@ scenes: lg-establish, wh-showdown   # by filename stem
 scenes: 5, lg-establish, 12         # mixed — all work
 ```
 
-Scene references resolve against the `script/` folder. Resolved scenes appear as clickable chips on the card. Unresolved references (typos, deleted scenes) appear greyed-out. **Scene files themselves are never modified** — the relationship is owned entirely by the story card.
+Resolved scenes appear as clickable chips on the card at large size. Unresolved references appear greyed-out. Scene files are never modified — the relationship lives entirely in the story card.
 
-### Coverage and orphans
+### Adding cards inline
 
-The "No story" row at the bottom of the board shows all scenes in `script/` that are not referenced by any story card. Use it to spot scenes that haven't been assigned a story context yet.
+Each plotline lane has a **+** button at its right end. Type a title, press **Enter** to create. The card is assigned the next available `seq` and the lane's `plotline:` stem is set automatically.
 
-### Card sizes
+The global **+ Story** button in the board toolbar creates an unassigned card (`plotline:` unset) which appears in the "No story" row.
 
-The board has two display modes toggled by the **▦/▤** button in the block header:
-
-| Size | Content |
-|------|---------|
-| Small (default) | Title only — high density, good for arranging structure |
-| Large | Title + scene chips + all frontmatter fields — full detail view |
-
-The toggle state is persisted in `localStorage` per notebook. You can also set the default size in the query:
-
-```
-```cine
-storylines.large
-```
-```
-
-### Adding story cards inline
-
-Each lane has a **+** button on its right end. Click it to open an inline text field — type a title and press **Enter** to create the card immediately. The card is assigned the next available `seq` in the lane and the lane's `storyline:` stem is set automatically. Press **Escape** to cancel without creating.
-
-A global **+** in the block header creates an unassigned card (no `storyline:` set) — it appears in the "No story" row until dragged into a lane.
+The milestone row has its own **+** button. It prompts for a title, creates the note via `/api/cine/milestone/create`, and assigns the next `milestone_seq`.
 
 ---
 
@@ -623,16 +693,38 @@ Because the accounting data is plain text in the same git repository as the sche
 
 ## Backend endpoints
 
-NbWeb-cine adds two endpoints to nb-web's Flask backend (`app.py`):
+NbWeb-cine adds these endpoints to nb-web's Flask backend (`app.py`):
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/cine/data` | GET | All shots, scenes, actors, locations, resources, lanes, stories, orphan_scenes, config for a notebook |
-| `/api/cine/resequence` | POST | Batch-update `day:` and `seq:` frontmatter after a stripboard drag |
-| `/api/cine/story/resequence` | POST | Batch-update `storyline:` and `seq:` frontmatter after a storylines drag |
-| `/api/cine/story/create` | POST | Create a new story card — slugifies title, auto-assigns `seq`, updates `.index`, commits |
+| `/api/cine/data` | GET | All shots, scenes, actors, locations, resources, lanes, stories, milestones, orphan_scenes, config |
+| `/api/cine/resequence` | POST | Batch-update `day:` and `seq:` after a stripboard drag |
+| `/api/cine/story/resequence` | POST | Batch-update `plotline:`, `seq:`, `story_seq:`, `milestone_seq:` after a storylines drag |
+| `/api/cine/story/create` | POST | Create a story card — slugify title, auto-assign `seq`, index, commit |
+| `/api/cine/milestone/create` | POST | Create a milestone note — auto-assign `milestone_seq`, index, commit |
+| `/api/cine/lock` | POST | Set or clear `lock:` on any note |
 
-Data is cached in the frontend for 30 seconds. The ↻ refresh button in each block header busts the cache.
+`/api/cine/data` response shape:
+
+```json
+{
+  "shots":         [...],
+  "scenes":        [...],
+  "characters":    { "BILL": {...}, ... },
+  "cast":          { "jim_dandy": {...}, ... },
+  "locations":     { "LG": {...}, ... },
+  "resources":     [...],
+  "lanes":         [...],
+  "stories":       [...],
+  "milestones":    [...],
+  "orphan_scenes": [...],
+  "config":        { "project": "Takeout", ... }
+}
+```
+
+Each story and milestone includes `body_preview` (first 280 chars of note body) for display at medium/large zoom without requiring a per-card fetch.
+
+Data is cached in the frontend for 30 seconds per `notebook:project` key. The ↻ refresh button busts the cache.
 
 ---
 
@@ -746,10 +838,17 @@ Working and in active use. The core loop — edit script → Ctrl+[ shots → dr
 - [x] CHARACTER/actor resolution chain — shots never touch actor names
 - [x] Screenplay preview with 🎬/📝 renderer toggle
 - [x] Ctrl+[ insert shot from scene editor — auto-suggest, create, open
-- [x] Storylines board — lanes, draggable story cards, cross-lane drag
-- [x] Storylines size variants (`small`/`large`) with toggle persistence
-- [x] Inline story card creation per lane
-- [x] Card body peek panel while dragging
+- [x] Storylines board — plotline lanes, master storyline track, horizontal scroll
+- [x] Three card sizes (small/medium/large) with body preview at medium/large
+- [x] Promote/demote — drag story card to/from master storyline track; `story_seq` written back
+- [x] Milestone lane — `type: milestone`, narrow dark cards, `milestone_seq` + `story_seq`
+- [x] Milestones on storyline track — same drag-on/off mechanic as story cards
+- [x] Three views: board (▦), story-view (📖), script-view (≡)
+- [x] Story-view: prose cards interleaved with milestone bars, in `story_seq` order
+- [x] Script-view: full body markdown + milestone bars, async per-card fetch
+- [x] Inline story card creation per lane; milestone + button
+- [x] Body peek panel while dragging plotline cards
+- [x] Clickable lane labels to preview plotline note in peek panel
 - [x] `shot:` and `loc:` filters in `shots.line` codeblock
 - [ ] gen-characters.py — ALLCAPS extraction from scene prose
 - [x] gen-budget.py — CHARACTER/actor two-path costing; resource BTL costing (day + hourly); `↻` recalc button in stripboard
@@ -758,6 +857,79 @@ Working and in active use. The core loop — edit script → Ctrl+[ shots → dr
 - [ ] Print/export CSS for call sheets
 - [ ] `weather` query (wttr.in for call sheet header)
 - [ ] `nbweb:plugin?url=…` one-click install scheme
+
+---
+
+## Developer notes
+
+### SortableJS group configuration — the `put` trap
+
+`put: false` on a SortableJS sortable blocks **all** drag-and-drop interaction with that list, including within-list reordering. With `forceFallback: true` (which this plugin always uses), SortableJS checks `put` even for same-list moves before showing the insertion indicator. A list that should only sort within itself must use `put: true`, not `put: false`.
+
+The contamination guard lives on the **receiving** side: plotline rows accept `put: ['plotlines', 'storyline']`; the storyline track accepts `put: ['plotlines', 'milestones-row']`. Nothing accepts an unrecognised group name, so cards snap back if dropped somewhere that doesn't want them.
+
+```javascript
+// WRONG — blocks within-list sort indicator
+group: { name: 'milestones-row', pull: true, put: false }
+
+// RIGHT — allows within-list sort; no other zone has 'milestones-row' in its put list
+group: { name: 'milestones-row', pull: true, put: true }
+```
+
+### Promote-to-storyline: `pull: 'clone'` pattern
+
+Plotline rows (and the milestone row) use `pull: (to) => to.options.group.name === 'storyline' ? 'clone' : true`. When a card is dragged to the storyline track, SortableJS inserts a **clone** in the target and leaves the original in the source. The storyline `onAdd` handler calls `_resequenceStoryline(cardZone)`, which walks the current DOM (including the clone, which has the correct `data-selector`) and assigns `story_seq` values. Then `_refresh()` discards the DOM and rebuilds from fresh API data — the original card stays in its plotline lane, and a rebuilt card appears in the storyline track.
+
+This means `_resequenceStoryline` must select **both** card types: `.nb-cine-story-card, .nb-cine-milestone-card`.
+
+### Drop position: read DOM, don't use maxSeq+1
+
+The original `_promoteCard` function used `maxSeq + 1` — cards always appended at the end regardless of drop position. The fix: SortableJS already placed the card at the correct DOM index before `onAdd` fires. `_resequenceStoryline(cardZone)` just walks `querySelectorAll` in DOM order and assigns `story_seq: i + 1`. The drop position is free, not forced.
+
+### The `_demoting` flag pattern
+
+When a card is dragged from the storyline back to a plotline row, TWO handlers fire: the plotline's `onAdd` (which handles the demote) and the plotline's `onEnd` (which would normally call `_onStoryDrop`). `onEnd` fires after `onAdd`. The `_demoting` flag (declared per-sortable, not shared) short-circuits `onEnd`:
+
+```javascript
+let _demoting = false;
+onAdd(evt) {
+    if (evt.from.closest('.nb-cine-storyline-main')) {
+        _demoting = true;
+        evt.item.remove();
+        _demoteCard(story);   // async, calls _refresh()
+    }
+},
+onEnd() {
+    if (_demoting) { _demoting = false; return; }
+    _onStoryDrop(el, board, notebook);
+},
+```
+
+The same pattern applies to `_msDemoting` in the milestone zone sortable.
+
+### `_project` scope in `_loadCineBlock`
+
+`_loadCineBlock` sets `_project` from `el.dataset.project` only for known storyline field types. When adding a new field type that uses storyline data, add it to the condition or it silently fetches unscoped data and gets nothing:
+
+```javascript
+const _project = (field === 'storyline-board'
+    || field === 'storyline-story'
+    || field === 'storyline-script')   // ← must include all storyline views
+    ? (el.dataset.project || '') : '';
+```
+
+### `getPreviewRenderer` shim — always call `detect()`
+
+The `getPreviewRenderer` backward-compat shim in `nbweb.js` returns the first renderer whose `detect(note)` returns true. **Do not return `previewRenderers[0]` without calling `detect()`** — the storyline renderer only activates for notes with `type: storyline` or `type: story` etc. Without the detect check, it leaks to every note in the cine notebook and renders them all as empty storyline blocks.
+
+### `milestone_seq` vs `story_seq` — two independent sequences
+
+A milestone note carries two independent position fields:
+
+- `milestone_seq` — its position in the milestone row at the bottom of the board
+- `story_seq` — its position on the master storyline track (shared with story cards)
+
+Both can be set simultaneously. Both can be null independently. The `promotedAll` list in story-view and script-view combines `data.stories` (filtered by `story_seq`) with `data.milestones` (also filtered by `story_seq`) and sorts by `story_seq`. The `isMs` distinguisher is `item.milestone_seq !== undefined` — milestones always have that key in the API response; story cards never do.
 
 ---
 
