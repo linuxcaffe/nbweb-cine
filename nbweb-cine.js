@@ -443,6 +443,47 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     text-overflow: ellipsis; white-space: nowrap;
 }
 
+/* ── Body preview in story cards / story-view ────────────────────────────── */
+.nb-cine-story-body-preview {
+    font-size: 0.78em; opacity: 0.55; margin-top: 4px;
+    overflow: hidden; display: -webkit-box;
+    -webkit-box-orient: vertical; -webkit-line-clamp: 4;
+    line-height: 1.4;
+}
+.nb-cine-storylines-large .nb-cine-story-body-preview { -webkit-line-clamp: 6; }
+.nb-cine-sl-story-body {
+    font-size: 0.82em; opacity: 0.55; margin-top: 4px;
+    overflow: hidden; display: -webkit-box;
+    -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+    line-height: 1.4;
+}
+
+/* ── Milestone row ────────────────────────────────────────────────────────── */
+.nb-cine-milestone-row {
+    display: flex; align-items: stretch; gap: 0;
+    border-top: 2px solid rgba(255,255,255,0.12);
+    min-height: 60px; margin-top: 4px;
+}
+.nb-cine-milestone-row .nb-cine-lane-label {
+    background: #0a0a0d;
+    border-right-color: rgba(255,255,255,0.2);
+    font-style: italic; letter-spacing: 0.02em;
+}
+.nb-cine-milestone-card {
+    background: #0c0c10; border: 1px solid rgba(255,255,255,0.15);
+    border-left: 2px solid rgba(255,255,255,0.3);
+    border-radius: 3px; padding: 4px 7px;
+    min-width: 5em; max-width: 8em;
+    cursor: grab; user-select: none;
+    font-size: 0.75em; color: #ccc;
+    display: flex; flex-direction: column;
+    position: relative;
+}
+.nb-cine-milestone-card:active { cursor: grabbing; }
+.nb-cine-milestone-title { font-weight: 600; line-height: 1.3; }
+.nb-cine-milestone-card .nb-cine-demote-btn { opacity: 0; }
+.nb-cine-milestone-card:hover .nb-cine-demote-btn { opacity: 0.55; }
+
 /* ── Shot card ───────────────────────────────────────────────────────────── */
 .nb-cine-shot-card { max-width: 680px; }
 
@@ -1409,9 +1450,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             .filter(s => s.story_seq !== null && s.story_seq !== undefined)
             .sort((a, b) => a.story_seq - b.story_seq);
 
-        // Shared flag: set by plotline onMove when a storyline card tries to land there
-        let _draggedFromStoryline = false;
-
         // ── Card builder ──────────────────────────────────────────────────────
         // mode: 'plotline' (default) or 'storyline'
         function _buildCard(story, cardSize = 'small', mode = 'plotline') {
@@ -1442,6 +1480,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 descEl.className = 'nb-cine-story-desc';
                 descEl.textContent = story.meta.desc;
                 card.appendChild(descEl);
+            }
+
+            if ((cardSize === 'medium' || cardSize === 'large') && story.body_preview) {
+                const bodyEl = document.createElement('div');
+                bodyEl.className = 'nb-cine-story-body-preview';
+                bodyEl.textContent = story.body_preview;
+                card.appendChild(bodyEl);
             }
 
             if (cardSize === 'large' && story.scenes?.length) {
@@ -1510,20 +1555,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body:   JSON.stringify({ notebook, moves }),
             }).catch(e => console.error('Storyline resequence:', e));
-        }
-
-        async function _promoteCard(selector, plotline, seq, cardZone) {
-            const maxSeq = Math.max(0,
-                ...[...cardZone.querySelectorAll('.nb-cine-story-card')]
-                    .map(c => parseInt(c.dataset.story_seq) || 0));
-            try {
-                await fetch('/api/cine/story/resequence', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body:   JSON.stringify({ notebook, moves:
-                        [{ selector, plotline, seq, story_seq: maxSeq + 1 }] }),
-                });
-                await _refresh();
-            } catch(e) { alert('Promote failed: ' + e.message); }
         }
 
         async function _demoteCard(story) {
@@ -1618,24 +1649,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     animation:      150,
                     forceFallback:  true,
                     fallbackOnBody: true,
-                    onStart() { _draggedFromStoryline = false; },
-                    onAdd(evt) {
-                        const { selector, plotline, seq, story_seq } = evt.item.dataset;
-                        evt.item.remove();
-                        // skip if card already has story_seq — it's snapping back after rejection
-                        if (story_seq != null && story_seq !== '') return;
-                        _promoteCard(selector, plotline, parseInt(seq) || 999, cardZone);
+                    onAdd() {
+                        // Card arrived from a plotline — it's at the correct DOM position; resequence + rebuild
+                        _resequenceStoryline(cardZone).then(_refresh);
                     },
                     onEnd(evt) {
-                        const off = _draggedFromStoryline;
-                        _draggedFromStoryline = false;
-                        if (off) {
-                            const story = promotedStories.find(s => s.selector === evt.item.dataset.selector);
-                            if (story) _demoteCard(story);
-                            else _refresh();
-                        } else {
-                            _resequenceStoryline(cardZone);
-                        }
+                        // Resequence only when card stayed within the storyline
+                        if (evt.to === cardZone) _resequenceStoryline(cardZone);
                     },
                 });
             }
@@ -1649,6 +1669,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             board.appendChild(row);
 
             if (typeof Sortable !== 'undefined') {
+                let _demoting = false;
                 Sortable.create(cardZone, {
                     group: {
                         name: 'plotlines',
@@ -1658,13 +1679,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     animation:      150,
                     forceFallback:  true,
                     fallbackOnBody: true,
-                    onMove(evt) {
-                        if (evt.from.closest('.nb-cine-storyline-main')) {
-                            _draggedFromStoryline = true;
-                            return false;
-                        }
-                        return true;
-                    },
                     async onStart(evt) {
                         const sel = evt.item?.dataset?.selector;
                         if (!sel) return;
@@ -1684,10 +1698,162 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                                 `<div class="nb-rendered">${html}</div>`;
                         } catch { peek.hidden = true; }
                     },
+                    onAdd(evt) {
+                        if (evt.from.closest('.nb-cine-storyline-main')) {
+                            // Storyline card landed here — demote it
+                            _demoting = true;
+                            evt.item.remove();
+                            const story = promotedStories.find(
+                                s => s.selector === evt.item.dataset.selector);
+                            if (story) _demoteCard(story);
+                            else _refresh();
+                        }
+                    },
                     onEnd() {
                         peek.hidden = true;
+                        if (_demoting) { _demoting = false; return; }
                         _onStoryDrop(el, board, notebook);
                     },
+                });
+            }
+        }
+
+        // ── Milestone row ─────────────────────────────────────────────────────
+        const milestones = data.milestones || [];
+
+        function _buildMilestoneCard(ms) {
+            const card = document.createElement('div');
+            card.className = 'nb-cine-milestone-card';
+            card.dataset.selector     = ms.selector;
+            card.dataset.milestoneSeq = ms.milestone_seq ?? '';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'nb-cine-milestone-title';
+            titleEl.textContent = ms.title;
+            card.appendChild(titleEl);
+
+            if (ms.body_preview) {
+                const bodyEl = document.createElement('div');
+                bodyEl.className = 'nb-cine-story-body-preview';
+                bodyEl.textContent = ms.body_preview;
+                card.appendChild(bodyEl);
+            }
+
+            const demoteBtn = document.createElement('button');
+            demoteBtn.className = 'nb-cine-demote-btn';
+            demoteBtn.title = 'Remove from timeline';
+            demoteBtn.textContent = '−';
+            demoteBtn.addEventListener('click', async e => {
+                e.stopPropagation();
+                await _demoteMilestone(ms);
+            });
+            card.appendChild(demoteBtn);
+
+            card.addEventListener('click', e => {
+                if (e.target.closest('.nb-cine-demote-btn')) return;
+                peek.hidden = false;
+                peek.innerHTML =
+                    `<div class="nb-cine-card-peek-title">${_esc(ms.title)}</div>` +
+                    `<button class="nb-tool-btn nb-cine-peek-open" data-selector="${_esc(ms.selector)}">Open ↗</button>`;
+                peek.querySelector('.nb-cine-peek-open').addEventListener('click', () => {
+                    _close(); NbMain.openNote(ms.selector);
+                });
+            });
+            card.addEventListener('dblclick', e => { e.stopPropagation(); _close(); NbMain.openNote(ms.selector); });
+
+            return card;
+        }
+
+        async function _resequenceMilestones(cardZone) {
+            const moves = [...cardZone.querySelectorAll('.nb-cine-milestone-card')].map((card, i) => ({
+                selector:     card.dataset.selector,
+                milestone_seq: i + 1,
+            }));
+            if (!moves.length) return;
+            await fetch('/api/cine/story/resequence', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body:   JSON.stringify({ notebook, moves }),
+            }).catch(e => console.error('Milestone resequence:', e));
+        }
+
+        async function _demoteMilestone(ms) {
+            try {
+                await fetch('/api/cine/story/resequence', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body:   JSON.stringify({ notebook, moves: [{
+                        selector: ms.selector, milestone_seq: null,
+                    }]}),
+                });
+                await _refresh();
+            } catch(e) { alert('Milestone demote failed: ' + e.message); }
+        }
+
+        // Milestones on the row are those with a milestone_seq; unsequenced sit below
+        const promotedMilestones = [...milestones]
+            .filter(m => m.milestone_seq !== null && m.milestone_seq !== undefined)
+            .sort((a, b) => a.milestone_seq - b.milestone_seq);
+        const unpinnedMilestones = milestones.filter(
+            m => m.milestone_seq === null || m.milestone_seq === undefined);
+
+        // Always show the milestone row (+ button bootstraps the first milestone)
+        {
+            const msRow = document.createElement('div');
+            msRow.className = 'nb-cine-milestone-row';
+
+            const msLabel = document.createElement('div');
+            msLabel.className = 'nb-cine-lane-label';
+            msLabel.textContent = 'Milestones';
+            msRow.appendChild(msLabel);
+
+            const msCardZone = document.createElement('div');
+            msCardZone.className = 'nb-cine-lane-cards';
+            promotedMilestones.forEach(m => msCardZone.appendChild(_buildMilestoneCard(m)));
+            msRow.appendChild(msCardZone);
+
+            // Ghost + slot for adding / dragging on unpinned milestones
+            if (unpinnedMilestones.length) {
+                const unpinnedPool = document.createElement('div');
+                unpinnedPool.className = 'nb-cine-lane-cards';
+                unpinnedPool.style.cssText = 'opacity:0.45; border-left:1px dashed rgba(255,255,255,0.15); padding-left:6px; min-width:3em;';
+                unpinnedPool.title = 'Drag to promote';
+                unpinnedMilestones.forEach(m => unpinnedPool.appendChild(_buildMilestoneCard(m)));
+                msRow.appendChild(unpinnedPool);
+
+                if (typeof Sortable !== 'undefined') {
+                    Sortable.create(unpinnedPool, {
+                        group: { name: 'milestones', pull: 'clone', put: ['milestones-row'] },
+                        animation: 150, forceFallback: true, fallbackOnBody: true,
+                        onEnd() { /* no-op — source pool is read-only display */ },
+                    });
+                }
+            }
+
+            const msAdd = document.createElement('button');
+            msAdd.className = 'nb-cine-lane-add-end'; msAdd.textContent = '+';
+            msAdd.title = 'Add milestone';
+            msAdd.addEventListener('click', async e => {
+                e.stopPropagation();
+                const title = prompt('Milestone title:');
+                if (!title?.trim()) return;
+                try {
+                    const r = await fetch('/api/cine/milestone/create', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ notebook, title: title.trim(), project }),
+                    });
+                    const d = await r.json();
+                    if (!d.ok) throw new Error(d.error || 'create failed');
+                    await _refresh();
+                } catch(err) { alert('Create milestone failed: ' + err.message); }
+            });
+            msRow.appendChild(msAdd);
+            board.appendChild(msRow);
+
+            if (typeof Sortable !== 'undefined') {
+                Sortable.create(msCardZone, {
+                    group: { name: 'milestones-row', pull: false, put: ['milestones'] },
+                    animation: 150, forceFallback: true, fallbackOnBody: true,
+                    onAdd() { _resequenceMilestones(msCardZone).then(_refresh); },
+                    onEnd(evt) { if (evt.to === msCardZone) _resequenceMilestones(msCardZone); },
                 });
             }
         }
@@ -1803,12 +1969,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             } else {
                 promoted.forEach(s => {
                     const color = laneColors.get(s.plotline) || '';
-                    const desc  = s.meta?.desc ? `<p class="nb-cine-sl-story-desc">${_esc(s.meta.desc)}</p>` : '';
+                    const desc  = s.meta?.desc ? `<div class="nb-cine-sl-story-desc">${_esc(s.meta.desc)}</div>` : '';
+                    const body  = s.body_preview ? `<div class="nb-cine-sl-story-body">${_esc(s.body_preview)}</div>` : '';
                     const card = document.createElement('div');
                     card.className = 'nb-cine-sl-story-prose';
                     card.dataset.selector = s.selector;
                     if (color) card.style.borderLeftColor = color;
-                    card.innerHTML = `<div class="nb-cine-sl-story-prose-title">${_esc(s.title)}</div>${desc}`;
+                    card.innerHTML = `<div class="nb-cine-sl-story-prose-title">${_esc(s.title)}</div>${desc}${body}`;
                     card.addEventListener('click', () => NbMain.openNote(s.selector));
                     wrap.appendChild(card);
                 });
