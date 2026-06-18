@@ -250,15 +250,20 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
 /* ── Storylines board ───────────────────────────────────────────────────── */
 /* Stub: compact entry point rendered in the preview pane */
+.nb-cine-sl-story-view { padding: 0 4px; }
+.nb-cine-open-board-btn { margin-bottom: 10px; }
 .nb-cine-sl-story-prose {
     border-left: 4px solid var(--border, #444);
     padding: 10px 14px;
     margin-bottom: 10px;
     border-radius: 0 4px 4px 0;
     background: var(--bg2, #1e2228);
+    cursor: pointer; transition: background 0.12s;
 }
+.nb-cine-sl-story-prose:hover { background: var(--bg3, #252930); }
 .nb-cine-sl-story-prose-title { font-weight: 600; margin-bottom: 4px; }
 .nb-cine-sl-story-desc { font-size: 0.85em; opacity: 0.7; margin: 0; }
+.nb-cine-story-mode-btn { margin: 0 auto; }
 
 .nb-cine-sl-stub {
     display: flex; align-items: center; gap: 12px;
@@ -279,6 +284,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 }
 .nb-cine-sl-overlay > .nb-cine-header {
     flex-shrink: 0; padding: 8px 16px; gap: 12px; min-height: 44px;
+    justify-content: flex-start;
 }
 .nb-cine-sl-overlay > .nb-cine-header .nb-cine-title {
     font-size: 13px; font-weight: 600; color: var(--text-muted, #aaa); opacity: 1;
@@ -1286,20 +1292,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         hdr.className = 'nb-cine-header';
         hdr.innerHTML = `<span class="nb-cine-title">🧵 ${_esc(config?.project || 'Storylines')}</span>`;
 
-        const btnGroup = document.createElement('div');
-        btnGroup.className = 'nb-cine-hdr-btns';
-
         const storyModeBtn = document.createElement('button');
-        storyModeBtn.className = 'nb-tool-btn';
+        storyModeBtn.className = 'nb-tool-btn nb-cine-story-mode-btn';
         storyModeBtn.title = 'Story view';
         storyModeBtn.textContent = '📖';
         storyModeBtn.addEventListener('click', () => {
-            localStorage.setItem(`nb-render-mode:${notebook}`, 'storyline-story');
             _close();
             el.dataset.query = 'storyline-story';
             _loadCineBlock(el);
         });
-        btnGroup.appendChild(storyModeBtn);
+        hdr.appendChild(storyModeBtn);
+
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'nb-cine-hdr-btns';
 
         const addBtn = document.createElement('button');
         addBtn.className = 'nb-tool-btn'; addBtn.title = 'Add story (unassigned)'; addBtn.textContent = '+ Story';
@@ -1403,6 +1408,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const promotedStories = [...(stories || [])]
             .filter(s => s.story_seq !== null && s.story_seq !== undefined)
             .sort((a, b) => a.story_seq - b.story_seq);
+
+        // Shared flag: set by plotline onMove when a storyline card tries to land there
+        let _draggedFromStoryline = false;
 
         // ── Card builder ──────────────────────────────────────────────────────
         // mode: 'plotline' (default) or 'storyline'
@@ -1532,14 +1540,42 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }
 
         // ── Lane row builder (plotlines only) ────────────────────────────────
-        function _buildLaneRow(laneTitle, laneStem, cards) {
+        function _buildLaneRow(laneTitle, laneStem, cards, laneSelector) {
             const row = document.createElement('div');
             row.className = 'nb-cine-storyline-row';
             row.dataset.lane = laneStem;
 
             const label = document.createElement('div');
             label.className = 'nb-cine-lane-label';
-            label.textContent = laneTitle;
+            const labelText = document.createElement('span');
+            labelText.className = 'nb-cine-lane-label-text';
+            labelText.textContent = laneTitle;
+            if (laneSelector) {
+                labelText.style.cursor = 'pointer';
+                labelText.title = `Preview ${laneTitle}`;
+                labelText.addEventListener('click', async e => {
+                    e.stopPropagation();
+                    peek.hidden = false;
+                    peek.innerHTML = `<div class="nb-cine-card-peek-title">${_esc(laneTitle)}</div><div>…</div>`;
+                    try {
+                        const r = await fetch(`/api/note?selector=${encodeURIComponent(laneSelector)}`);
+                        const d = await r.json();
+                        const body = d.body?.trim();
+                        const html = body
+                            ? (window.marked?.parse ? window.marked.parse(body) : `<pre>${_esc(body)}</pre>`)
+                            : '<em style="opacity:0.45">No body text.</em>';
+                        peek.innerHTML =
+                            `<div class="nb-cine-card-peek-title">${_esc(d.title || laneTitle)}</div>` +
+                            `<div class="nb-rendered">${html}</div>` +
+                            `<button class="nb-tool-btn nb-cine-peek-open" data-selector="${_esc(laneSelector)}">Open ↗</button>`;
+                        peek.querySelector('.nb-cine-peek-open').addEventListener('click', () => {
+                            _close();
+                            NbMain.openNote(laneSelector);
+                        });
+                    } catch { peek.hidden = true; }
+                });
+            }
+            label.appendChild(labelText);
             const laneAdd = document.createElement('button');
             laneAdd.className = 'nb-cine-lane-add'; laneAdd.textContent = '+';
             laneAdd.title = `Add story to ${laneTitle}`;
@@ -1577,24 +1613,20 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             board.appendChild(row);
 
             if (typeof Sortable !== 'undefined') {
-                let _draggedOff = false;
                 Sortable.create(cardZone, {
                     group:          { name: 'storyline', pull: true, put: ['plotlines'] },
                     animation:      150,
                     forceFallback:  true,
                     fallbackOnBody: true,
+                    onStart() { _draggedFromStoryline = false; },
                     onAdd(evt) {
                         const { selector, plotline, seq } = evt.item.dataset;
                         evt.item.remove();
                         _promoteCard(selector, plotline, parseInt(seq) || 999, cardZone);
                     },
-                    onMove(evt) {
-                        if (evt.to !== cardZone) { _draggedOff = true; return false; }
-                        return true;
-                    },
                     onEnd(evt) {
-                        const off = _draggedOff;
-                        _draggedOff = false;
+                        const off = _draggedFromStoryline;
+                        _draggedFromStoryline = false;
                         if (off) {
                             const story = promotedStories.find(s => s.selector === evt.item.dataset.selector);
                             if (story) _demoteCard(story);
@@ -1610,7 +1642,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // ── Plotline lanes ───────────────────────────────────────────────────
         for (const lane of plotlineLanes) {
             const cards = cardsByLane.get(lane.stem) || [];
-            const { row, cardZone } = _buildLaneRow(lane.title, lane.stem, cards);
+            const { row, cardZone } = _buildLaneRow(lane.title, lane.stem, cards, lane.selector);
             if (lane.color) row.style.setProperty('--lane-color', lane.color);
             board.appendChild(row);
 
@@ -1619,11 +1651,18 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     group: {
                         name: 'plotlines',
                         pull: to => to.options.group.name === 'storyline' ? 'clone' : true,
-                        put:  ['plotlines'],
+                        put:  ['plotlines', 'storyline'],
                     },
                     animation:      150,
                     forceFallback:  true,
                     fallbackOnBody: true,
+                    onMove(evt) {
+                        if (evt.from.closest('.nb-cine-storyline-main')) {
+                            _draggedFromStoryline = true;
+                            return false;
+                        }
+                        return true;
+                    },
                     async onStart(evt) {
                         const sel = evt.item?.dataset?.selector;
                         if (!sel) return;
@@ -1741,19 +1780,38 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 .filter(s => s.story_seq !== null && s.story_seq !== undefined)
                 .sort((a, b) => a.story_seq - b.story_seq);
             const laneColors = new Map((data.lanes || []).map(l => [l.stem, l.color]));
+            el.innerHTML = '';
+            const wrap = document.createElement('div');
+            wrap.className = 'nb-cine-sl-story-view';
+            const boardBtn = document.createElement('button');
+            boardBtn.className = 'nb-tool-btn nb-cine-open-board-btn';
+            boardBtn.title = 'Open line board';
+            boardBtn.textContent = '▦';
+            boardBtn.addEventListener('click', () => {
+                const sz = localStorage.getItem(_SL_SIZE_KEY(notebook)) || 'small';
+                _buildStorylines(el, data, notebook, sz);
+                _openStorylineOverlay(el, data, notebook, sz, _project);
+            });
+            wrap.appendChild(boardBtn);
             if (!promoted.length) {
-                el.innerHTML = '<div class="nb-cine-empty">No stories on the storyline yet — open the board and drag cards up.</div>';
+                const empty = document.createElement('div');
+                empty.className = 'nb-cine-empty';
+                empty.textContent = 'No stories on the storyline yet — open the board and drag cards up.';
+                wrap.appendChild(empty);
             } else {
-                el.innerHTML = promoted.map(s => {
+                promoted.forEach(s => {
                     const color = laneColors.get(s.plotline) || '';
-                    const bar   = color ? `style="border-left-color:${_esc(color)}"` : '';
                     const desc  = s.meta?.desc ? `<p class="nb-cine-sl-story-desc">${_esc(s.meta.desc)}</p>` : '';
-                    return `<div class="nb-cine-sl-story-prose" ${bar}>
-                        <div class="nb-cine-sl-story-prose-title">${_esc(s.title)}</div>
-                        ${desc}
-                    </div>`;
-                }).join('');
+                    const card = document.createElement('div');
+                    card.className = 'nb-cine-sl-story-prose';
+                    card.dataset.selector = s.selector;
+                    if (color) card.style.borderLeftColor = color;
+                    card.innerHTML = `<div class="nb-cine-sl-story-prose-title">${_esc(s.title)}</div>${desc}`;
+                    card.addEventListener('click', () => NbMain.openNote(s.selector));
+                    wrap.appendChild(card);
+                });
             }
+            el.appendChild(wrap);
         } else if (field === 'storyline-board') {
             const size = localStorage.getItem(_SL_SIZE_KEY(notebook)) || 'small';
             _buildStorylines(el, data, notebook, size);
@@ -2541,19 +2599,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     const raw     = (note.meta?.project || '').trim();
                     const project = raw.replace(/^storylines\//, '').replace(/\/$/, '');
                     return `<div class="nb-cine-block" data-query="storyline-story"${project ? ` data-project="${_esc(project)}"` : ''}><span class="nb-spin">⟳</span></div>`;
-                },
-            },
-            {
-                id:     'storyline-board',
-                icon:   '▦',
-                label:  'Line board',
-                types:  ['storyline'],
-                detect: note => note.type === 'storyline',
-                render: note => {
-                    // project: ninja  OR  project: storylines/ninja/  → project = 'ninja'
-                    const raw = (note.meta?.project || '').trim();
-                    const project = raw.replace(/^storylines\//, '').replace(/\/$/, '');
-                    return `<div class="nb-cine-block" data-query="storyline-board"${project ? ` data-project="${_esc(project)}"` : ''}><span class="nb-spin">⟳</span></div>`;
                 },
             },
             {
