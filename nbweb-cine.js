@@ -1445,9 +1445,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }
         for (const [, cards] of cardsByLane) cards.sort((a, b) => a.seq - b.seq);
 
-        // Promoted stories — cards on the main storyline, in story_seq order
+        // Promoted items on the main storyline — stories + milestones, in story_seq order
         const promotedStories = [...(stories || [])]
-            .filter(s => s.story_seq !== null && s.story_seq !== undefined)
+            .filter(s => s.story_seq !== null && s.story_seq !== undefined);
+        const promotedMsOnStoryline = [...(data.milestones || [])]
+            .filter(m => m.story_seq !== null && m.story_seq !== undefined);
+        const promotedAll = [...promotedStories, ...promotedMsOnStoryline]
             .sort((a, b) => a.story_seq - b.story_seq);
 
         // ── Card builder ──────────────────────────────────────────────────────
@@ -1544,10 +1547,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         // ── Storyline operations ──────────────────────────────────────────────
         async function _resequenceStoryline(cardZone) {
-            const moves = [...cardZone.querySelectorAll('.nb-cine-story-card')].map((card, i) => ({
+            const moves = [...cardZone.querySelectorAll('.nb-cine-story-card, .nb-cine-milestone-card')].map((card, i) => ({
                 selector:  card.dataset.selector,
-                plotline:  card.dataset.plotline,
-                seq:       parseInt(card.dataset.seq) || 999,
+                plotline:  card.dataset.plotline || '',
+                seq:       parseInt(card.dataset.seq) || 0,
                 story_seq: i + 1,
             }));
             if (!moves.length) return;
@@ -1565,6 +1568,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                         selector: story.selector, plotline: story.plotline,
                         seq: story.seq, story_seq: null,
                     }]}),
+                });
+                await _refresh();
+            } catch(e) { alert('Demote failed: ' + e.message); }
+        }
+
+        async function _demoteMilestoneFromStoryline(ms) {
+            try {
+                await fetch('/api/cine/story/resequence', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body:   JSON.stringify({ notebook, moves: [{ selector: ms.selector, story_seq: null }] }),
                 });
                 await _refresh();
             } catch(e) { alert('Demote failed: ' + e.message); }
@@ -1639,13 +1652,17 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             const cardZone = document.createElement('div');
             cardZone.className = 'nb-cine-lane-cards';
-            promotedStories.forEach(s => cardZone.appendChild(_buildCard(s, size, 'storyline')));
+            promotedAll.forEach(item => cardZone.appendChild(
+                item.milestone_seq !== undefined
+                    ? _buildMilestoneCard(item, 'storyline')
+                    : _buildCard(item, size, 'storyline')
+            ));
             row.appendChild(cardZone);
             board.appendChild(row);
 
             if (typeof Sortable !== 'undefined') {
                 Sortable.create(cardZone, {
-                    group:          { name: 'storyline', pull: true, put: ['plotlines'] },
+                    group:          { name: 'storyline', pull: true, put: ['plotlines', 'milestones-row'] },
                     animation:      150,
                     forceFallback:  true,
                     fallbackOnBody: true,
@@ -1721,7 +1738,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // ── Milestone row ─────────────────────────────────────────────────────
         const milestones = data.milestones || [];
 
-        function _buildMilestoneCard(ms) {
+        function _buildMilestoneCard(ms, mode = 'row') {
             const card = document.createElement('div');
             card.className = 'nb-cine-milestone-card';
             card.dataset.selector     = ms.selector;
@@ -1741,11 +1758,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             const demoteBtn = document.createElement('button');
             demoteBtn.className = 'nb-cine-demote-btn';
-            demoteBtn.title = 'Remove from timeline';
+            demoteBtn.title = mode === 'storyline' ? 'Remove from storyline' : 'Remove from timeline';
             demoteBtn.textContent = '−';
             demoteBtn.addEventListener('click', async e => {
                 e.stopPropagation();
-                await _demoteMilestone(ms);
+                if (mode === 'storyline') await _demoteMilestoneFromStoryline(ms);
+                else                      await _demoteMilestone(ms);
             });
             card.appendChild(demoteBtn);
 
@@ -1828,12 +1846,30 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             board.appendChild(msRow);
 
             if (typeof Sortable !== 'undefined') {
+                let _msDemoting = false;
                 Sortable.create(msCardZone, {
-                    group:          { name: 'milestones-row', pull: true, put: true },
+                    group: {
+                        name: 'milestones-row',
+                        pull: to => to.options.group.name === 'storyline' ? 'clone' : true,
+                        put:  true,
+                    },
                     animation:      150,
                     forceFallback:  true,
                     fallbackOnBody: true,
-                    onEnd(evt) { if (evt.to === msCardZone) _resequenceMilestones(msCardZone); },
+                    onAdd(evt) {
+                        if (evt.from.closest('.nb-cine-storyline-main')) {
+                            _msDemoting = true;
+                            evt.item.remove();
+                            const ms = (data.milestones || []).find(
+                                m => m.selector === evt.item.dataset.selector);
+                            if (ms) _demoteMilestoneFromStoryline(ms);
+                            else    _refresh();
+                        }
+                    },
+                    onEnd(evt) {
+                        if (_msDemoting) { _msDemoting = false; return; }
+                        if (evt.to === msCardZone) _resequenceMilestones(msCardZone);
+                    },
                 });
             }
         }
