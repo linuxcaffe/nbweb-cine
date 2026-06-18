@@ -300,7 +300,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     width: max-content; min-width: 100%;
 }
 .nb-cine-storyline-row {
-    display: flex; align-items: flex-start; gap: 0;
+    display: flex; align-items: stretch; gap: 0;
     border-bottom: 1px solid var(--border, #444);
     min-height: 80px;
 }
@@ -315,8 +315,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 }
 .nb-cine-lane-cards {
     display: flex; flex-wrap: nowrap; gap: 6px;
-    padding: 6px; min-height: 70px;
-    align-content: flex-start;
+    padding: 6px; align-items: stretch; flex: 1;
 }
 .nb-cine-card-peek {
     border-top: 1px solid var(--border, #444);
@@ -337,7 +336,17 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     min-width: 8em; max-width: 14em;
     cursor: grab; user-select: none;
     font-size: 0.82em;
+    display: flex; flex-direction: column;
 }
+.nb-cine-lane-add-end {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 2.2em; width: 2.2em; align-self: stretch;
+    border: 1px dashed rgba(255,255,255,0.2); border-radius: 4px;
+    margin: 6px 6px 6px 0; background: none; color: inherit;
+    cursor: pointer; opacity: 0.28; font-size: 1.1em; flex-shrink: 0;
+    transition: opacity 0.15s;
+}
+.nb-cine-lane-add-end:hover { opacity: 1; background: rgba(255,255,255,0.07); }
 .nb-cine-story-card:active { cursor: grabbing; }
 .nb-cine-story-title { font-weight: bold; margin-bottom: 3px; }
 .nb-cine-story-scenes {
@@ -387,16 +396,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 /* Header button group — flush right */
 .nb-cine-hdr-btns { display: flex; gap: 2px; margin-left: auto; }
 
-/* Lane + button */
 .nb-cine-lane-label { position: relative; }
-.nb-cine-lane-add {
-    display: block; width: 100%; margin-top: 6px;
-    background: rgba(255,255,255,0.07); border: 1px dashed rgba(255,255,255,0.2);
-    border-radius: 3px; color: inherit; cursor: pointer;
-    font-size: 1em; padding: 1px 0; opacity: 0.5;
-    transition: opacity 0.15s;
-}
-.nb-cine-lane-add:hover { opacity: 1; background: rgba(255,255,255,0.12); }
 .nb-cine-add-btn { margin-left: 4px; }
 
 /* Inline story creation */
@@ -413,7 +413,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 }
 
 /* Size variants */
-.nb-cine-storylines-medium .nb-cine-storyline-row { min-height: 100px; }
+.nb-cine-storylines-medium .nb-cine-storyline-row { min-height: 130px; }
 .nb-cine-storylines-medium .nb-cine-lane-cards    { gap: 8px; padding: 8px; }
 .nb-cine-story-medium { min-width: 10em; max-width: 16em; font-size: 0.85em; padding: 6px 9px; }
 .nb-cine-story-desc {
@@ -422,7 +422,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-story-medium .nb-cine-story-desc {
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
-.nb-cine-storylines-large .nb-cine-storyline-row { min-height: 120px; }
+.nb-cine-storylines-large .nb-cine-storyline-row { min-height: 180px; }
 .nb-cine-storylines-large .nb-cine-lane-cards    { gap: 10px; padding: 10px; }
 .nb-cine-story-large {
     min-width: 12em; max-width: 20em;
@@ -1576,21 +1576,21 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 });
             }
             label.appendChild(labelText);
-            const laneAdd = document.createElement('button');
-            laneAdd.className = 'nb-cine-lane-add'; laneAdd.textContent = '+';
-            laneAdd.title = `Add story to ${laneTitle}`;
-            laneAdd.addEventListener('click', e => {
-                e.stopPropagation();
-                _showInlineStoryInput(row.querySelector('.nb-cine-lane-cards'),
-                    laneStem, notebook, el, size, _refresh, project);
-            });
-            label.appendChild(laneAdd);
             row.appendChild(label);
 
             const cardZone = document.createElement('div');
             cardZone.className = 'nb-cine-lane-cards';
             cards.forEach(s => cardZone.appendChild(_buildCard(s, size, 'plotline')));
             row.appendChild(cardZone);
+
+            const laneAdd = document.createElement('button');
+            laneAdd.className = 'nb-cine-lane-add-end'; laneAdd.textContent = '+';
+            laneAdd.title = `Add story to ${laneTitle}`;
+            laneAdd.addEventListener('click', e => {
+                e.stopPropagation();
+                _showInlineStoryInput(cardZone, laneStem, notebook, el, size, _refresh, project);
+            });
+            row.appendChild(laneAdd);
 
             return { row, cardZone };
         }
@@ -1620,8 +1620,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     fallbackOnBody: true,
                     onStart() { _draggedFromStoryline = false; },
                     onAdd(evt) {
-                        const { selector, plotline, seq } = evt.item.dataset;
+                        const { selector, plotline, seq, story_seq } = evt.item.dataset;
                         evt.item.remove();
+                        // skip if card already has story_seq — it's snapping back after rejection
+                        if (story_seq != null && story_seq !== '') return;
                         _promoteCard(selector, plotline, parseInt(seq) || 999, cardZone);
                     },
                     onEnd(evt) {
