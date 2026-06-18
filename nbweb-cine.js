@@ -249,9 +249,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-chosen { box-shadow: 0 3px 12px rgba(0,0,0,0.35); z-index: 10; position: relative; }
 
 /* ── Storylines board ───────────────────────────────────────────────────── */
+.nb-cine-storylines-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+}
 .nb-cine-storylines-board {
     display: flex; flex-direction: column; gap: 2px;
     padding: 4px 0;
+    min-width: max-content;
 }
 .nb-cine-storyline-row {
     display: flex; align-items: flex-start; gap: 0;
@@ -265,12 +270,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     background: color-mix(in srgb, var(--lane-color, #444) 15%, var(--bg, #16191e));
     align-self: stretch; display: flex; align-items: center;
     word-break: break-word;
+    position: sticky; left: 0; z-index: 2;
 }
 .nb-cine-lane-cards {
     display: flex; flex-wrap: nowrap; gap: 6px;
-    padding: 6px; flex: 1; min-height: 70px;
+    padding: 6px; min-height: 70px;
     align-content: flex-start;
-    overflow-x: auto;
 }
 .nb-cine-card-peek {
     border-top: 1px solid var(--border, #444);
@@ -1159,7 +1164,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         const board = document.createElement('div');
         board.className = `nb-cine-storylines-board nb-cine-storylines-${size}`;
-        el.appendChild(board);
+
+        const scroll = document.createElement('div');
+        scroll.className = 'nb-cine-storylines-scroll';
+        scroll.appendChild(board);
+        el.appendChild(scroll);
 
         const peek = document.createElement('div');
         peek.className = 'nb-cine-card-peek';
