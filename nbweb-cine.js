@@ -251,12 +251,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 /* ── Storylines board ───────────────────────────────────────────────────── */
 .nb-cine-storylines-scroll {
     overflow-x: auto;
-    overflow-y: visible;
 }
 .nb-cine-storylines-board {
-    display: flex; flex-direction: column; gap: 2px;
+    display: inline-flex; flex-direction: column; gap: 2px;
     padding: 4px 0;
-    min-width: max-content;
+    min-width: 100%; vertical-align: top;
 }
 .nb-cine-storyline-row {
     display: flex; align-items: flex-start; gap: 0;
