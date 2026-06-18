@@ -430,7 +430,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 /* Header button group — flush right */
 .nb-cine-hdr-btns { display: flex; gap: 2px; margin-left: auto; }
 
-.nb-cine-lane-label { position: relative; }
 .nb-cine-add-btn { margin-left: 4px; }
 
 /* Inline story creation */
@@ -1279,6 +1278,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Storylines board ──────────────────────────────────────────────────────
 
     const _SL_SIZE_KEY = nb => `nb-cine-sl-size-${nb}`;
+    const _SL_VIEW_KEY = nb => `nb-cine-sl-view-${nb}`;
 
     function _buildStorylines(el, data, notebook, defaultSize = 'small') {
         const stored = localStorage.getItem(_SL_SIZE_KEY(notebook));
@@ -1629,9 +1629,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             labelText.className = 'nb-cine-lane-label-text';
             labelText.textContent = laneTitle;
             if (laneSelector) {
-                labelText.style.cursor = 'pointer';
-                labelText.title = `Preview ${laneTitle}`;
-                labelText.addEventListener('click', async e => {
+                label.style.cursor = 'pointer';
+                label.title = `Preview ${laneTitle}`;
+                label.addEventListener('click', async e => {
                     e.stopPropagation();
                     peek.hidden = false;
                     peek.innerHTML = `<div class="nb-cine-card-peek-title">${_esc(laneTitle)}</div><div>…</div>`;
@@ -1994,6 +1994,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         } else if (field === 'storylines') {
             _buildStorylines(el, data, notebook, format || 'small');
         } else if (field === 'storyline-story' || field === 'storyline-script') {
+            // Restore saved view preference — survives Back navigation (which re-renders as story-view)
+            if (field === 'storyline-story') {
+                const saved = localStorage.getItem(_SL_VIEW_KEY(notebook));
+                if (saved === 'script') { el.dataset.query = 'storyline-script'; _loadCineBlock(el); return; }
+            }
+
             const promotedS = [...(data.stories || [])]
                 .filter(s => s.story_seq !== null && s.story_seq !== undefined);
             const promotedM = [...(data.milestones || [])]
@@ -2026,8 +2032,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             scriptBtn.title = field === 'storyline-script' ? 'Story view' : 'Script view';
             scriptBtn.textContent = field === 'storyline-script' ? '☰' : '≡';
             scriptBtn.addEventListener('click', () => {
-                el.dataset.query = field === 'storyline-script'
-                    ? 'storyline-story' : 'storyline-script';
+                const next = field === 'storyline-script' ? 'storyline-story' : 'storyline-script';
+                localStorage.setItem(_SL_VIEW_KEY(notebook), next === 'storyline-script' ? 'script' : 'story');
+                el.dataset.query = next;
                 _loadCineBlock(el);
             });
             toolbar.appendChild(scriptBtn);
@@ -2082,12 +2089,26 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                             titleEl.textContent = item.title;
                             titleEl.addEventListener('click', () => NbMain.openNote(item.selector));
                             block.appendChild(titleEl);
+                            // desc from frontmatter shown immediately, before body prose
+                            if (item.meta?.desc) {
+                                const descEl = document.createElement('div');
+                                descEl.className = 'nb-cine-sl-story-desc';
+                                descEl.textContent = item.meta.desc;
+                                block.appendChild(descEl);
+                            }
                             const bodyEl = document.createElement('div');
                             bodyEl.className = 'nb-rendered';
-                            bodyEl.innerHTML = '<span style="opacity:0.3">…</span>';
+                            // Show body_preview immediately; replace with full body when loaded
+                            if (item.body_preview) {
+                                bodyEl.innerHTML = window.marked?.parse
+                                    ? window.marked.parse(item.body_preview)
+                                    : `<p>${_esc(item.body_preview)}</p>`;
+                            } else {
+                                bodyEl.innerHTML = '<span style="opacity:0.3">…</span>';
+                            }
                             block.appendChild(bodyEl);
                             wrap.appendChild(block);
-                            // Fetch full body async
+                            // Fetch full body async and replace preview
                             fetch(`/api/note?selector=${encodeURIComponent(item.selector)}`)
                                 .then(r => r.json())
                                 .then(d => {
