@@ -265,6 +265,40 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-sl-story-desc { font-size: 0.85em; opacity: 0.7; margin: 0; }
 .nb-cine-story-mode-btn { margin: 0 auto; }
 
+/* Milestone bar in story-view */
+.nb-cine-sl-milestone-bar {
+    background: #0a0a0d; color: #bbb;
+    border-left: 3px solid rgba(255,255,255,0.25);
+    padding: 6px 14px;
+    margin-bottom: 10px; border-radius: 0 3px 3px 0;
+    font-size: 0.82em; font-weight: 600; letter-spacing: 0.04em;
+    cursor: pointer; transition: background 0.12s;
+}
+.nb-cine-sl-milestone-bar:hover { background: #14141a; }
+
+/* Script-view: continuous rendered prose */
+.nb-cine-sl-script-view { padding: 0 4px; }
+.nb-cine-sl-script-story {
+    padding: 0 0 24px 0;
+    border-bottom: 1px solid var(--border, #333);
+    margin-bottom: 24px;
+}
+.nb-cine-sl-script-story-title {
+    font-weight: 700; font-size: 1em; margin-bottom: 8px;
+    opacity: 0.5; letter-spacing: 0.04em; text-transform: uppercase;
+    font-size: 0.75em; cursor: pointer;
+}
+.nb-cine-sl-script-story-title:hover { opacity: 0.8; }
+.nb-cine-sl-script-milestone {
+    background: #0a0a0d; color: #bbb;
+    border-left: 3px solid rgba(255,255,255,0.25);
+    padding: 5px 14px; margin-bottom: 24px;
+    border-radius: 0 3px 3px 0;
+    font-size: 0.8em; font-weight: 600; letter-spacing: 0.06em;
+    cursor: pointer;
+}
+.nb-cine-sl-script-milestone:hover { background: #14141a; }
+
 .nb-cine-sl-stub {
     display: flex; align-items: center; gap: 12px;
     padding: 10px 14px;
@@ -1959,42 +1993,114 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             _buildSceneIndex(el, data, filter);
         } else if (field === 'storylines') {
             _buildStorylines(el, data, notebook, format || 'small');
-        } else if (field === 'storyline-story') {
-            const promoted = [...(data.stories || [])]
-                .filter(s => s.story_seq !== null && s.story_seq !== undefined)
+        } else if (field === 'storyline-story' || field === 'storyline-script') {
+            const promotedS = [...(data.stories || [])]
+                .filter(s => s.story_seq !== null && s.story_seq !== undefined);
+            const promotedM = [...(data.milestones || [])]
+                .filter(m => m.story_seq !== null && m.story_seq !== undefined);
+            const promotedAll = [...promotedS, ...promotedM]
                 .sort((a, b) => a.story_seq - b.story_seq);
             const laneColors = new Map((data.lanes || []).map(l => [l.stem, l.color]));
+
             el.innerHTML = '';
             const wrap = document.createElement('div');
-            wrap.className = 'nb-cine-sl-story-view';
+            wrap.className = field === 'storyline-script'
+                ? 'nb-cine-sl-script-view' : 'nb-cine-sl-story-view';
+
+            // ── Toolbar ──
+            const toolbar = document.createElement('div');
+            toolbar.style.cssText = 'display:flex;gap:6px;margin-bottom:10px;';
+
             const boardBtn = document.createElement('button');
             boardBtn.className = 'nb-tool-btn nb-cine-open-board-btn';
-            boardBtn.title = 'Open line board';
-            boardBtn.textContent = '▦';
+            boardBtn.title = 'Open line board'; boardBtn.textContent = '▦';
             boardBtn.addEventListener('click', () => {
                 const sz = localStorage.getItem(_SL_SIZE_KEY(notebook)) || 'small';
                 _buildStorylines(el, data, notebook, sz);
                 _openStorylineOverlay(el, data, notebook, sz, _project);
             });
-            wrap.appendChild(boardBtn);
-            if (!promoted.length) {
+            toolbar.appendChild(boardBtn);
+
+            const scriptBtn = document.createElement('button');
+            scriptBtn.className = 'nb-tool-btn';
+            scriptBtn.title = field === 'storyline-script' ? 'Story view' : 'Script view';
+            scriptBtn.textContent = field === 'storyline-script' ? '☰' : '≡';
+            scriptBtn.addEventListener('click', () => {
+                el.dataset.query = field === 'storyline-script'
+                    ? 'storyline-story' : 'storyline-script';
+                _loadCineBlock(el);
+            });
+            toolbar.appendChild(scriptBtn);
+            wrap.appendChild(toolbar);
+
+            if (!promotedAll.length) {
                 const empty = document.createElement('div');
                 empty.className = 'nb-cine-empty';
                 empty.textContent = 'No stories on the storyline yet — open the board and drag cards up.';
                 wrap.appendChild(empty);
-            } else {
-                promoted.forEach(s => {
-                    const color = laneColors.get(s.plotline) || '';
-                    const desc  = s.meta?.desc ? `<div class="nb-cine-sl-story-desc">${_esc(s.meta.desc)}</div>` : '';
-                    const body  = s.body_preview ? `<div class="nb-cine-sl-story-body">${_esc(s.body_preview)}</div>` : '';
-                    const card = document.createElement('div');
-                    card.className = 'nb-cine-sl-story-prose';
-                    card.dataset.selector = s.selector;
-                    if (color) card.style.borderLeftColor = color;
-                    card.innerHTML = `<div class="nb-cine-sl-story-prose-title">${_esc(s.title)}</div>${desc}${body}`;
-                    card.addEventListener('click', () => NbMain.openNote(s.selector));
-                    wrap.appendChild(card);
+            } else if (field === 'storyline-story') {
+                promotedAll.forEach(item => {
+                    const isMs = item.milestone_seq !== undefined;
+                    if (isMs) {
+                        const bar = document.createElement('div');
+                        bar.className = 'nb-cine-sl-milestone-bar';
+                        bar.textContent = item.title;
+                        bar.addEventListener('click', () => NbMain.openNote(item.selector));
+                        wrap.appendChild(bar);
+                    } else {
+                        const color = laneColors.get(item.plotline) || '';
+                        const desc  = item.meta?.desc
+                            ? `<div class="nb-cine-sl-story-desc">${_esc(item.meta.desc)}</div>` : '';
+                        const body  = item.body_preview
+                            ? `<div class="nb-cine-sl-story-body">${_esc(item.body_preview)}</div>` : '';
+                        const card = document.createElement('div');
+                        card.className = 'nb-cine-sl-story-prose';
+                        card.dataset.selector = item.selector;
+                        if (color) card.style.borderLeftColor = color;
+                        card.innerHTML =
+                            `<div class="nb-cine-sl-story-prose-title">${_esc(item.title)}</div>${desc}${body}`;
+                        card.addEventListener('click', () => NbMain.openNote(item.selector));
+                        wrap.appendChild(card);
+                    }
                 });
+            } else {
+                // script-view: fetch full body of each story, render markdown
+                (async () => {
+                    for (const item of promotedAll) {
+                        const isMs = item.milestone_seq !== undefined;
+                        if (isMs) {
+                            const bar = document.createElement('div');
+                            bar.className = 'nb-cine-sl-script-milestone';
+                            bar.textContent = item.title;
+                            bar.addEventListener('click', () => NbMain.openNote(item.selector));
+                            wrap.appendChild(bar);
+                        } else {
+                            const block = document.createElement('div');
+                            block.className = 'nb-cine-sl-script-story';
+                            const titleEl = document.createElement('div');
+                            titleEl.className = 'nb-cine-sl-script-story-title';
+                            titleEl.textContent = item.title;
+                            titleEl.addEventListener('click', () => NbMain.openNote(item.selector));
+                            block.appendChild(titleEl);
+                            const bodyEl = document.createElement('div');
+                            bodyEl.className = 'nb-rendered';
+                            bodyEl.innerHTML = '<span style="opacity:0.3">…</span>';
+                            block.appendChild(bodyEl);
+                            wrap.appendChild(block);
+                            // Fetch full body async
+                            fetch(`/api/note?selector=${encodeURIComponent(item.selector)}`)
+                                .then(r => r.json())
+                                .then(d => {
+                                    const body = d.body?.trim();
+                                    bodyEl.innerHTML = body
+                                        ? (window.marked?.parse ? window.marked.parse(body)
+                                            : `<pre>${_esc(body)}</pre>`)
+                                        : '<em style="opacity:0.3">No body text.</em>';
+                                })
+                                .catch(() => { bodyEl.innerHTML = '<em style="opacity:0.3">Failed to load.</em>'; });
+                        }
+                    }
+                })();
             }
             el.appendChild(wrap);
         } else if (field === 'storyline-board') {
