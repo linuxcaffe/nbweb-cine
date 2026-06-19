@@ -384,9 +384,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-story-card:active { cursor: grabbing; }
 .nb-cine-story-title { font-weight: bold; margin-bottom: 3px; }
 /* Gold title when story has a matching nb-web tool */
-.nb-cine-has-tool .nb-cine-story-title,
-.nb-cine-has-tool .nb-cine-sl-story-prose-title,
-.nb-cine-has-tool .nb-cine-sl-script-story-title { color: #c8960c; font-weight: 800; }
 .nb-cine-story-scenes {
     display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px;
 }
@@ -405,6 +402,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     font-style: italic; letter-spacing: 0.02em;
 }
 
+.nb-cine-orders-sel {
+    background: var(--bg2, #1e2228); color: var(--fg, #ccc);
+    border: 1px solid var(--border, #444); border-radius: 3px;
+    padding: 2px 4px; font-size: 0.85em; cursor: pointer;
+    max-width: 10em;
+}
 /* Card promoted to storyline — greyed in its home plotline lane */
 .nb-cine-story-card.nb-cine-promoted {
     opacity: 0.35; border-left-style: dashed; cursor: default;
@@ -611,6 +614,42 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }
 
         return { field, format, filter, codes };
+    }
+
+    // ── Tag-color helpers ─────────────────────────────────────────────────────
+    // tag_color frontmatter: "tagname:#color" (single string) or YAML list of same.
+    // Notebook-level: config.tag_colors = { tagname: "#color" }.
+    // Per-note wins over notebook on conflict.
+
+    function _parseTagColor(raw) {
+        if (!raw) return {};
+        const entries = Array.isArray(raw) ? raw : [String(raw)];
+        const result = {};
+        for (const e of entries) {
+            const idx = e.indexOf(':');
+            if (idx > 0) result[e.slice(0, idx).trim()] = e.slice(idx + 1).trim();
+        }
+        return result;
+    }
+
+    function _extractTags(fmTags, bodyPreview) {
+        const set = new Set();
+        if (fmTags) {
+            const arr = Array.isArray(fmTags) ? fmTags : String(fmTags).split(/[\s,]+/);
+            arr.forEach(t => { const s = t.trim().replace(/^#/, ''); if (s) set.add(s); });
+        }
+        if (bodyPreview) {
+            (bodyPreview.match(/#([\w/-]+)/g) || []).forEach(m => set.add(m.slice(1)));
+        }
+        return [...set];
+    }
+
+    function _resolveTagColor(item, config) {
+        const merged = { ...(config?.tag_colors || {}), ..._parseTagColor(item.meta?.tag_color) };
+        if (!Object.keys(merged).length) return null;
+        const tags = _extractTags(item.meta?.tags, item.body_preview);
+        for (const tag of tags) { if (merged[tag]) return merged[tag]; }
+        return null;
     }
 
     // ── Data cache ────────────────────────────────────────────────────────────
@@ -1366,6 +1405,62 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             _openStorylineOverlay(el, fresh, notebook, size, project);
         }
 
+        // ── Named orders ──────────────────────────────────────────────────────
+        const _slLane   = lanes?.find(l => l.is_storyline);
+        const _orders   = _slLane?.orders || {};
+        const _ordNames = Object.keys(_orders);
+
+        async function _saveOrder() {
+            const raw = prompt('Save current timeline as:');
+            if (raw === null) return;
+            const name = raw.trim().toLowerCase()
+                           .replace(/[^a-z0-9_-]/g, '-')
+                           .replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+            if (!name) { alert('Invalid name — use letters, numbers, hyphens.'); return; }
+            const cardZone = board.querySelector('.nb-cine-storyline-main .nb-cine-lane-cards');
+            if (!cardZone) { alert('No storyline track found.'); return; }
+            const stems = [...cardZone.querySelectorAll('.nb-cine-story-card, .nb-cine-milestone-card')]
+                .map(c => c.dataset.selector.split('/').pop().replace(/\.md$/i, ''));
+            const res = await fetch('/api/cine/storyline/order', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    notebook, selector: _slLane.selector, name, order: stems.join(','),
+                }),
+            }).catch(e => ({ ok: false, _err: e.message }));
+            const d = res.ok !== false ? await res.json() : res;
+            if (d.error || d._err) { alert('Save failed: ' + (d.error || d._err)); return; }
+            await _refresh();
+        }
+
+        async function _loadOrder(name) {
+            const orderStr = _orders[name];
+            if (!orderStr) return;
+            const stems = orderStr.split(',').map(s => s.trim()).filter(Boolean);
+            const allItems = [...(data.stories || []), ...(data.milestones || [])];
+            const orderedSet = new Map(stems.map((stem, i) => [stem, i + 1]));
+            const moves = [];
+            for (const it of allItems) {
+                const stem    = it.selector.split('/').pop().replace(/\.md$/i, '');
+                const newSeq  = orderedSet.get(stem) ?? null;
+                const wasOnTrack = it.story_seq !== null && it.story_seq !== undefined;
+                if (newSeq !== null || wasOnTrack) {
+                    moves.push({
+                        selector:  it.selector,
+                        plotline:  it.plotline || '',
+                        seq:       it.seq ?? 0,
+                        story_seq: newSeq,
+                        ...(it.milestone_seq !== undefined ? { milestone_seq: it.milestone_seq } : {}),
+                    });
+                }
+            }
+            if (!moves.length) return;
+            await fetch('/api/cine/story/resequence', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ notebook, moves }),
+            }).catch(e => console.error('Load order:', e));
+            await _refresh();
+        }
+
         // ── Header ──
         const hdr = document.createElement('div');
         hdr.className = 'nb-cine-header';
@@ -1389,6 +1484,35 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         addBtn.className = 'nb-tool-btn'; addBtn.title = 'Add story (unassigned)'; addBtn.textContent = '+ Story';
         addBtn.addEventListener('click', () => _showInlineStoryInput(board, null, notebook, el, size, _refresh, project));
         btnGroup.appendChild(addBtn);
+
+        if (_slLane) {
+            const saveOrderBtn = document.createElement('button');
+            saveOrderBtn.className = 'nb-tool-btn';
+            saveOrderBtn.title = 'Save current timeline order';
+            saveOrderBtn.textContent = '⊙';
+            saveOrderBtn.addEventListener('click', _saveOrder);
+            btnGroup.appendChild(saveOrderBtn);
+        }
+
+        if (_ordNames.length) {
+            const ordSel = document.createElement('select');
+            ordSel.className = 'nb-cine-orders-sel';
+            ordSel.title = 'Load a saved timeline order';
+            const ph = document.createElement('option');
+            ph.value = ''; ph.textContent = 'Load order…';
+            ordSel.appendChild(ph);
+            _ordNames.forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n; opt.textContent = n;
+                ordSel.appendChild(opt);
+            });
+            ordSel.addEventListener('change', () => {
+                const name = ordSel.value;
+                ordSel.value = '';
+                if (name) _loadOrder(name);
+            });
+            btnGroup.appendChild(ordSel);
+        }
 
         const _sizes     = ['small', 'medium', 'large'];
         const _sizeIcons = { small: '▦', medium: '▤', large: '▣' };
@@ -1504,7 +1628,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             if (mode === 'plotline' && story.story_seq != null)
                 card.classList.add('nb-cine-promoted');
-            if (story.meta?.tool) card.classList.add('nb-cine-has-tool');
 
             // Storyline card: apply home plotline's accent colour
             if (mode === 'storyline') {
@@ -1515,6 +1638,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const titleEl = document.createElement('div');
             titleEl.className = 'nb-cine-story-title';
             titleEl.textContent = story.title;
+            const _tc = _resolveTagColor(story, config);
+            if (_tc) titleEl.style.color = _tc;
             card.appendChild(titleEl);
 
             if ((cardSize === 'medium' || cardSize === 'large') && story.meta?.desc) {
@@ -2067,11 +2192,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                             ? `<div class="nb-cine-sl-story-body">${_esc(item.body_preview)}</div>` : '';
                         const card = document.createElement('div');
                         card.className = 'nb-cine-sl-story-prose';
-                        if (item.meta?.tool) card.classList.add('nb-cine-has-tool');
                         card.dataset.selector = item.selector;
                         if (color) card.style.borderLeftColor = color;
+                        const _tcProse = _resolveTagColor(item, data.config);
+                        const _titleStyle = _tcProse ? ` style="color:${_esc(_tcProse)}"` : '';
                         card.innerHTML =
-                            `<div class="nb-cine-sl-story-prose-title">${_esc(item.title)}</div>${desc}${body}`;
+                            `<div class="nb-cine-sl-story-prose-title"${_titleStyle}>${_esc(item.title)}</div>${desc}${body}`;
                         card.addEventListener('click', () => NbMain.openNote(item.selector));
                         wrap.appendChild(card);
                     }
@@ -2090,10 +2216,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                         } else {
                             const block = document.createElement('div');
                             block.className = 'nb-cine-sl-script-story';
-                            if (item.meta?.tool) block.classList.add('nb-cine-has-tool');
                             const titleEl = document.createElement('div');
                             titleEl.className = 'nb-cine-sl-script-story-title';
                             titleEl.textContent = item.title;
+                            const _tcScript = _resolveTagColor(item, data.config);
+                            if (_tcScript) titleEl.style.color = _tcScript;
                             titleEl.addEventListener('click', () => NbMain.openNote(item.selector));
                             block.appendChild(titleEl);
                             // desc from frontmatter shown immediately, before body prose
