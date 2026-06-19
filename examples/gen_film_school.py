@@ -58,42 +58,42 @@ as you make your movie.
 write('story-script.md', fm(
     title='Story & Script',
     type='plotline',
-    color='#7c6af7',
+    color='#E40303',  # pride red
     seq=1,
 ), "Develop the story from raw concept to locked screenplay.")
 
 write('finance.md', fm(
     title='Finance & Business',
     type='plotline',
-    color='#e8a44a',
+    color='#FF8C00',  # pride orange
     seq=2,
 ), "Secure the money, build the legal structure, and plan distribution.")
 
 write('pre-production.md', fm(
     title='Pre-Production',
     type='plotline',
-    color='#4ab4e8',
+    color='#FFED00',  # pride yellow
     seq=3,
 ), "Hire the crew, cast actors, scout locations, and plan every shot.")
 
 write('production.md', fm(
     title='Production',
     type='plotline',
-    color='#4ae894',
+    color='#008026',  # pride green
     seq=4,
 ), "Principal photography — capture every scene on camera.")
 
 write('post-production.md', fm(
     title='Post-Production',
     type='plotline',
-    color='#e84a7c',
+    color='#004DFF',  # pride indigo
     seq=5,
 ), "Edit, mix, grade, and finish the film.")
 
 write('distribution.md', fm(
     title='Distribution & Release',
     type='plotline',
-    color='#a44ae8',
+    color='#750787',  # pride violet
     seq=6,
 ), "Deliver the film to audiences through festivals, platforms, and deals.")
 
