@@ -9,7 +9,11 @@ def fm(**kw):
     lines = ['---']
     for k, v in kw.items():
         if v is not None and v != '':
-            lines.append(f'{k}: {v}')
+            # Quote strings starting with # — YAML treats bare # after space as comment
+            if isinstance(v, str) and v.startswith('#'):
+                lines.append(f'{k}: "{v}"')
+            else:
+                lines.append(f'{k}: {v}')
     lines.append('---')
     return '\n'.join(lines)
 
