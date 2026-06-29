@@ -2992,6 +2992,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         label:       'NbWeb-cine',
         description: 'Film production scheduling — stripboard, call sheets, script tools',
         helpUrl:     '/plugins/nbweb-cine.md',
+        fmKeys: ['scene', 'shot', 'loc', 'day_night', 'int_ext', 'cast', 'extras',
+                 'vfx', 'sequence', 'script_day', 'page_count', 'shoot_day',
+                 'stripboard', 'breakdown', 'props', 'wardrobe', 'sfx'],
 
         // .nb-cine-card-fm is the togglable field block inside shot and scene cards.
         // Strip header always stays visible; body/annotation button always accessible.
