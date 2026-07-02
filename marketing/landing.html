@@ -1,0 +1,463 @@
+<title>NbWeb-cine — README</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0E1014;
+    --surface:   #181B22;
+    --border:    #252930;
+    --amber:     #C8920C;
+    --amber-dim: #7A570A;
+    --text:      #EDE7DB;
+    --muted:     #8A94A6;
+    --link:      #5B9CC4;
+    --code-bg:   #12151A;
+    --rail-h:    56px;
+  }
+
+  html { background: var(--bg); color: var(--text); font-size: 16px; }
+
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1.65;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* ── top meta ── */
+  .top-links {
+    padding: 20px 0 0;
+    font-size: .78rem;
+    color: var(--muted);
+    letter-spacing: .04em;
+  }
+  .top-links a { color: var(--muted); text-decoration: none; }
+  .top-links a:hover { color: var(--link); }
+
+  /* ── title ── */
+  h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 2.6rem;
+    font-weight: normal;
+    color: var(--text);
+    margin: 28px 0 6px;
+    text-wrap: balance;
+    letter-spacing: -.01em;
+  }
+  .subtitle {
+    font-size: 1.05rem;
+    color: var(--muted);
+    margin-bottom: 32px;
+    line-height: 1.5;
+  }
+  .subtitle a { color: var(--link); text-decoration: none; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+
+  /* ── hero screenshot ── */
+  .screenshot {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    margin: 0 0 36px;
+  }
+  .screenshot-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: .85rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    gap: 10px;
+    padding: 40px 24px;
+  }
+  .screenshot.hero .screenshot-inner { padding: 80px 24px; }
+  /* film-frame perforations */
+  .screenshot::before,
+  .screenshot::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 18px;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 10px,
+      var(--bg) 10px,
+      var(--bg) 18px
+    );
+    opacity: .35;
+  }
+  .screenshot::before { left: 0; }
+  .screenshot::after  { right: 0; }
+
+  .screenshot-label {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .frame-icon {
+    width: 22px; height: 16px;
+    border: 1.5px solid var(--amber-dim);
+    border-radius: 2px;
+    opacity: .7;
+  }
+
+  /* ── TL;DR ── */
+  .tldr {
+    background: var(--surface);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 4px 4px 0;
+    padding: 20px 24px;
+    margin: 0 0 36px;
+  }
+  .tldr ul { list-style: none; display: grid; gap: 7px; }
+  .tldr li { padding-left: 1.2em; position: relative; font-size: .95rem; }
+  .tldr li::before {
+    content: '▸';
+    color: var(--amber);
+    position: absolute; left: 0;
+    font-size: .8em;
+    top: .2em;
+  }
+  .tldr li strong { color: var(--text); }
+
+  /* ── body headings ── */
+  h2 {
+    font-family: Georgia, serif;
+    font-size: 1.55rem;
+    font-weight: normal;
+    color: var(--text);
+    margin: 44px 0 14px;
+    text-wrap: balance;
+  }
+  h2.section-intro { margin-top: 28px; }
+
+  p { margin-bottom: 14px; }
+  p:last-child { margin-bottom: 0; }
+  strong { color: var(--text); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── workflow rail ── */
+  .workflow-rail {
+    display: flex;
+    align-items: stretch;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 28px 0 40px;
+    overflow-x: auto;
+  }
+  .rail-stage {
+    flex: 1;
+    min-width: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 8px;
+    gap: 5px;
+    border-right: 1px solid var(--border);
+    cursor: default;
+    position: relative;
+    text-align: center;
+  }
+  .rail-stage:last-child { border-right: none; }
+  .rail-stage .num {
+    font-size: .65rem;
+    letter-spacing: .1em;
+    color: var(--amber-dim);
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  .rail-stage .label {
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .rail-stage.active .label { color: var(--amber); }
+  .rail-stage.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 10%; right: 10%;
+    height: 2px;
+    background: var(--amber);
+    border-radius: 1px 1px 0 0;
+  }
+
+  /* ── workflow sections ── */
+  .workflow-section {
+    border-left: 2px solid var(--border);
+    margin: 0 0 44px;
+    padding: 0 0 0 22px;
+  }
+  .workflow-section h2 {
+    margin-top: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .stage-num {
+    font-family: Georgia, serif;
+    font-size: 1rem;
+    color: var(--amber);
+    font-style: italic;
+  }
+
+  .more-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: .82rem;
+    color: var(--amber);
+    text-decoration: none;
+    letter-spacing: .03em;
+    margin-top: 14px;
+    border: 1px solid var(--amber-dim);
+    border-radius: 3px;
+    padding: 4px 10px;
+  }
+  .more-link:hover { background: var(--amber-dim); color: var(--text); text-decoration: none; }
+
+  /* ── code ── */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: .82rem;
+    line-height: 1.55;
+    color: #B8C4D0;
+    margin: 12px 0;
+  }
+  code {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: .85em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 1px 5px;
+    color: #B8C4D0;
+  }
+  pre code { background: none; border: none; padding: 0; font-size: inherit; }
+
+  /* ── installation ── */
+  .install-options { display: grid; gap: 20px; }
+  .install-option {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 18px 20px;
+  }
+  .install-option h3 {
+    font-family: Georgia, serif;
+    font-size: 1rem;
+    font-weight: normal;
+    color: var(--amber);
+    margin-bottom: 12px;
+  }
+  .install-note {
+    font-size: .85rem;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+
+  /* ── further reading ── */
+  .reading-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  @media (max-width: 560px) { .reading-grid { grid-template-columns: 1fr; } }
+  .reading-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 14px;
+  }
+  .reading-item a {
+    font-weight: 600;
+    font-size: .9rem;
+    display: block;
+    margin-bottom: 3px;
+  }
+  .reading-item span {
+    font-size: .8rem;
+    color: var(--muted);
+  }
+
+  /* ── metadata ── */
+  .metadata {
+    margin-top: 40px;
+    padding: 20px 22px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 8px 16px;
+    font-size: .84rem;
+  }
+  .meta-key { color: var(--muted); letter-spacing: .04em; }
+  .meta-val { color: var(--text); }
+  .meta-val a { color: var(--link); }
+</style>
+
+<div class="top-links">
+  <a href="https://github.com/linuxcaffe/nbweb-cine">Project</a> &nbsp;·&nbsp;
+  <a href="https://github.com/linuxcaffe/nbweb-cine/issues">Issues</a>
+</div>
+
+<h1>NbWeb-cine</h1>
+<p class="subtitle">
+  From first idea to closing credits — a film production plugin for
+  <a href="https://github.com/linuxcaffe/nb-web">nb-web</a> that puts every tool a filmmaker
+  needs into plain text files you own completely.
+</p>
+
+<div class="screenshot hero">
+  <div class="screenshot-inner">
+    <div class="screenshot-label">
+      <div class="frame-icon"></div>
+      insert screenshot — full UI overview
+    </div>
+  </div>
+</div>
+
+<div class="tldr">
+  <ul>
+    <li><strong>Storylines board</strong> — develop structure before writing a scene; drag story cards across plotline tracks</li>
+    <li><strong>Fountain screenplay</strong> — write in the open standard; render with proper margins, Courier Prime, and slug lines</li>
+    <li><strong>One-click export</strong> — download <code>.fountain</code> or a print-ready PDF directly from a cover note</li>
+    <li><strong>Shot listing</strong> — press Ctrl+[ in any scene to create and link a shot note instantly</li>
+    <li><strong>Draggable stripboard</strong> — colour-coded by INT/EXT + DAY/NIGHT; every drag writes back to git</li>
+    <li><strong>Live call sheets</strong> — generated from the current schedule; no spreadsheets, no copy-paste</li>
+    <li><strong>ATL/BTL budget</strong> — hledger double-entry, recalculated on demand from current shot data</li>
+    <li>Every note is a plain Markdown file in a git repository you control</li>
+  </ul>
+</div>
+
+<hr>
+
+<h2 class="section-intro">Why this exists</h2>
+
+<p>Traditional film production software — Movie Magic, StudioBinder, Celtx — locks your schedule, script, and call sheets inside proprietary formats and subscription paywalls. When the project wraps, the data is stranded. When the pricing changes, you're held hostage.</p>
+
+<p>NbWeb-cine takes the opposite position: <strong>your production data is just files</strong>. A shot is a Markdown file. A scene is a Markdown file. Actor contacts, location notes, story cards — all plain text, readable in any editor, version-controlled by git, searchable from the command line. The production lives in a folder. You own it completely.</p>
+
+<p>The plugin is a set of lenses on that folder. The same shot file that appears as a draggable strip on the stripboard appears as a verbose card on the call sheet and as an inline cue in the screenplay — the data never changes, only the view does. Renumber a scene by changing one field. Recast an actor by changing one field. Restructure your entire shooting order by dragging strips. The git history records every decision.</p>
+
+<h2>What this means for you</h2>
+
+<p>This removes all barriers to beginning screenwriters and filmmakers, with access to all the tools needed to make a movie from start to finish.</p>
+
+<hr>
+
+<h2>The workflow</h2>
+
+<div class="workflow-rail">
+  <div class="rail-stage"><span class="num">idea</span><span class="label">Start</span></div>
+  <div class="rail-stage active"><span class="num">01</span><span class="label">Storylines</span></div>
+  <div class="rail-stage"><span class="num">02</span><span class="label">Screenplay</span></div>
+  <div class="rail-stage"><span class="num">03</span><span class="label">Shot List</span></div>
+  <div class="rail-stage"><span class="num">04</span><span class="label">Schedule</span></div>
+  <div class="rail-stage"><span class="num">05</span><span class="label">Budget</span></div>
+  <div class="rail-stage"><span class="num">end</span><span class="label">Credits</span></div>
+</div>
+
+<div class="workflow-section">
+  <h2><span class="stage-num">1.</span> Storylines</h2>
+  <p>Before writing a scene, develop what the story <em>is</em> on the <strong>storylines board</strong> — a 2D canvas of plotline tracks and draggable story cards. Write a card per beat; drag it between tracks to reshape act structure; switch to script-view to read the cards as a flowing prose treatment.</p>
+  <div class="screenshot"><div class="screenshot-inner"><div class="screenshot-label"><div class="frame-icon"></div>insert screenshot — storylines board</div></div></div>
+  <a class="more-link" href="STORYLINES.md">→ STORYLINES.md — board layout, story cards, named orders, treatment export</a>
+</div>
+
+<div class="workflow-section">
+  <h2><span class="stage-num">2.</span> Screenplay</h2>
+  <p>Write scenes in <a href="https://fountain.io">Fountain</a> — the open plain-text format used by working screenwriters worldwide. NbWeb-cine renders scenes with proper Hollywood margins, Courier Prime font, and full Fountain spec: slug lines, action, dialogue, parentheticals, transitions, centered text, sections, and synopses.</p>
+  <p>A <strong>cover note</strong> (<code>type: script</code>) assembles all your scenes in order, shows a title page with scene count and estimated runtime, and exports with one click to <code>.fountain</code> or a print-ready PDF.</p>
+  <div class="screenshot"><div class="screenshot-inner"><div class="screenshot-label"><div class="frame-icon"></div>insert screenshot — screenplay view and title page</div></div></div>
+  <p>Shot cues written as <code>[[filename]]</code> in scene bodies appear inline as superscript alias codes and link directly to the shot note. They are valid Fountain notes — excluded from the final PDF automatically.</p>
+  <a class="more-link" href="SCREENPLAY.md">→ SCREENPLAY.md — Fountain syntax, type: script, export options, Courier Prime, paper size</a>
+</div>
+
+<div class="workflow-section">
+  <h2><span class="stage-num">3.</span> Shot listing</h2>
+  <p>Press <strong>Ctrl+[</strong> in any scene to open the Insert Shot dialog. NbWeb-cine suggests the next alias, pre-fills the location, and inserts <code>[[filename]]</code> at the cursor. The new shot file opens immediately for camera, lighting, and art department notes.</p>
+  <div class="screenshot"><div class="screenshot-inner"><div class="screenshot-label"><div class="frame-icon"></div>insert screenshot — Ctrl+[ dialog and shot card</div></div></div>
+  <p>Every shot carries three independent identifiers: a stable <strong>filename</strong> (the wikilink anchor — never changes), a mutable <strong>alias</strong> (the stripboard code), and a <strong>title</strong> (human description). Renumber shots freely; the links in your script never break.</p>
+  <a class="more-link" href="SHOTLISTING.md">→ SHOTLISTING.md — shot frontmatter, three-identifier model, codeblock queries, field lookups</a>
+</div>
+
+<div class="workflow-section">
+  <h2><span class="stage-num">4.</span> Scheduling</h2>
+  <p>The <strong>stripboard</strong> is a draggable, colour-coded grid — one strip per shot, grouped by shoot day. Drag a strip to a new position; the sequence is written back to frontmatter in a single git commit. Lock a shot to pin it in place. Move it to UNSCHEDULED to take it off the board without deleting it.</p>
+  <div class="screenshot"><div class="screenshot-inner"><div class="screenshot-label"><div class="frame-icon"></div>insert screenshot — stripboard</div></div></div>
+  <p>Day notes set shoot hours per department, feeding directly into per-hour resource costing in the budget.</p>
+  <a class="more-link" href="SCHEDULING.md">→ SCHEDULING.md — stripboard, day notes, lock, UNSCHEDULED zone, call sheet assembly</a>
+</div>
+
+<div class="workflow-section">
+  <h2><span class="stage-num">5.</span> Budget</h2>
+  <p>The live budget total sits at the top of the stripboard. When the schedule changes, hit <strong>↻</strong> to recompute — ATL cast costs, BTL location fees, equipment day rates, per-hour resources. All costs live in <a href="https://hledger.org">hledger</a> journals: plain text, git-tracked, queryable for any report.</p>
+  <div class="screenshot"><div class="screenshot-inner"><div class="screenshot-label"><div class="frame-icon"></div>insert screenshot — budget total and hledger output</div></div></div>
+  <p>Cast rates flow through the CHARACTER → actor chain: change the actor on a character card and the budget updates. Cost data lives in annotation sidecars visible only to admin-level users — the same notebook serves the whole crew without exposing rates.</p>
+  <a class="more-link" href="BUDGET.md">→ BUDGET.md — ATL/BTL costing, gen-budget.py, hledger integration, access levels</a>
+</div>
+
+<hr>
+
+<h2>Installation</h2>
+
+<div class="install-options">
+  <div class="install-option">
+    <h3>Option 1 — Clone and symlink</h3>
+<pre>git clone https://github.com/linuxcaffe/nbweb-cine ~/dev/nbweb-cine
+ln -s ~/dev/nbweb-cine/nbweb-cine.js ~/dev/nb-web/plugins/nbweb-cine.js</pre>
+    <p class="install-note">Then add to <code>nb-web/nb-settings.json</code>: <code>{ "url": "/plugins/nbweb-cine.js", "enabled": true }</code></p>
+  </div>
+  <div class="install-option">
+    <h3>Option 2 — nb-web plugin manager <em style="color:var(--muted);font-size:.85em">(coming soon)</em></h3>
+<pre>nbweb:plugin?url=https://github.com/linuxcaffe/nbweb-cine</pre>
+  </div>
+  <div class="install-option">
+    <h3>Option 3 — Manual</h3>
+    <p class="install-note">Copy <code>nbweb-cine.js</code> into your nb-web <code>plugins/</code> directory and register it in <code>nb-settings.json</code>. No build step required.</p>
+    <p class="install-note" style="margin-top:10px"><strong style="color:var(--text)">PDF export</strong> requires afterwriting: <code>cd ~/dev/nb-web && npm install afterwriting</code></p>
+    <p class="install-note"><strong style="color:var(--text)">Courier Prime</strong> (recommended): <code>sudo apt-get install fonts-courier-prime</code></p>
+  </div>
+</div>
+
+<p style="margin-top:16px;font-size:.88rem;color:var(--muted)">The plugin activates automatically for any notebook that contains a <code>.nb-cine.json</code> project anchor file.</p>
+
+<hr>
+
+<h2>Further reading</h2>
+
+<div class="reading-grid">
+  <div class="reading-item"><a href="STORYLINES.md">STORYLINES.md</a><span>Story development board — lanes, cards, named orders</span></div>
+  <div class="reading-item"><a href="SCREENPLAY.md">SCREENPLAY.md</a><span>Fountain pipeline — render, export .fountain + PDF</span></div>
+  <div class="reading-item"><a href="SHOTLISTING.md">SHOTLISTING.md</a><span>Shot notes, codeblock queries, call sheets</span></div>
+  <div class="reading-item"><a href="SCHEDULING.md">SCHEDULING.md</a><span>Stripboard, day notes, drag &amp; resequence</span></div>
+  <div class="reading-item"><a href="BUDGET.md">BUDGET.md</a><span>ATL/BTL costing, hledger integration</span></div>
+  <div class="reading-item"><a href="CONFIGURATION.md">CONFIGURATION.md</a><span>Frontmatter reference, .nb-cine.json, access levels</span></div>
+  <div class="reading-item"><a href="DEVELOPERS.md">DEVELOPERS.md</a><span>Plugin architecture, Flask endpoints, adding note types</span></div>
+</div>
+
+<div class="metadata">
+  <span class="meta-key">License</span>    <span class="meta-val"><a href="LICENSE">AGPL v3</a></span>
+  <span class="meta-key">Language</span>   <span class="meta-val">JavaScript (plugin) · Python (Flask extensions)</span>
+  <span class="meta-key">Requires</span>   <span class="meta-val"><a href="https://github.com/xwmx/nb">nb</a> · <a href="https://github.com/linuxcaffe/nb-web">nb-web</a></span>
+  <span class="meta-key">Optional</span>   <span class="meta-val">afterwriting · fonts-courier-prime</span>
+  <span class="meta-key">Platforms</span>  <span class="meta-val">Linux</span>
+  <span class="meta-key">Version</span>    <span class="meta-val">see CHANGES.md</span>
+</div>

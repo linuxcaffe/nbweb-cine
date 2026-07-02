@@ -5,9 +5,7 @@
 
 From first idea to closing credits — a film production plugin for [nb-web](https://github.com/linuxcaffe/nb-web) that puts every tool a filmmaker needs into plain text files you own completely.
 
----
-
-[insert screenshot — full UI overview]
+*📷 screenshot: full UI overview*
 
 ---
 
@@ -16,7 +14,7 @@ From first idea to closing credits — a film production plugin for [nb-web](htt
 - **Storylines board** — develop structure before writing a scene; drag story cards across plotline tracks
 - **Fountain screenplay** — write in the open standard; render with proper margins, Courier Prime, and slug lines
 - **One-click export** — download `.fountain` or a print-ready PDF directly from a cover note
-- **Shot listing** — press Ctrl+[ in any scene to create and link a shot note instantly
+- **Shot listing** — press `Ctrl+[` in any scene to create and link a shot note instantly
 - **Draggable stripboard** — colour-coded by INT/EXT + DAY/NIGHT; every drag writes back to git
 - **Live call sheets** — generated from the current schedule; no spreadsheets, no copy-paste
 - **ATL/BTL budget** — hledger double-entry, recalculated on demand from current shot data
@@ -41,10 +39,10 @@ This removes all barriers to beginning screenwriters and filmmakers, with access
 ## The workflow
 
 ```
-Idea → Storylines → Screenplay → Shot List → Schedule → Budget → Call Sheets
+Idea  →  Storylines  →  Screenplay  →  Shot List  →  Schedule  →  Budget  →  Credits
 ```
 
-Each stage has its own folder in your notebook and its own dedicated doc. This README walks the arc; follow the links for the full picture.
+Each stage has its own folder in your notebook and its own doc in [`docs/`](docs/). This README walks the arc; follow the links for the full picture.
 
 ---
 
@@ -52,9 +50,9 @@ Each stage has its own folder in your notebook and its own dedicated doc. This R
 
 Before writing a scene, develop what the story *is* on the **storylines board** — a 2D canvas of plotline tracks and draggable story cards. Write a card per beat; drag it between tracks to reshape act structure; switch to script-view to read the cards as a flowing prose treatment.
 
-[insert screenshot — storylines board]
+*📷 screenshot: storylines board*
 
-→ **[STORYLINES.md](STORYLINES.md)** — board layout, story cards, named orders, treatment export
+→ **[docs/STORYLINES.md](docs/STORYLINES.md)** — board layout, story cards, named orders, treatment export
 
 ---
 
@@ -64,11 +62,11 @@ Write scenes in [Fountain](https://fountain.io) — the open plain-text format u
 
 A **cover note** (`type: script`) assembles all your scenes in order, shows a title page with scene count and estimated runtime, and exports with one click to `.fountain` or a print-ready PDF.
 
-[insert screenshot — screenplay view and title page]
+*📷 screenshot: screenplay view and title page*
 
 Shot cues written as `[[filename]]` in scene bodies appear inline as superscript alias codes and link directly to the shot note. They are valid Fountain notes — excluded from the final PDF automatically.
 
-→ **[SCREENPLAY.md](SCREENPLAY.md)** — Fountain syntax, `type: script`, export options, Courier Prime, paper size
+→ **[docs/SCREENPLAY.md](docs/SCREENPLAY.md)** — Fountain syntax, `type: script`, export options, Courier Prime, paper size
 
 ---
 
@@ -76,11 +74,11 @@ Shot cues written as `[[filename]]` in scene bodies appear inline as superscript
 
 Press **Ctrl+[** in any scene to open the Insert Shot dialog. NbWeb-cine suggests the next alias, pre-fills the location, and inserts `[[filename]]` at the cursor. The new shot file opens immediately for camera, lighting, and art department notes.
 
-[insert screenshot — Ctrl+[ dialog and shot card]
+*📷 screenshot: Ctrl+[ dialog and shot card*
 
 Every shot carries three independent identifiers: a stable **filename** (the wikilink anchor — never changes), a mutable **alias** (the stripboard code), and a **title** (human description). Renumber shots freely; the links in your script never break.
 
-→ **[SHOTLISTING.md](SHOTLISTING.md)** — shot frontmatter, three-identifier model, codeblock queries, field lookups
+→ **[docs/SHOTLISTING.md](docs/SHOTLISTING.md)** — shot frontmatter, three-identifier model, codeblock queries, field lookups
 
 ---
 
@@ -88,11 +86,11 @@ Every shot carries three independent identifiers: a stable **filename** (the wik
 
 The **stripboard** is a draggable, colour-coded grid — one strip per shot, grouped by shoot day. Drag a strip to a new position; the sequence is written back to frontmatter in a single git commit. Lock a shot to pin it in place. Move it to UNSCHEDULED to take it off the board without deleting it.
 
-[insert screenshot — stripboard]
+*📷 screenshot: stripboard*
 
 Day notes set shoot hours per department, feeding directly into per-hour resource costing in the budget.
 
-→ **[SCHEDULING.md](SCHEDULING.md)** — stripboard, day notes, lock, UNSCHEDULED zone, call sheet assembly
+→ **[docs/SCHEDULING.md](docs/SCHEDULING.md)** — stripboard, day notes, lock, UNSCHEDULED zone, call sheet assembly
 
 ---
 
@@ -100,11 +98,11 @@ Day notes set shoot hours per department, feeding directly into per-hour resourc
 
 The live budget total sits at the top of the stripboard. When the schedule changes, hit **↻** to recompute — ATL cast costs, BTL location fees, equipment day rates, per-hour resources. All costs live in [hledger](https://hledger.org/) journals: plain text, git-tracked, queryable for any report.
 
-[insert screenshot — budget total and hledger output]
+*📷 screenshot: budget total and hledger output*
 
 Cast rates flow through the CHARACTER → actor chain: change the actor on a character card and the budget updates. Cost data lives in annotation sidecars visible only to admin-level users — the same notebook serves the whole crew without exposing rates.
 
-→ **[BUDGET.md](BUDGET.md)** — ATL/BTL costing, gen-budget.py, hledger integration, access levels
+→ **[docs/BUDGET.md](docs/BUDGET.md)** — ATL/BTL costing, gen-budget.py, hledger integration, access levels
 
 ---
 
@@ -117,7 +115,7 @@ git clone https://github.com/linuxcaffe/nbweb-cine ~/dev/nbweb-cine
 ln -s ~/dev/nbweb-cine/nbweb-cine.js ~/dev/nb-web/plugins/nbweb-cine.js
 ```
 
-Add to `nb-web/nb-settings.json`:
+Then add to `nb-web/nb-settings.json`:
 
 ```json
 { "url": "/plugins/nbweb-cine.js", "enabled": true }
@@ -154,27 +152,29 @@ The plugin activates automatically for any notebook that contains a `.nb-cine.js
 Working and in active use. The full workflow — develop story → write script → list shots → schedule → budget → call sheets → export — is functional.
 
 See individual docs for detailed feature status:
-[STORYLINES.md](STORYLINES.md) · [SCREENPLAY.md](SCREENPLAY.md) · [SHOTLISTING.md](SHOTLISTING.md) · [SCHEDULING.md](SCHEDULING.md) · [BUDGET.md](BUDGET.md)
+[STORYLINES](docs/STORYLINES.md) · [SCREENPLAY](docs/SCREENPLAY.md) · [SHOTLISTING](docs/SHOTLISTING.md) · [SCHEDULING](docs/SCHEDULING.md) · [BUDGET](docs/BUDGET.md)
 
 ---
 
-## Further reading
+## docs/
 
-- [STORYLINES.md](STORYLINES.md) — Story development board
-- [SCREENPLAY.md](SCREENPLAY.md) — Fountain screenplay pipeline
-- [SHOTLISTING.md](SHOTLISTING.md) — Shot notes, codeblock queries, call sheets
-- [SCHEDULING.md](SCHEDULING.md) — Stripboard, day notes, scheduling
-- [BUDGET.md](BUDGET.md) — Production accounting and costing
-- [CONFIGURATION.md](CONFIGURATION.md) — Frontmatter field reference, `.nb-cine.json`, access levels
-- [DEVELOPERS.md](DEVELOPERS.md) — Plugin architecture, Flask endpoints, adding note types
+| Doc | Contents |
+|-----|----------|
+| [STORYLINES.md](docs/STORYLINES.md) | Story development board — lanes, cards, named orders |
+| [SCREENPLAY.md](docs/SCREENPLAY.md) | Fountain pipeline — render, export `.fountain` + PDF |
+| [SHOTLISTING.md](docs/SHOTLISTING.md) | Shot notes, codeblock queries, call sheets |
+| [SCHEDULING.md](docs/SCHEDULING.md) | Stripboard, day notes, drag & resequence |
+| [BUDGET.md](docs/BUDGET.md) | ATL/BTL costing, hledger integration |
+| [CONFIGURATION.md](docs/CONFIGURATION.md) | Frontmatter field reference, `.nb-cine.json`, access levels |
+| [DEVELOPERS.md](docs/DEVELOPERS.md) | Plugin architecture, Flask endpoints, adding note types |
 
 ---
 
 ## Metadata
 
-- License: [AGPL v3](LICENSE)
-- Language: JavaScript (plugin) · Python (Flask extensions)
-- Requires: [nb](https://github.com/xwmx/nb) · [nb-web](https://github.com/linuxcaffe/nb-web)
-- Optional: afterwriting · fonts-courier-prime
-- Platforms: Linux
-- Version: see [CHANGES.md](CHANGES.md)
+- **License:** [AGPL v3](LICENSE)
+- **Language:** JavaScript (plugin) · Python (Flask extensions)
+- **Requires:** [nb](https://github.com/xwmx/nb) · [nb-web](https://github.com/linuxcaffe/nb-web)
+- **Optional:** afterwriting · fonts-courier-prime
+- **Platforms:** Linux
+- **Version:** see [CHANGES.md](CHANGES.md)
