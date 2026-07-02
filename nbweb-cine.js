@@ -2372,6 +2372,21 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         return title || alias || note.filename || '';
     }
 
+    // ── Script export button wiring ───────────────────────────────────────────
+
+    document.addEventListener('click', e => {
+        const btn = e.target.closest('.nb-script-dl-fountain');
+        if (!btn) return;
+        const nb = btn.dataset.notebook;
+        if (!nb) return;
+        const a = document.createElement('a');
+        a.href = `/api/cine/export-fountain?notebook=${encodeURIComponent(nb)}`;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    });
+
     // ── Plugin registration ───────────────────────────────────────────────────
 
     NbWeb.registerModule('cine', {
