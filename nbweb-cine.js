@@ -115,7 +115,6 @@ button.nb-cine-actor {
 .nb-cine-sf-val { font-size: .88em; white-space: pre-wrap; }
 .nb-cine-subtitle { font-size: .8em; opacity: .6; margin-left: 8px; }
 
-/* Screenplay preview — paper page */
 @font-face {
     font-family: 'Courier Prime';
     font-weight: normal; font-style: normal;
@@ -301,12 +300,92 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-chosen { box-shadow: 0 3px 12px rgba(0,0,0,0.35); z-index: 10; position: relative; }
 
 /* ── Storylines board ───────────────────────────────────────────────────── */
+/* Stub: compact entry point rendered in the preview pane */
+.nb-cine-sl-story-view { padding: 0 4px; }
+.nb-cine-open-board-btn { margin-bottom: 10px; }
+.nb-cine-sl-story-prose {
+    border-left: 4px solid var(--border, #444);
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    border-radius: 0 4px 4px 0;
+    background: var(--bg2, #1e2228);
+    cursor: pointer; transition: background 0.12s;
+}
+.nb-cine-sl-story-prose:hover { background: var(--bg3, #252930); }
+.nb-cine-sl-story-prose-title { font-weight: 600; margin-bottom: 4px; }
+.nb-cine-sl-story-desc { font-size: 0.85em; opacity: 0.7; margin: 0; }
+.nb-cine-story-mode-btn { margin: 0 auto; }
+
+/* Milestone bar in story-view */
+.nb-cine-sl-milestone-bar {
+    background: #0a0a0d; color: #bbb;
+    border-left: 3px solid rgba(255,255,255,0.25);
+    padding: 6px 14px;
+    margin-bottom: 10px; border-radius: 0 3px 3px 0;
+    font-size: 0.82em; font-weight: 600; letter-spacing: 0.04em;
+    cursor: pointer; transition: background 0.12s;
+}
+.nb-cine-sl-milestone-bar:hover { background: #14141a; }
+
+/* Script-view: continuous rendered prose */
+.nb-cine-sl-script-view { padding: 0 4px; }
+.nb-cine-sl-script-story {
+    padding: 0 0 24px 0;
+    border-bottom: 1px solid var(--border, #333);
+    margin-bottom: 24px;
+}
+.nb-cine-sl-script-story-title {
+    font-weight: 700; font-size: 1em; margin-bottom: 8px;
+    opacity: 0.5; letter-spacing: 0.04em; text-transform: uppercase;
+    font-size: 0.75em; cursor: pointer;
+}
+.nb-cine-sl-script-story-title:hover { opacity: 0.8; }
+.nb-cine-sl-script-milestone {
+    background: #0a0a0d; color: #bbb;
+    border-left: 3px solid rgba(255,255,255,0.25);
+    padding: 5px 14px; margin-bottom: 24px;
+    border-radius: 0 3px 3px 0;
+    font-size: 0.8em; font-weight: 600; letter-spacing: 0.06em;
+    cursor: pointer;
+}
+.nb-cine-sl-script-milestone:hover { background: #14141a; }
+
+.nb-cine-sl-stub {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px;
+    background: var(--bg2, #1e2228);
+    border: 1px solid var(--border, #444);
+    border-radius: 6px;
+}
+.nb-cine-sl-stub-title { font-weight: bold; }
+.nb-cine-sl-stub-meta  { flex: 1; opacity: 0.6; font-size: 0.85em; }
+
+/* Full-screen overlay — appended to document.body, bypasses all pane constraints */
+.nb-cine-sl-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg, #16191e);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+}
+.nb-cine-sl-overlay > .nb-cine-header {
+    flex-shrink: 0; padding: 8px 16px; gap: 12px; min-height: 44px;
+    justify-content: flex-start;
+}
+.nb-cine-sl-overlay > .nb-cine-header .nb-cine-title {
+    font-size: 13px; font-weight: 600; color: var(--text-muted, #aaa); opacity: 1;
+}
+.nb-cine-sl-overlay > .nb-cine-header .nb-cine-hdr-btns { gap: 4px; }
+.nb-cine-sl-overlay-body { flex: 1; overflow-x: auto; overflow-y: auto; }
+.nb-cine-sl-overlay > .nb-cine-card-peek { flex-shrink: 0; }
+
+/* Board layout (used inside overlay) */
 .nb-cine-storylines-board {
     display: flex; flex-direction: column; gap: 2px;
     padding: 4px 0;
+    width: max-content; min-width: 100%;
 }
 .nb-cine-storyline-row {
-    display: flex; align-items: flex-start; gap: 0;
+    display: flex; align-items: stretch; gap: 0;
     border-bottom: 1px solid var(--border, #444);
     min-height: 80px;
 }
@@ -317,12 +396,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     background: color-mix(in srgb, var(--lane-color, #444) 15%, var(--bg, #16191e));
     align-self: stretch; display: flex; align-items: center;
     word-break: break-word;
+    position: sticky; left: 0; z-index: 2;
 }
 .nb-cine-lane-cards {
     display: flex; flex-wrap: nowrap; gap: 6px;
-    padding: 6px; flex: 1; min-height: 70px;
-    align-content: flex-start;
-    overflow-x: auto;
+    padding: 6px; align-items: stretch; flex: 1;
 }
 .nb-cine-card-peek {
     border-top: 1px solid var(--border, #444);
@@ -343,9 +421,20 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     min-width: 8em; max-width: 14em;
     cursor: grab; user-select: none;
     font-size: 0.82em;
+    display: flex; flex-direction: column;
 }
+.nb-cine-lane-add-end {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 2.2em; width: 2.2em; align-self: stretch;
+    border: 1px dashed rgba(255,255,255,0.2); border-radius: 4px;
+    margin: 6px 6px 6px 0; background: none; color: inherit;
+    cursor: pointer; opacity: 0.28; font-size: 1.1em; flex-shrink: 0;
+    transition: opacity 0.15s;
+}
+.nb-cine-lane-add-end:hover { opacity: 1; background: rgba(255,255,255,0.07); }
 .nb-cine-story-card:active { cursor: grabbing; }
 .nb-cine-story-title { font-weight: bold; margin-bottom: 3px; }
+/* Gold title when story has a matching nb-web tool */
 .nb-cine-story-scenes {
     display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px;
 }
@@ -354,28 +443,51 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     padding: 1px 5px; font-size: 0.85em;
 }
 .nb-cine-scene-unresolved { opacity: 0.5; font-style: italic; }
-.nb-cine-orphan-row .nb-cine-lane-label {
-    border-right-color: #555; opacity: 0.5;
-    background: transparent;
+/* Storyline main lane — the curated top lane */
+.nb-cine-storyline-main {
+    background: color-mix(in srgb, var(--accent, #7c6af7) 5%, var(--bg, #16191e));
 }
-.nb-cine-orphan-scene {
-    opacity: 0.6; cursor: default; border-left-color: #555;
-    border-style: dashed;
+.nb-cine-storyline-main > .nb-cine-lane-label {
+    border-right-color: var(--accent, #7c6af7);
+    background: color-mix(in srgb, var(--accent, #7c6af7) 14%, var(--bg, #16191e));
+    font-style: italic; letter-spacing: 0.02em;
 }
+
+.nb-cine-orders-sel {
+    background: var(--bg2, #1e2228); color: var(--fg, #ccc);
+    border: 1px solid var(--border, #444); border-radius: 3px;
+    padding: 2px 4px; font-size: 0.85em; cursor: pointer;
+    max-width: 10em;
+}
+/* Card promoted to storyline — greyed in its home plotline lane */
+.nb-cine-story-card.nb-cine-promoted {
+    opacity: 0.35; border-left-style: dashed; cursor: default;
+}
+.nb-cine-story-card.nb-cine-selected {
+    outline: 2px solid var(--accent, #7c6af7); outline-offset: 1px;
+}
+.nb-cine-peek-badge {
+    display: inline-block; margin-left: 8px; padding: 1px 6px;
+    border-radius: 3px; font-size: 0.78em; opacity: 0.85;
+    background: var(--border, #555); color: var(--text, #eee); vertical-align: middle;
+}
+.nb-cine-peek-desc { font-size: 0.85em; opacity: 0.7; margin-top: 4px; }
+.nb-cine-peek-open { margin-top: 6px; }
+
+/* Storyline cards have a demote button revealed on hover */
+.nb-cine-storyline-main .nb-cine-story-card { position: relative; }
+.nb-cine-demote-btn {
+    position: absolute; top: 3px; right: 3px;
+    background: none; border: none; color: inherit; opacity: 0;
+    font-size: 0.8em; line-height: 1; padding: 0 2px; cursor: pointer;
+    transition: opacity 0.15s;
+}
+.nb-cine-storyline-main .nb-cine-story-card:hover .nb-cine-demote-btn { opacity: 0.55; }
+.nb-cine-demote-btn:hover { opacity: 1 !important; color: var(--red, #f87171); }
 
 /* Header button group — flush right */
 .nb-cine-hdr-btns { display: flex; gap: 2px; margin-left: auto; }
 
-/* Lane + button */
-.nb-cine-lane-label { position: relative; }
-.nb-cine-lane-add {
-    display: block; width: 100%; margin-top: 6px;
-    background: rgba(255,255,255,0.07); border: 1px dashed rgba(255,255,255,0.2);
-    border-radius: 3px; color: inherit; cursor: pointer;
-    font-size: 1em; padding: 1px 0; opacity: 0.5;
-    transition: opacity 0.15s;
-}
-.nb-cine-lane-add:hover { opacity: 1; background: rgba(255,255,255,0.12); }
 .nb-cine-add-btn { margin-left: 4px; }
 
 /* Inline story creation */
@@ -392,7 +504,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 }
 
 /* Size variants */
-.nb-cine-storylines-large .nb-cine-storyline-row { min-height: 120px; }
+.nb-cine-storylines-medium .nb-cine-storyline-row { min-height: 130px; }
+.nb-cine-storylines-medium .nb-cine-lane-cards    { gap: 8px; padding: 8px; }
+.nb-cine-story-medium { min-width: 10em; max-width: 16em; font-size: 0.85em; padding: 6px 9px; }
+.nb-cine-story-desc {
+    font-size: 0.82em; opacity: 0.7; margin-top: 3px; line-height: 1.3; overflow: hidden;
+}
+.nb-cine-story-medium .nb-cine-story-desc {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.nb-cine-storylines-large .nb-cine-storyline-row { min-height: 180px; }
 .nb-cine-storylines-large .nb-cine-lane-cards    { gap: 10px; padding: 10px; }
 .nb-cine-story-large {
     min-width: 12em; max-width: 20em;
@@ -412,6 +533,47 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     margin: 0; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* ── Body preview in story cards / story-view ────────────────────────────── */
+.nb-cine-story-body-preview {
+    font-size: 0.78em; opacity: 0.55; margin-top: 4px;
+    overflow: hidden; display: -webkit-box;
+    -webkit-box-orient: vertical; -webkit-line-clamp: 4;
+    line-height: 1.4;
+}
+.nb-cine-storylines-large .nb-cine-story-body-preview { -webkit-line-clamp: 6; }
+.nb-cine-sl-story-body {
+    font-size: 0.82em; opacity: 0.55; margin-top: 4px;
+    overflow: hidden; display: -webkit-box;
+    -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+    line-height: 1.4;
+}
+
+/* ── Milestone row ────────────────────────────────────────────────────────── */
+.nb-cine-milestone-row {
+    display: flex; align-items: stretch; gap: 0;
+    border-top: 2px solid rgba(255,255,255,0.12);
+    min-height: 60px; margin-top: 4px;
+}
+.nb-cine-milestone-row .nb-cine-lane-label {
+    background: #0a0a0d;
+    border-right-color: rgba(255,255,255,0.2);
+    font-style: italic; letter-spacing: 0.02em;
+}
+.nb-cine-milestone-card {
+    background: #0c0c10; border: 1px solid rgba(255,255,255,0.15);
+    border-left: 2px solid rgba(255,255,255,0.3);
+    border-radius: 3px; padding: 4px 7px;
+    min-width: 5em; max-width: 8em;
+    cursor: grab; user-select: none;
+    font-size: 0.75em; color: #ccc;
+    display: flex; flex-direction: column;
+    position: relative;
+}
+.nb-cine-milestone-card:active { cursor: grabbing; }
+.nb-cine-milestone-title { font-weight: 600; line-height: 1.3; }
+.nb-cine-milestone-card .nb-cine-demote-btn { opacity: 0; }
+.nb-cine-milestone-card:hover .nb-cine-demote-btn { opacity: 0.55; }
 
 /* ── Shot card ───────────────────────────────────────────────────────────── */
 .nb-cine-shot-card { max-width: 680px; }
@@ -505,21 +667,63 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         return { field, format, filter, codes };
     }
 
+    // ── Tag-color helpers ─────────────────────────────────────────────────────
+    // tag_color frontmatter: "tagname:#color" (single string) or YAML list of same.
+    // Notebook-level: config.tag_colors = { tagname: "#color" }.
+    // Per-note wins over notebook on conflict.
+
+    function _parseTagColor(raw) {
+        if (!raw) return {};
+        const entries = Array.isArray(raw) ? raw : [String(raw)];
+        const result = {};
+        for (const e of entries) {
+            const idx = e.indexOf(':');
+            if (idx > 0) result[e.slice(0, idx).trim()] = e.slice(idx + 1).trim();
+        }
+        return result;
+    }
+
+    function _extractTags(fmTags, bodyPreview) {
+        const set = new Set();
+        if (fmTags) {
+            const arr = Array.isArray(fmTags) ? fmTags : String(fmTags).split(/[\s,]+/);
+            arr.forEach(t => { const s = t.trim().replace(/^#/, ''); if (s) set.add(s); });
+        }
+        if (bodyPreview) {
+            (bodyPreview.match(/#([\w/-]+)/g) || []).forEach(m => set.add(m.slice(1)));
+        }
+        return [...set];
+    }
+
+    function _resolveTagColor(item, config) {
+        const merged = { ...(config?.tag_colors || {}), ..._parseTagColor(item.meta?.tag_color) };
+        if (!Object.keys(merged).length) return null;
+        const tags = _extractTags(item.meta?.tags, item.body_preview);
+        for (const tag of tags) { if (merged[tag]) return merged[tag]; }
+        return null;
+    }
+
     // ── Data cache ────────────────────────────────────────────────────────────
 
     const _cache = new Map();
     const _TTL   = 30000;
 
-    async function _fetchData(notebook) {
-        const hit = _cache.get(notebook);
+    async function _fetchData(notebook, project = '') {
+        const key = project ? `${notebook}:${project}` : notebook;
+        const hit = _cache.get(key);
         if (hit && Date.now() - hit.ts < _TTL) return hit;
-        const d   = await fetch(`/api/cine/data?notebook=${encodeURIComponent(notebook)}`).then(r => r.json());
+        let url = `/api/cine/data?notebook=${encodeURIComponent(notebook)}`;
+        if (project) url += `&project=${encodeURIComponent(project)}`;
+        const d   = await fetch(url).then(r => r.json());
         const entry = { ...d, ts: Date.now() };
-        _cache.set(notebook, entry);
+        _cache.set(key, entry);
         return entry;
     }
 
-    function _bust(notebook) { _cache.delete(notebook); }
+    function _bust(notebook, project = '') {
+        const key = project ? `${notebook}:${project}` : notebook;
+        _cache.delete(key);
+    }
 
     // ── Shot filter helper ────────────────────────────────────────────────────
     // Applies all filter fields with consistent null-sentinel handling.
@@ -712,9 +916,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         );
     }
 
-    // ── Script renderer ───────────────────────────────────────────────────────
-
-    // ── Fountain screenplay parser ────────────────────────────────────────────
+    // ── Script renderer — full Fountain pipeline ──────────────────────────────
 
     // Render Fountain inline markup + [[shot-id]] cues → HTML.
     function _renderInline(rawText) {
@@ -734,7 +936,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     // Tokenise a Fountain body. Returns [{type, text, depth?, dual?}, …].
-    // Scene slug is synthesised from FM by _renderScript — body starts after it.
     function _parseFountain(raw) {
         let text = raw || '';
         if (text.startsWith('---')) {
@@ -745,7 +946,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const lines  = text.split('\n');
         const tokens = [];
         let i         = 0;
-        let prevBlank = true; // treat document start as preceded by blank
+        let prevBlank = true;
 
         function nx() { return i + 1 < lines.length ? lines[i + 1] : null; }
 
@@ -755,76 +956,63 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             if (!t) { prevBlank = true; i++; continue; }
 
-            // Page break ===
             if (/^={3,}\s*$/.test(t)) {
                 tokens.push({ type: 'page_break' });
                 prevBlank = false; i++; continue;
             }
 
-            // Boneyard /* … */ — discarded entirely
             if (t.startsWith('/*')) {
                 while (i < lines.length && !lines[i].includes('*/')) i++;
                 i++; prevBlank = false; continue;
             }
 
-            // Note [[…]] — standalone shot cues or draft notes
             if (t.startsWith('[[') && t.endsWith(']]')) {
                 tokens.push({ type: 'note', text: t.slice(2, -2) });
                 prevBlank = false; i++; continue;
             }
 
-            // Section # / ## / ###
             const secM = t.match(/^(#{1,3})\s+(.*)/);
             if (secM) {
                 tokens.push({ type: 'section', depth: secM[1].length, text: secM[2] });
                 prevBlank = false; i++; continue;
             }
 
-            // Synopsis =
             if (/^=\s/.test(t)) {
                 tokens.push({ type: 'synopsis', text: t.slice(t.indexOf(' ') + 1) });
                 prevBlank = false; i++; continue;
             }
 
-            // Forced scene heading .text (not .. like ellipsis)
             if (t.startsWith('.') && !t.startsWith('..')) {
                 tokens.push({ type: 'scene_heading', text: t.slice(1).trim() });
                 prevBlank = false; i++; continue;
             }
 
-            // Scene heading (auto) — INT. / EXT. / EST. / INT./EXT.
             if (/^(int\.?|ext\.?|est\.?|int\.?\/ext\.?|i\/e)[\s.\-]/i.test(t)) {
                 tokens.push({ type: 'scene_heading', text: t.toUpperCase() });
                 prevBlank = false; i++; continue;
             }
 
-            // Centered > text <
             if (t.startsWith('>') && t.endsWith('<')) {
                 tokens.push({ type: 'centered', text: t.slice(1, -1).trim() });
                 prevBlank = false; i++; continue;
             }
 
-            // Transition forced > text (no closing <)
             if (raw.startsWith('>') && !t.endsWith('<')) {
                 tokens.push({ type: 'transition', text: t.slice(1).trim() });
                 prevBlank = false; i++; continue;
             }
 
-            // Lyrics ~
             if (t.startsWith('~')) {
                 tokens.push({ type: 'lyrics', text: t.slice(1).trim() });
                 prevBlank = false; i++; continue;
             }
 
-            // Transition (auto) — ALL CAPS + TO:, preceded by blank, followed by blank/end
             const nxLine = nx();
             if (prevBlank && /^[A-Z][A-Z\s]+TO:\s*$/.test(t) && (!nxLine || !nxLine.trim())) {
                 tokens.push({ type: 'transition', text: t });
                 prevBlank = false; i++; continue;
             }
 
-            // Character cue + dialogue block
-            // Rule: preceded by blank, all-caps, not a scene heading or transition, followed by non-blank
             const isAllCaps  = t === t.toUpperCase() && /[A-Z]/.test(t);
             const nxNonBlank = nxLine !== null && nxLine.trim() !== '';
             if (prevBlank && isAllCaps && nxNonBlank
@@ -845,10 +1033,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 continue;
             }
 
-            // Action (default; ! forces action even on all-caps lines)
             let actionText = t.startsWith('!') ? t.slice(1) : t;
             i++;
-            // Absorb continuation lines until blank or an obvious special element
             while (i < lines.length) {
                 const cl = lines[i].trim();
                 if (!cl) break;
@@ -1319,7 +1505,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // ── Story creation ────────────────────────────────────────────────────────
 
-    function _showInlineStoryInput(container, laneStem, notebook, blockEl, size) {
+    function _showInlineStoryInput(container, laneStem, notebook, blockEl, size, onDone, project = '') {
         // Remove any existing inline input first
         container.querySelector('.nb-cine-inline-add')?.remove();
 
@@ -1344,9 +1530,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const title = input.value.trim();
             if (!title) { wrap.remove(); return; }
             input.disabled = true;
-            await _createStory(notebook, title, laneStem || '');
-            _bust(notebook);
-            _loadCineBlock(blockEl);
+            await _createStory(notebook, title, laneStem || '', project);
+            _bust(notebook, project);
+            if (onDone) { await onDone(); } else { _loadCineBlock(blockEl); }
         }
 
         input.addEventListener('keydown', e => {
@@ -1355,11 +1541,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         });
     }
 
-    async function _createStory(notebook, title, storyline) {
+    async function _createStory(notebook, title, plotline, project = '') {
         const r = await fetch('/api/cine/story/create', {
             method:  'POST',
             headers: {'Content-Type': 'application/json'},
-            body:    JSON.stringify({ notebook, title, storyline }),
+            body:    JSON.stringify({ notebook, title, plotline, project }),
         });
         const d = await r.json();
         if (!d.ok) throw new Error(d.error || 'create failed');
@@ -1369,92 +1555,340 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Storylines board ──────────────────────────────────────────────────────
 
     const _SL_SIZE_KEY = nb => `nb-cine-sl-size-${nb}`;
+    const _SL_VIEW_KEY = nb => `nb-cine-sl-view-${nb}`;
 
     function _buildStorylines(el, data, notebook, defaultSize = 'small') {
-        // Persist size preference per notebook; query sets the default
         const stored = localStorage.getItem(_SL_SIZE_KEY(notebook));
         const size   = stored || defaultSize;
-
-        const { lanes, stories, orphan_scenes, config } = data;
+        const { lanes, stories, config } = data;
 
         el.innerHTML = '';
 
-        const hdr = document.createElement('div');
-        hdr.className = 'nb-cine-header';
-        hdr.innerHTML = `<span class="nb-cine-title">🧵 ${_esc(config?.project || 'Storylines')}</span>`;
+        const laneCount  = (lanes  || []).length;
+        const storyCount = (stories || []).length;
+
+        const stub = document.createElement('div');
+        stub.className = 'nb-cine-sl-stub';
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'nb-cine-sl-stub-title';
+        titleEl.textContent = `🧵 ${config?.project || 'Storylines'}`;
+        stub.appendChild(titleEl);
+
+        const metaEl = document.createElement('div');
+        metaEl.className = 'nb-cine-sl-stub-meta';
+        metaEl.textContent =
+            `${laneCount} plotline${laneCount !== 1 ? 's' : ''} · ` +
+            `${storyCount} stor${storyCount !== 1 ? 'ies' : 'y'}`;
+        stub.appendChild(metaEl);
 
         const btnGroup = document.createElement('div');
         btnGroup.className = 'nb-cine-hdr-btns';
 
-        const addBtn = document.createElement('button');
-        addBtn.className = 'nb-tw-btn'; addBtn.title = 'Add story (unassigned)'; addBtn.textContent = '+';
-        addBtn.addEventListener('click', () => _showInlineStoryInput(board, null, notebook, el, size));
-        btnGroup.appendChild(addBtn);
-
-        const sizeBtn = document.createElement('button');
-        sizeBtn.className = 'nb-tw-btn';
-        sizeBtn.title = size === 'large' ? 'Switch to small cards' : 'Switch to large cards';
-        sizeBtn.textContent = size === 'large' ? '▤' : '▦';
-        sizeBtn.addEventListener('click', () => {
-            const next = size === 'large' ? 'small' : 'large';
-            localStorage.setItem(_SL_SIZE_KEY(notebook), next);
-            _loadCineBlock(el);
-        });
-        btnGroup.appendChild(sizeBtn);
+        const openBtn = document.createElement('button');
+        openBtn.className = 'nb-tw-btn nb-cine-sl-open-btn';
+        openBtn.textContent = 'Open Board →';
+        openBtn.addEventListener('click', () => _openStorylineOverlay(el, data, notebook, size));
+        btnGroup.appendChild(openBtn);
 
         const refBtn = document.createElement('button');
         refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
         refBtn.addEventListener('click', () => { _bust(notebook); _loadCineBlock(el); });
         btnGroup.appendChild(refBtn);
 
-        hdr.appendChild(btnGroup);
-        el.appendChild(hdr);
+        stub.appendChild(btnGroup);
+        el.appendChild(stub);
+    }
 
-        const board = document.createElement('div');
+    function _openStorylineOverlay(el, data, notebook, currentSize, project = '') {
+        document.querySelector('.nb-cine-sl-overlay')?.remove();
+
+        const stored = localStorage.getItem(_SL_SIZE_KEY(notebook));
+        const size   = stored || currentSize;
+        const { lanes, stories, orphan_scenes, config } = data;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'nb-cine-sl-overlay';
+        document.body.appendChild(overlay);
+
+        // Align top edge to the bottom of the list + preview toolbars
+        const toolbarBottom = Math.max(
+            document.getElementById('nb-preview-toolbar')?.getBoundingClientRect().bottom ?? 0,
+            document.getElementById('nb-list-meta')?.getBoundingClientRect().bottom ?? 0
+        );
+        if (toolbarBottom > 0) overlay.style.top = toolbarBottom + 'px';
+
+        let board; // declared early so header button closures can reference it
+
+        function _close() {
+            overlay.remove();
+            document.removeEventListener('keydown', _onEsc);
+        }
+        function _onEsc(e) { if (e.key === 'Escape') _close(); }
+        document.addEventListener('keydown', _onEsc);
+
+        async function _refresh() {
+            _bust(notebook, project);
+            const fresh = await _fetchData(notebook, project).catch(e => ({ error: e.message }));
+            _close();
+            if (fresh.error) {
+                el.innerHTML = `<span class="nb-cine-error">⚠ ${_esc(fresh.error)}</span>`;
+                return;
+            }
+            _buildStorylines(el, fresh, notebook, size);
+            _openStorylineOverlay(el, fresh, notebook, size, project);
+        }
+
+        // ── Named orders ──────────────────────────────────────────────────────
+        const _slLane   = lanes?.find(l => l.is_storyline);
+        const _orders   = _slLane?.orders || {};
+        const _ordNames = Object.keys(_orders);
+
+        async function _saveOrder() {
+            const raw = prompt('Save current timeline as:');
+            if (raw === null) return;
+            const name = raw.trim().toLowerCase()
+                           .replace(/[^a-z0-9_-]/g, '-')
+                           .replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+            if (!name) { alert('Invalid name — use letters, numbers, hyphens.'); return; }
+            const cardZone = board.querySelector('.nb-cine-storyline-main .nb-cine-lane-cards');
+            if (!cardZone) { alert('No storyline track found.'); return; }
+            const stems = [...cardZone.querySelectorAll('.nb-cine-story-card, .nb-cine-milestone-card')]
+                .map(c => c.dataset.selector.split('/').pop().replace(/\.md$/i, ''));
+            const res = await fetch('/api/cine/storyline/order', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    notebook, selector: _slLane.selector, name, order: stems.join(','),
+                }),
+            }).catch(e => ({ ok: false, _err: e.message }));
+            const d = res.ok !== false ? await res.json() : res;
+            if (d.error || d._err) { alert('Save failed: ' + (d.error || d._err)); return; }
+            await _refresh();
+        }
+
+        async function _loadOrder(name) {
+            const orderStr = _orders[name];
+            if (!orderStr) return;
+            const stems = orderStr.split(',').map(s => s.trim()).filter(Boolean);
+            const allItems = [...(data.stories || []), ...(data.milestones || [])];
+            const orderedSet = new Map(stems.map((stem, i) => [stem, i + 1]));
+            const moves = [];
+            for (const it of allItems) {
+                const stem    = it.selector.split('/').pop().replace(/\.md$/i, '');
+                const newSeq  = orderedSet.get(stem) ?? null;
+                const wasOnTrack = it.story_seq !== null && it.story_seq !== undefined;
+                if (newSeq !== null || wasOnTrack) {
+                    moves.push({
+                        selector:  it.selector,
+                        plotline:  it.plotline || '',
+                        seq:       it.seq ?? 0,
+                        story_seq: newSeq,
+                        ...(it.milestone_seq !== undefined ? { milestone_seq: it.milestone_seq } : {}),
+                    });
+                }
+            }
+            if (!moves.length) return;
+            await fetch('/api/cine/story/resequence', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ notebook, moves }),
+            }).catch(e => console.error('Load order:', e));
+            await _refresh();
+        }
+
+        // ── Header ──
+        const hdr = document.createElement('div');
+        hdr.className = 'nb-cine-header';
+        hdr.innerHTML = `<span class="nb-cine-title">🧵 ${_esc(config?.project || 'Storylines')}</span>`;
+
+        const storyModeBtn = document.createElement('button');
+        storyModeBtn.className = 'nb-tool-btn nb-cine-story-mode-btn';
+        storyModeBtn.title = 'Story view';
+        storyModeBtn.textContent = '📖';
+        storyModeBtn.addEventListener('click', () => {
+            _close();
+            el.dataset.query = 'storyline-story';
+            _loadCineBlock(el);
+        });
+        hdr.appendChild(storyModeBtn);
+
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'nb-cine-hdr-btns';
+
+        const addBtn = document.createElement('button');
+        addBtn.className = 'nb-tool-btn'; addBtn.title = 'Add story (unassigned)'; addBtn.textContent = '+ Story';
+        addBtn.addEventListener('click', () => _showInlineStoryInput(board, null, notebook, el, size, _refresh, project));
+        btnGroup.appendChild(addBtn);
+
+        if (_slLane) {
+            const saveOrderBtn = document.createElement('button');
+            saveOrderBtn.className = 'nb-tool-btn';
+            saveOrderBtn.title = 'Save current timeline order';
+            saveOrderBtn.textContent = '⊙';
+            saveOrderBtn.addEventListener('click', _saveOrder);
+            btnGroup.appendChild(saveOrderBtn);
+        }
+
+        if (_ordNames.length) {
+            const ordSel = document.createElement('select');
+            ordSel.className = 'nb-cine-orders-sel';
+            ordSel.title = 'Load a saved timeline order';
+            const ph = document.createElement('option');
+            ph.value = ''; ph.textContent = 'Load order…';
+            ordSel.appendChild(ph);
+            _ordNames.forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n; opt.textContent = n;
+                ordSel.appendChild(opt);
+            });
+            ordSel.addEventListener('change', () => {
+                const name = ordSel.value;
+                ordSel.value = '';
+                if (name) _loadOrder(name);
+            });
+            btnGroup.appendChild(ordSel);
+        }
+
+        const _sizes     = ['small', 'medium', 'large'];
+        const _sizeIcons = { small: '▦', medium: '▤', large: '▣' };
+        const sizeBtn = document.createElement('button');
+        sizeBtn.className = 'nb-tool-btn';
+        sizeBtn.title = `Zoom: ${size}`;
+        sizeBtn.textContent = _sizeIcons[size] || '▦';
+        sizeBtn.addEventListener('click', () => {
+            const next = _sizes[(_sizes.indexOf(size) + 1) % _sizes.length];
+            localStorage.setItem(_SL_SIZE_KEY(notebook), next);
+            _close();
+            _openStorylineOverlay(el, data, notebook, next, project);
+        });
+        btnGroup.appendChild(sizeBtn);
+
+        const refBtn = document.createElement('button');
+        refBtn.className = 'nb-tool-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
+        refBtn.addEventListener('click', _refresh);
+        btnGroup.appendChild(refBtn);
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'nb-tool-btn'; closeBtn.title = 'Close (Esc)'; closeBtn.textContent = '✕';
+        closeBtn.addEventListener('click', _close);
+        btnGroup.appendChild(closeBtn);
+
+        hdr.appendChild(btnGroup);
+        overlay.appendChild(hdr);
+
+        // ── Scrollable board area ──
+        const overlayBody = document.createElement('div');
+        overlayBody.className = 'nb-cine-sl-overlay-body';
+        overlay.appendChild(overlayBody);
+
+        board = document.createElement('div');
         board.className = `nb-cine-storylines-board nb-cine-storylines-${size}`;
-        el.appendChild(board);
+        overlayBody.appendChild(board);
 
         const peek = document.createElement('div');
         peek.className = 'nb-cine-card-peek';
         peek.hidden = true;
-        el.appendChild(peek);
+        overlay.appendChild(peek);
 
-        // One row per lane, plus orphans row at bottom
-        const allLanes = [...(lanes || [])];
-        const hasOrphans = orphan_scenes?.length > 0;
+        // ── Card selection ────────────────────────────────────────────────────
+        let _selCard = null;
 
-        if (!allLanes.length && !hasOrphans) {
-            board.innerHTML = '<div class="nb-cine-empty">No storylines found — add type:storyline notes to storylines/</div>';
+        function _selectCard(card, story) {
+            if (_selCard) _selCard.classList.remove('nb-cine-selected');
+            _selCard = card;
+            card.classList.add('nb-cine-selected');
+            peek.hidden = false;
+            const color = plotlineLanes.find(l => l.stem === story.plotline)?.color || '';
+            const badge = story.plotline
+                ? `<span class="nb-cine-peek-badge" style="${color ? `background:${_esc(color)}` : ''}">${_esc(story.plotline)}</span>` : '';
+            const desc  = story.meta?.desc
+                ? `<div class="nb-cine-peek-desc">${_esc(story.meta.desc)}</div>` : '';
+            peek.innerHTML =
+                `<div class="nb-cine-card-peek-title">${_esc(story.title)}${badge}</div>${desc}` +
+                `<button class="nb-tool-btn nb-cine-peek-open" data-selector="${_esc(story.selector)}">Open ↗</button>`;
+            peek.querySelector('.nb-cine-peek-open').addEventListener('click', () => {
+                _close();
+                NbMain.openNote(story.selector);
+            });
+        }
+
+        function _deselect() {
+            if (_selCard) { _selCard.classList.remove('nb-cine-selected'); _selCard = null; }
+            peek.hidden = true;
+            peek.innerHTML = '';
+        }
+
+        overlayBody.addEventListener('click', e => {
+            if (!e.target.closest('.nb-cine-story-card')) _deselect();
+        });
+
+        // ── Build lanes ──
+        const allLanes       = [...(lanes || [])];
+        const storylineLanes = allLanes.filter(l => l.is_storyline);
+        const plotlineLanes  = allLanes.filter(l => !l.is_storyline);
+
+        if (!plotlineLanes.length && !storylineLanes.length) {
+            board.innerHTML = '<div class="nb-cine-empty">No storylines found — add type:plotline notes to storylines/</div>';
             return;
         }
 
-        // Map lane stem → lane object for card placement
-        const laneMap = new Map(allLanes.map(l => [l.stem, l]));
-
-        // Group story cards by lane stem
+        // Group story cards by plotline
         const cardsByLane = new Map();
-        allLanes.forEach(l => cardsByLane.set(l.stem, []));
+        plotlineLanes.forEach(l => cardsByLane.set(l.stem, []));
         for (const story of (stories || [])) {
             const key = story.plotline || '';
             if (!cardsByLane.has(key)) cardsByLane.set(key, []);
             cardsByLane.get(key).push(story);
         }
-        // Sort each lane's cards by seq
-        for (const [, cards] of cardsByLane) {
-            cards.sort((a, b) => a.seq - b.seq);
-        }
+        for (const [, cards] of cardsByLane) cards.sort((a, b) => a.seq - b.seq);
 
-        function _buildCard(story, cardSize = 'small') {
+        // Promoted items on the main storyline — stories + milestones, in story_seq order
+        const promotedStories = [...(stories || [])]
+            .filter(s => s.story_seq !== null && s.story_seq !== undefined);
+        const promotedMsOnStoryline = [...(data.milestones || [])]
+            .filter(m => m.story_seq !== null && m.story_seq !== undefined);
+        const promotedAll = [...promotedStories, ...promotedMsOnStoryline]
+            .sort((a, b) => a.story_seq - b.story_seq);
+
+        // ── Card builder ──────────────────────────────────────────────────────
+        // mode: 'plotline' (default) or 'storyline'
+        function _buildCard(story, cardSize = 'small', mode = 'plotline') {
             const card = document.createElement('div');
             card.className = `nb-cine-story-card nb-cine-story-${cardSize}`;
-            card.dataset.selector  = story.selector;
-            card.dataset.storyline = story.plotline || '';
-            card.dataset.seq       = story.seq ?? 999;
+            card.dataset.selector = story.selector;
+            card.dataset.plotline = story.plotline || '';
+            card.dataset.seq      = story.seq ?? 999;
+            if (story.story_seq != null) card.dataset.story_seq = story.story_seq;
+            if (story.meta?.desc) card.title = story.meta.desc;
+
+            if (mode === 'plotline' && story.story_seq != null)
+                card.classList.add('nb-cine-promoted');
+
+            // Storyline card: apply home plotline's accent colour
+            if (mode === 'storyline') {
+                const homeLane = plotlineLanes.find(l => l.stem === story.plotline);
+                if (homeLane?.color) card.style.setProperty('--lane-color', homeLane.color);
+            }
 
             const titleEl = document.createElement('div');
             titleEl.className = 'nb-cine-story-title';
             titleEl.textContent = story.title;
+            const _tc = _resolveTagColor(story, config);
+            if (_tc) titleEl.style.color = _tc;
             card.appendChild(titleEl);
+
+            if ((cardSize === 'medium' || cardSize === 'large') && story.meta?.desc) {
+                const descEl = document.createElement('div');
+                descEl.className = 'nb-cine-story-desc';
+                descEl.textContent = story.meta.desc;
+                card.appendChild(descEl);
+            }
+
+            if ((cardSize === 'medium' || cardSize === 'large') && story.body_preview) {
+                const bodyEl = document.createElement('div');
+                bodyEl.className = 'nb-cine-story-body-preview';
+                bodyEl.textContent = story.body_preview;
+                card.appendChild(bodyEl);
+            }
 
             if (cardSize === 'large' && story.scenes?.length) {
                 const scenesEl = document.createElement('div');
@@ -1469,9 +1903,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 card.appendChild(scenesEl);
             }
 
-            // Large: show additional meta fields (skip structural fields)
             if (cardSize === 'large') {
-                const skip = new Set(['title','storyline','plotline','seq','scenes','color','lock']);
+                const skip = new Set(['title','plotline','storyline','seq','scenes','color','lock','desc','story_seq']);
                 const extras = Object.entries(story.meta || {})
                     .filter(([k]) => !skip.has(k) && k !== 'scenes_raw');
                 if (extras.length) {
@@ -1486,58 +1919,186 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 }
             }
 
+            if (mode === 'storyline') {
+                const demoteBtn = document.createElement('button');
+                demoteBtn.className = 'nb-cine-demote-btn';
+                demoteBtn.title = 'Remove from story';
+                demoteBtn.textContent = '−';
+                demoteBtn.addEventListener('click', async e => {
+                    e.stopPropagation();
+                    await _demoteCard(story);
+                });
+                card.appendChild(demoteBtn);
+            }
+
             card.addEventListener('click', e => {
-                if (e.target.closest('.nb-cine-link')) return;
+                if (e.target.closest('.nb-cine-link, .nb-cine-demote-btn')) return;
+                _selectCard(card, story);
+            });
+            card.addEventListener('dblclick', e => {
+                e.stopPropagation();
+                _close();
                 NbMain.openNote(story.selector);
             });
             return card;
         }
 
-        function _buildLaneRow(laneTitle, laneStem, cards, extra = '') {
+        // ── Storyline operations ──────────────────────────────────────────────
+        async function _resequenceStoryline(cardZone) {
+            const moves = [...cardZone.querySelectorAll('.nb-cine-story-card, .nb-cine-milestone-card')].map((card, i) => ({
+                selector:  card.dataset.selector,
+                plotline:  card.dataset.plotline || '',
+                seq:       parseInt(card.dataset.seq) || 0,
+                story_seq: i + 1,
+            }));
+            if (!moves.length) return;
+            await fetch('/api/cine/story/resequence', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body:   JSON.stringify({ notebook, moves }),
+            }).catch(e => console.error('Storyline resequence:', e));
+        }
+
+        async function _demoteCard(story) {
+            try {
+                await fetch('/api/cine/story/resequence', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body:   JSON.stringify({ notebook, moves: [{
+                        selector: story.selector, plotline: story.plotline,
+                        seq: story.seq, story_seq: null,
+                    }]}),
+                });
+                await _refresh();
+            } catch(e) { alert('Demote failed: ' + e.message); }
+        }
+
+        async function _demoteMilestoneFromStoryline(ms) {
+            try {
+                await fetch('/api/cine/story/resequence', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body:   JSON.stringify({ notebook, moves: [{ selector: ms.selector, story_seq: null }] }),
+                });
+                await _refresh();
+            } catch(e) { alert('Demote failed: ' + e.message); }
+        }
+
+        // ── Lane row builder (plotlines only) ────────────────────────────────
+        function _buildLaneRow(laneTitle, laneStem, cards, laneSelector) {
             const row = document.createElement('div');
-            row.className = 'nb-cine-storyline-row' + (extra ? ' ' + extra : '');
+            row.className = 'nb-cine-storyline-row';
             row.dataset.lane = laneStem;
 
             const label = document.createElement('div');
             label.className = 'nb-cine-lane-label';
-            label.textContent = laneTitle;
-            if (laneStem !== '__orphans__') {
-                const laneAdd = document.createElement('button');
-                laneAdd.className = 'nb-cine-lane-add'; laneAdd.textContent = '+';
-                laneAdd.title = `Add story to ${laneTitle}`;
-                laneAdd.addEventListener('click', e => {
+            const labelText = document.createElement('span');
+            labelText.className = 'nb-cine-lane-label-text';
+            labelText.textContent = laneTitle;
+            if (laneSelector) {
+                label.style.cursor = 'pointer';
+                label.title = `Preview ${laneTitle}`;
+                label.addEventListener('click', async e => {
                     e.stopPropagation();
-                    _showInlineStoryInput(row.querySelector('.nb-cine-lane-cards'), laneStem, notebook, el, size);
+                    peek.hidden = false;
+                    peek.innerHTML = `<div class="nb-cine-card-peek-title">${_esc(laneTitle)}</div><div>…</div>`;
+                    try {
+                        const r = await fetch(`/api/note?selector=${encodeURIComponent(laneSelector)}`);
+                        const d = await r.json();
+                        const body = d.body?.trim();
+                        const html = body
+                            ? (window.marked?.parse ? window.marked.parse(body) : `<pre>${_esc(body)}</pre>`)
+                            : '<em style="opacity:0.45">No body text.</em>';
+                        peek.innerHTML =
+                            `<div class="nb-cine-card-peek-title">${_esc(d.title || laneTitle)}</div>` +
+                            `<div class="nb-rendered">${html}</div>` +
+                            `<button class="nb-tool-btn nb-cine-peek-open" data-selector="${_esc(laneSelector)}">Open ↗</button>`;
+                        peek.querySelector('.nb-cine-peek-open').addEventListener('click', () => {
+                            _close();
+                            NbMain.openNote(laneSelector);
+                        });
+                    } catch { peek.hidden = true; }
                 });
-                label.appendChild(laneAdd);
             }
+            label.appendChild(labelText);
             row.appendChild(label);
 
             const cardZone = document.createElement('div');
             cardZone.className = 'nb-cine-lane-cards';
-            cards.forEach(story => cardZone.appendChild(_buildCard(story, size)));
+            cards.forEach(s => cardZone.appendChild(_buildCard(s, size, 'plotline')));
             row.appendChild(cardZone);
+
+            const laneAdd = document.createElement('button');
+            laneAdd.className = 'nb-cine-lane-add-end'; laneAdd.textContent = '+';
+            laneAdd.title = `Add story to ${laneTitle}`;
+            laneAdd.addEventListener('click', e => {
+                e.stopPropagation();
+                _showInlineStoryInput(cardZone, laneStem, notebook, el, size, _refresh, project);
+            });
+            row.appendChild(laneAdd);
 
             return { row, cardZone };
         }
 
-        const sortables = [];
+        // ── Storyline lane(s) — sit at top ───────────────────────────────────
+        for (const lane of storylineLanes) {
+            const row = document.createElement('div');
+            row.className = 'nb-cine-storyline-row nb-cine-storyline-main';
+            row.dataset.lane = lane.stem;
 
-        for (const lane of allLanes) {
+            const label = document.createElement('div');
+            label.className = 'nb-cine-lane-label';
+            label.textContent = lane.title;
+            row.appendChild(label);
+
+            const cardZone = document.createElement('div');
+            cardZone.className = 'nb-cine-lane-cards';
+            promotedAll.forEach(item => cardZone.appendChild(
+                item.milestone_seq !== undefined
+                    ? _buildMilestoneCard(item, 'storyline')
+                    : _buildCard(item, size, 'storyline')
+            ));
+            row.appendChild(cardZone);
+            board.appendChild(row);
+
+            if (typeof Sortable !== 'undefined') {
+                Sortable.create(cardZone, {
+                    group:          { name: 'storyline', pull: true, put: ['plotlines', 'milestones-row'] },
+                    animation:      150,
+                    forceFallback:  true,
+                    fallbackOnBody: true,
+                    onAdd() {
+                        // Card arrived from a plotline — it's at the correct DOM position; resequence + rebuild
+                        _resequenceStoryline(cardZone).then(_refresh);
+                    },
+                    onEnd(evt) {
+                        // Resequence only when card stayed within the storyline
+                        if (evt.to === cardZone) _resequenceStoryline(cardZone);
+                    },
+                });
+            }
+        }
+
+        // ── Plotline lanes ───────────────────────────────────────────────────
+        for (const lane of plotlineLanes) {
             const cards = cardsByLane.get(lane.stem) || [];
-            const { row, cardZone } = _buildLaneRow(lane.title, lane.stem, cards);
+            const { row, cardZone } = _buildLaneRow(lane.title, lane.stem, cards, lane.selector);
             if (lane.color) row.style.setProperty('--lane-color', lane.color);
             board.appendChild(row);
 
             if (typeof Sortable !== 'undefined') {
-                sortables.push(Sortable.create(cardZone, {
-                    group:          'storylines',
+                let _demoting = false;
+                Sortable.create(cardZone, {
+                    group: {
+                        name: 'plotlines',
+                        pull: to => to.options.group.name === 'storyline' ? 'clone' : true,
+                        put:  ['plotlines', 'storyline'],
+                    },
                     animation:      150,
                     forceFallback:  true,
                     fallbackOnBody: true,
                     async onStart(evt) {
                         const sel = evt.item?.dataset?.selector;
                         if (!sel) return;
+                        const dragStory = (stories || []).find(s => s.selector === sel);
+                        if (dragStory) _selectCard(evt.item, dragStory);
                         peek.hidden = false;
                         peek.innerHTML = '<div class="nb-cine-card-peek-title">…</div>';
                         try {
@@ -1552,41 +2113,181 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                                 `<div class="nb-rendered">${html}</div>`;
                         } catch { peek.hidden = true; }
                     },
-                    onEnd(evt) {
+                    onAdd(evt) {
+                        if (evt.from.closest('.nb-cine-storyline-main')) {
+                            // Storyline card landed here — demote it
+                            _demoting = true;
+                            evt.item.remove();
+                            const story = promotedStories.find(
+                                s => s.selector === evt.item.dataset.selector);
+                            if (story) _demoteCard(story);
+                            else _refresh();
+                        }
+                    },
+                    onEnd() {
                         peek.hidden = true;
+                        if (_demoting) { _demoting = false; return; }
                         _onStoryDrop(el, board, notebook);
                     },
-                }));
+                });
             }
         }
 
-        // Orphans row — read-only, shows scenes not in any story
-        if (hasOrphans) {
-            const orphanCards = (orphan_scenes || []).map(sc => {
-                const chip = document.createElement('div');
-                chip.className = 'nb-cine-story-card nb-cine-orphan-scene';
-                chip.dataset.selector = sc.selector;
-                const lbl = sc.alias || sc.selector.split('/').pop();
-                chip.innerHTML = `<div class="nb-cine-story-title">${_esc(lbl)}</div>`;
-                if (sc.synopsis) {
-                    chip.innerHTML += `<div class="nb-cine-story-scenes">${_esc(sc.synopsis.slice(0, 60))}</div>`;
-                }
-                chip.addEventListener('click', () => NbMain.openNote(sc.selector));
-                return chip;
+        // ── Milestone row ─────────────────────────────────────────────────────
+        const milestones = data.milestones || [];
+
+        function _buildMilestoneCard(ms, mode = 'row') {
+            const card = document.createElement('div');
+            card.className = 'nb-cine-milestone-card';
+            card.dataset.selector     = ms.selector;
+            card.dataset.milestoneSeq = ms.milestone_seq ?? '';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'nb-cine-milestone-title';
+            titleEl.textContent = ms.title;
+            card.appendChild(titleEl);
+
+            if (ms.body_preview) {
+                const bodyEl = document.createElement('div');
+                bodyEl.className = 'nb-cine-story-body-preview';
+                bodyEl.textContent = ms.body_preview;
+                card.appendChild(bodyEl);
+            }
+
+            const demoteBtn = document.createElement('button');
+            demoteBtn.className = 'nb-cine-demote-btn';
+            demoteBtn.title = mode === 'storyline' ? 'Remove from storyline' : 'Remove from timeline';
+            demoteBtn.textContent = '−';
+            demoteBtn.addEventListener('click', async e => {
+                e.stopPropagation();
+                if (mode === 'storyline') await _demoteMilestoneFromStoryline(ms);
+                else                      await _demoteMilestone(ms);
             });
-            const { row } = _buildLaneRow('No story', '__orphans__', orphanCards, 'nb-cine-orphan-row');
-            board.appendChild(row);
+            card.appendChild(demoteBtn);
+
+            card.addEventListener('click', e => {
+                if (e.target.closest('.nb-cine-demote-btn')) return;
+                peek.hidden = false;
+                peek.innerHTML =
+                    `<div class="nb-cine-card-peek-title">${_esc(ms.title)}</div>` +
+                    `<button class="nb-tool-btn nb-cine-peek-open" data-selector="${_esc(ms.selector)}">Open ↗</button>`;
+                peek.querySelector('.nb-cine-peek-open').addEventListener('click', () => {
+                    _close(); NbMain.openNote(ms.selector);
+                });
+            });
+            card.addEventListener('dblclick', e => { e.stopPropagation(); _close(); NbMain.openNote(ms.selector); });
+
+            return card;
         }
+
+        async function _resequenceMilestones(cardZone) {
+            const moves = [...cardZone.querySelectorAll('.nb-cine-milestone-card')].map((card, i) => ({
+                selector:     card.dataset.selector,
+                milestone_seq: i + 1,
+            }));
+            if (!moves.length) return;
+            await fetch('/api/cine/story/resequence', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body:   JSON.stringify({ notebook, moves }),
+            }).catch(e => console.error('Milestone resequence:', e));
+        }
+
+        async function _demoteMilestone(ms) {
+            try {
+                await fetch('/api/cine/story/resequence', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body:   JSON.stringify({ notebook, moves: [{
+                        selector: ms.selector, milestone_seq: null,
+                    }]}),
+                });
+                await _refresh();
+            } catch(e) { alert('Milestone demote failed: ' + e.message); }
+        }
+
+        const promotedMilestones = [...milestones]
+            .filter(m => m.milestone_seq !== null && m.milestone_seq !== undefined)
+            .sort((a, b) => a.milestone_seq - b.milestone_seq);
+
+        // Always show the milestone row (+ button bootstraps the first milestone)
+        {
+            const msRow = document.createElement('div');
+            msRow.className = 'nb-cine-milestone-row';
+
+            const msLabel = document.createElement('div');
+            msLabel.className = 'nb-cine-lane-label';
+            msLabel.textContent = 'Milestones';
+            msRow.appendChild(msLabel);
+
+            const msCardZone = document.createElement('div');
+            msCardZone.className = 'nb-cine-lane-cards';
+            promotedMilestones.forEach(m => msCardZone.appendChild(_buildMilestoneCard(m)));
+            msRow.appendChild(msCardZone);
+
+            const msAdd = document.createElement('button');
+            msAdd.className = 'nb-cine-lane-add-end'; msAdd.textContent = '+';
+            msAdd.title = 'Add milestone';
+            msAdd.addEventListener('click', async e => {
+                e.stopPropagation();
+                const title = prompt('Milestone title:');
+                if (!title?.trim()) return;
+                try {
+                    const r = await fetch('/api/cine/milestone/create', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ notebook, title: title.trim(), project }),
+                    });
+                    const d = await r.json();
+                    if (!d.ok) throw new Error(d.error || 'create failed');
+                    await _refresh();
+                } catch(err) { alert('Create milestone failed: ' + err.message); }
+            });
+            msRow.appendChild(msAdd);
+            board.appendChild(msRow);
+
+            if (typeof Sortable !== 'undefined') {
+                let _msDemoting = false;
+                Sortable.create(msCardZone, {
+                    group: {
+                        name: 'milestones-row',
+                        pull: to => to.options.group.name === 'storyline' ? 'clone' : true,
+                        put:  true,
+                    },
+                    animation:      150,
+                    forceFallback:  true,
+                    fallbackOnBody: true,
+                    onAdd(evt) {
+                        if (evt.from.closest('.nb-cine-storyline-main')) {
+                            _msDemoting = true;
+                            evt.item.remove();
+                            const ms = (data.milestones || []).find(
+                                m => m.selector === evt.item.dataset.selector);
+                            if (ms) _demoteMilestoneFromStoryline(ms);
+                            else    _refresh();
+                        }
+                    },
+                    onEnd(evt) {
+                        if (_msDemoting) { _msDemoting = false; return; }
+                        if (evt.to === msCardZone) _resequenceMilestones(msCardZone);
+                    },
+                });
+            }
+        }
+
+        overlay.querySelectorAll('.nb-cine-link[data-selector]').forEach(btn =>
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                NbMain.openNote(btn.dataset.selector);
+            })
+        );
     }
 
     async function _onStoryDrop(el, board, notebook) {
         const moves = [];
-        board.querySelectorAll('.nb-cine-storyline-row:not(.nb-cine-orphan-row)').forEach(row => {
+        board.querySelectorAll('.nb-cine-storyline-row:not(.nb-cine-storyline-main)').forEach(row => {
             const laneStem = row.dataset.lane;
             row.querySelectorAll('.nb-cine-story-card').forEach((card, i) => {
                 moves.push({
                     selector:  card.dataset.selector,
-                    storyline: laneStem,
+                    plotline:  laneStem,
                     seq:       i + 1,
                 });
             });
@@ -1628,10 +2329,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }
 
         const { field, format, filter, codes } = _parseQuery(el.dataset.query || '');
+        const _project = (field === 'storyline-board' || field === 'storyline-story' || field === 'storyline-script') ? (el.dataset.project || '') : '';
 
         let data;
         try {
-            data = await _fetchData(notebook);
+            data = await _fetchData(notebook, _project);
         } catch (e) {
             el.innerHTML = `<span class="nb-cine-error">⚠ ${_esc(e.message)}</span>`;
             return;
@@ -1655,6 +2357,145 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             _buildSceneIndex(el, data, filter);
         } else if (field === 'storylines') {
             _buildStorylines(el, data, notebook, format || 'small');
+        } else if (field === 'storyline-story' || field === 'storyline-script') {
+            // Restore saved view preference — survives Back navigation (which re-renders as story-view)
+            if (field === 'storyline-story') {
+                const saved = localStorage.getItem(_SL_VIEW_KEY(notebook));
+                if (saved === 'script') { el.dataset.query = 'storyline-script'; _loadCineBlock(el); return; }
+            }
+
+            const promotedS = [...(data.stories || [])]
+                .filter(s => s.story_seq !== null && s.story_seq !== undefined);
+            const promotedM = [...(data.milestones || [])]
+                .filter(m => m.story_seq !== null && m.story_seq !== undefined);
+            const promotedAll = [...promotedS, ...promotedM]
+                .sort((a, b) => a.story_seq - b.story_seq);
+            const laneColors = new Map((data.lanes || []).map(l => [l.stem, l.color]));
+
+            el.innerHTML = '';
+            const wrap = document.createElement('div');
+            wrap.className = field === 'storyline-script'
+                ? 'nb-cine-sl-script-view' : 'nb-cine-sl-story-view';
+
+            // ── Toolbar ──
+            const toolbar = document.createElement('div');
+            toolbar.style.cssText = 'display:flex;gap:6px;margin-bottom:10px;';
+
+            const boardBtn = document.createElement('button');
+            boardBtn.className = 'nb-tool-btn nb-cine-open-board-btn';
+            boardBtn.title = 'Open line board'; boardBtn.textContent = '▦';
+            boardBtn.addEventListener('click', () => {
+                const sz = localStorage.getItem(_SL_SIZE_KEY(notebook)) || 'small';
+                _buildStorylines(el, data, notebook, sz);
+                _openStorylineOverlay(el, data, notebook, sz, _project);
+            });
+            toolbar.appendChild(boardBtn);
+
+            const scriptBtn = document.createElement('button');
+            scriptBtn.className = 'nb-tool-btn';
+            scriptBtn.title = field === 'storyline-script' ? 'Story view' : 'Script view';
+            scriptBtn.textContent = field === 'storyline-script' ? '☰' : '≡';
+            scriptBtn.addEventListener('click', () => {
+                const next = field === 'storyline-script' ? 'storyline-story' : 'storyline-script';
+                localStorage.setItem(_SL_VIEW_KEY(notebook), next === 'storyline-script' ? 'script' : 'story');
+                el.dataset.query = next;
+                _loadCineBlock(el);
+            });
+            toolbar.appendChild(scriptBtn);
+            wrap.appendChild(toolbar);
+
+            if (!promotedAll.length) {
+                const empty = document.createElement('div');
+                empty.className = 'nb-cine-empty';
+                empty.textContent = 'No stories on the storyline yet — open the board and drag cards up.';
+                wrap.appendChild(empty);
+            } else if (field === 'storyline-story') {
+                promotedAll.forEach(item => {
+                    const isMs = item.milestone_seq !== undefined;
+                    if (isMs) {
+                        const bar = document.createElement('div');
+                        bar.className = 'nb-cine-sl-milestone-bar';
+                        bar.textContent = item.title;
+                        bar.addEventListener('click', () => NbMain.openNote(item.selector));
+                        wrap.appendChild(bar);
+                    } else {
+                        const color = laneColors.get(item.plotline) || '';
+                        const desc  = item.meta?.desc
+                            ? `<div class="nb-cine-sl-story-desc">${_esc(item.meta.desc)}</div>` : '';
+                        const body  = item.body_preview
+                            ? `<div class="nb-cine-sl-story-body">${_esc(item.body_preview)}</div>` : '';
+                        const card = document.createElement('div');
+                        card.className = 'nb-cine-sl-story-prose';
+                        card.dataset.selector = item.selector;
+                        if (color) card.style.borderLeftColor = color;
+                        const _tcProse = _resolveTagColor(item, data.config);
+                        const _titleStyle = _tcProse ? ` style="color:${_esc(_tcProse)}"` : '';
+                        card.innerHTML =
+                            `<div class="nb-cine-sl-story-prose-title"${_titleStyle}>${_esc(item.title)}</div>${desc}${body}`;
+                        card.addEventListener('click', () => NbMain.openNote(item.selector));
+                        wrap.appendChild(card);
+                    }
+                });
+            } else {
+                // script-view: fetch full body of each story, render markdown
+                (async () => {
+                    for (const item of promotedAll) {
+                        const isMs = item.milestone_seq !== undefined;
+                        if (isMs) {
+                            const bar = document.createElement('div');
+                            bar.className = 'nb-cine-sl-script-milestone';
+                            bar.textContent = item.title;
+                            bar.addEventListener('click', () => NbMain.openNote(item.selector));
+                            wrap.appendChild(bar);
+                        } else {
+                            const block = document.createElement('div');
+                            block.className = 'nb-cine-sl-script-story';
+                            const titleEl = document.createElement('div');
+                            titleEl.className = 'nb-cine-sl-script-story-title';
+                            titleEl.textContent = item.title;
+                            const _tcScript = _resolveTagColor(item, data.config);
+                            if (_tcScript) titleEl.style.color = _tcScript;
+                            titleEl.addEventListener('click', () => NbMain.openNote(item.selector));
+                            block.appendChild(titleEl);
+                            // desc from frontmatter shown immediately, before body prose
+                            if (item.meta?.desc) {
+                                const descEl = document.createElement('div');
+                                descEl.className = 'nb-cine-sl-story-desc';
+                                descEl.textContent = item.meta.desc;
+                                block.appendChild(descEl);
+                            }
+                            const bodyEl = document.createElement('div');
+                            bodyEl.className = 'nb-rendered';
+                            // Show body_preview immediately; replace with full body when loaded
+                            if (item.body_preview) {
+                                bodyEl.innerHTML = window.marked?.parse
+                                    ? window.marked.parse(item.body_preview)
+                                    : `<p>${_esc(item.body_preview)}</p>`;
+                            } else {
+                                bodyEl.innerHTML = '<span style="opacity:0.3">…</span>';
+                            }
+                            block.appendChild(bodyEl);
+                            wrap.appendChild(block);
+                            // Fetch full body async and replace preview
+                            fetch(`/api/note?selector=${encodeURIComponent(item.selector)}`)
+                                .then(r => r.json())
+                                .then(d => {
+                                    const body = d.body?.trim();
+                                    bodyEl.innerHTML = body
+                                        ? (window.marked?.parse ? window.marked.parse(body)
+                                            : `<pre>${_esc(body)}</pre>`)
+                                        : '<em style="opacity:0.3">No body text.</em>';
+                                })
+                                .catch(() => { bodyEl.innerHTML = '<em style="opacity:0.3">Failed to load.</em>'; });
+                        }
+                    }
+                })();
+            }
+            el.appendChild(wrap);
+        } else if (field === 'storyline-board') {
+            const size = localStorage.getItem(_SL_SIZE_KEY(notebook)) || 'small';
+            _buildStorylines(el, data, notebook, size);
+            _openStorylineOverlay(el, data, notebook, size, _project);
         } else if (format && ['actor','location','resource'].includes(field)) {
             _buildFieldLookup(el, data, field, format, codes);
         } else {
@@ -1936,9 +2777,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const dateStr = today.toISOString().slice(0, 10);
         const vars = {
             shot_id:   alias,
-            filename:  filename,
             scene:     String(sceneMeta.alias ?? ''),
-            title:     title,
             desc:      title,
             actors:    actors,
             loc:       String(sceneMeta.loc       ?? ''),
@@ -1955,7 +2794,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             content = [
                 '---',
                 `scene: ${vars.scene}`,
-                `shot: ${filename}`,
+                `shot: ${alias}`,
                 `alias: ${alias}`,
                 `title: ${title}`,
                 `type: shot`,
@@ -2381,39 +3220,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         return title || alias || note.filename || '';
     }
 
-    // ── Script export button wiring ───────────────────────────────────────────
-
-    document.addEventListener('click', e => {
-        const fountain = e.target.closest('.nb-script-dl-fountain');
-        const pdf      = e.target.closest('.nb-script-dl-pdf');
-        const btn      = fountain || pdf;
-        if (!btn) return;
-        const nb = btn.dataset.notebook;
-        if (!nb) return;
-        const endpoint = fountain
-            ? `/api/cine/export-fountain?notebook=${encodeURIComponent(nb)}`
-            : `/api/cine/export-pdf?notebook=${encodeURIComponent(nb)}`;
-        if (pdf) {
-            btn.textContent = '⏳ PDF…';
-            btn.disabled = true;
-        }
-        const a = document.createElement('a');
-        a.href = endpoint;
-        a.download = '';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        if (pdf) {
-            setTimeout(() => { btn.textContent = '⬇ PDF'; btn.disabled = false; }, 4000);
-        }
-    });
-
     // ── Plugin registration ───────────────────────────────────────────────────
 
     NbWeb.registerModule('cine', {
         label:       'NbWeb-cine',
         description: 'Film production scheduling — stripboard, call sheets, script tools',
         helpUrl:     '/plugins/nbweb-cine.md',
+        fmKeys: ['scene', 'shot', 'loc', 'day_night', 'int_ext', 'cast', 'extras',
+                 'vfx', 'sequence', 'script_day', 'page_count', 'shoot_day',
+                 'stripboard', 'breakdown', 'props', 'wardrobe', 'sfx'],
 
         // .nb-cine-card-fm is the togglable field block inside shot and scene cards.
         // Strip header always stays visible; body/annotation button always accessible.
@@ -2447,7 +3262,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                                 data-nb="${_esc(nb.name)}"
                                 style="margin-left:auto">Shots</button>
                             <button class="nb-tool-btn nb-cine-plug-link"
-                                data-nb="${_esc(nb.name)}" data-type="storyline">Storylines</button>
+                                data-nb="${_esc(nb.name)}" data-type="plotline">Storylines</button>
                         </div>`;
                     }).join('')}
                 </div>`;
@@ -2472,10 +3287,62 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 types:  ['script'],
                 detect: note => note.type === 'script',
                 render: note => {
-                    const body = typeof marked !== 'undefined'
-                        ? marked.parse(note.body || '')
-                        : `<pre>${_esc(note.body || '')}</pre>`;
-                    return `<div class="nb-rendered">${body}</div>`;
+                    const body = (note.body || '').trim();
+                    if (typeof marked === 'undefined')
+                        return `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
+                    const withLinks = body.replace(
+                        /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+                        (_, target, label) => {
+                            const t = target.trim();
+                            return `<span class="nb-wiki-link" data-selector="${_esc(t)}"${label ? '' : ' data-autolabel="1"'}>${_esc(label?.trim() || t)}</span>`;
+                        }
+                    );
+                    return `<div class="nb-cine-plain-script nb-rendered">${marked.parse(withLinks)}</div>`;
+                },
+            },
+            {
+                id:     'storyline-story',
+                icon:   '📖',
+                label:  'Story view',
+                types:  ['storyline'],
+                detect: note => note.type === 'storyline',
+                render: note => {
+                    const raw     = (note.meta?.project || '').trim();
+                    const project = raw.replace(/^storylines\//, '').replace(/\/$/, '');
+                    return `<div class="nb-cine-block" data-query="storyline-story"${project ? ` data-project="${_esc(project)}"` : ''}><span class="nb-spin">⟳</span></div>`;
+                },
+            },
+            {
+                id:     'story-card',
+                icon:   '🃏',
+                label:  'Story card',
+                types:  ['story'],
+                detect: note => note.type === 'story',
+                render: note => {
+                    const m        = note.meta || {};
+                    const plotline = m.plotline ? String(m.plotline).trim() : '';
+                    const desc     = m.desc     ? String(m.desc).trim()     : '';
+                    const scenes   = m.scenes   ? String(m.scenes).trim()   : '';
+                    const skip     = new Set(['title','type','plotline','seq','desc','scenes','color','lock','story_seq']);
+                    const extras   = Object.entries(m).filter(([k,v]) => !skip.has(k) && v != null && String(v).trim());
+                    const _row = (k, v) =>
+                        `<div class="nb-contact-row"><span class="nb-contact-label">${_esc(k)}</span><span class="nb-contact-value">${_esc(String(v))}</span></div>`;
+                    const scenesHtml = scenes
+                        ? scenes.split(/[,\s]+/).filter(Boolean).map(s =>
+                            `<span class="nb-cine-cast-chip nb-wiki-link" data-selector="${_esc(s.trim())}">${_esc(s.trim())}</span>`).join('')
+                        : '';
+                    const inner = [
+                        plotline ? _row('plotline', plotline) : '',
+                        desc     ? `<div class="nb-cine-sc-desc">${_esc(desc)}</div>` : '',
+                        scenesHtml ? `<div class="nb-cine-sc-cast">${scenesHtml}</div>` : '',
+                        extras.length ? extras.map(([k,v]) => _row(k, String(v).trim())).join('') : '',
+                    ].filter(Boolean).join('');
+                    const bodyHtml = (note.body || '').trim()
+                        ? `<div class="nb-wp-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
+                    return `<div class="nb-cine-shot-card">
+                        ${inner ? `<div class="nb-card nb-cine-card-fm">${inner}</div>` : ''}
+                        ${bodyHtml}
+                    </div>`;
                 },
             },
             {
@@ -2506,21 +3373,21 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     const body = (note.body || '').trim();
                     if (typeof marked === 'undefined')
                         return `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
-                    // Pre-process Fountain syntax that marked would misinterpret:
-                    // > centered < → marked treats as blockquote; protect it with a span.
-                    // > transition → same issue; right-align it.
-                    // [[wikilinks]] → nb-wiki-link spans for _enrichRendered.
+                    // Pre-process Fountain-specific syntax that marked would render as blockquotes.
                     let processed = body
-                        .replace(/^([ \t]*)>([ \t]+)(.+?)([ \t]+<)[ \t]*$/mg,
-                            (_, _i, _s, text) => `<p style="text-align:center">${_esc(text.trim())}</p>`)
-                        .replace(/^([ \t]*)>([ \t]+)(.+?)[ \t]*$/mg,
-                            (_, _i, _s, text) => `<p style="text-align:right;text-transform:uppercase">${_esc(text.trim())}</p>`)
-                        .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
-                            (_, target, label) => {
-                                const t = target.trim();
-                                return `<span class="nb-wiki-link" data-selector="${_esc(t)}"${label ? '' : ' data-autolabel="1"'}>${_esc(label?.trim() || t)}</span>`;
-                            });
-                    return `<div class="nb-cine-plain-script nb-rendered">${marked.parse(processed)}</div>`;
+                        .replace(/^> (.+?) <\s*$/gm, (_, t) =>
+                            `<p class="nb-script-centered">${_esc(t.trim())}</p>`)
+                        .replace(/^> (.+)$/gm, (_, t) =>
+                            `<p class="nb-script-transition">${_esc(t.trim())}</p>`);
+                    // Pre-process [[wikilinks]] into nb-wiki-link spans before marked runs.
+                    const withLinks = processed.replace(
+                        /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+                        (_, target, label) => {
+                            const t = target.trim();
+                            return `<span class="nb-wiki-link" data-selector="${_esc(t)}"${label ? '' : ' data-autolabel="1"'}>${_esc(label?.trim() || t)}</span>`;
+                        }
+                    );
+                    return `<div class="nb-cine-plain-script nb-rendered">${marked.parse(withLinks)}</div>`;
                 },
             },
             {
@@ -2647,6 +3514,24 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 _displayLabel(a).localeCompare(_displayLabel(b))
             ),
         }],
+    });
+
+    // ── Fountain / PDF export buttons ─────────────────────────────────────────
+    document.addEventListener('click', e => {
+        const fountain = e.target.closest('.nb-script-dl-fountain');
+        const pdf      = e.target.closest('.nb-script-dl-pdf');
+        const btn = fountain || pdf;
+        if (!btn) return;
+        const nb = btn.dataset.notebook;
+        if (!nb) return;
+        const endpoint = fountain
+            ? `/api/cine/export-fountain?notebook=${encodeURIComponent(nb)}`
+            : `/api/cine/export-pdf?notebook=${encodeURIComponent(nb)}`;
+        if (pdf) { btn.textContent = '⏳ PDF…'; btn.disabled = true; }
+        const a = document.createElement('a');
+        a.href = endpoint; a.download = '';
+        document.body.appendChild(a); a.click(); a.remove();
+        if (pdf) setTimeout(() => { btn.textContent = '⬇ PDF'; btn.disabled = false; }, 4000);
     });
 
 })();
