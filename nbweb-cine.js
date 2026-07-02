@@ -2397,16 +2397,21 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     const body = (note.body || '').trim();
                     if (typeof marked === 'undefined')
                         return `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
-                    // Pre-process [[wikilinks]] into nb-wiki-link spans before marked runs;
-                    // _enrichRendered will then attach click handlers to them.
-                    const withLinks = body.replace(
-                        /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
-                        (_, target, label) => {
-                            const t = target.trim();
-                            return `<span class="nb-wiki-link" data-selector="${_esc(t)}"${label ? '' : ' data-autolabel="1"'}>${_esc(label?.trim() || t)}</span>`;
-                        }
-                    );
-                    return `<div class="nb-cine-plain-script nb-rendered">${marked.parse(withLinks)}</div>`;
+                    // Pre-process Fountain syntax that marked would misinterpret:
+                    // > centered < → marked treats as blockquote; protect it with a span.
+                    // > transition → same issue; right-align it.
+                    // [[wikilinks]] → nb-wiki-link spans for _enrichRendered.
+                    let processed = body
+                        .replace(/^([ \t]*)>([ \t]+)(.+?)([ \t]+<)[ \t]*$/mg,
+                            (_, _i, _s, text) => `<p style="text-align:center">${_esc(text.trim())}</p>`)
+                        .replace(/^([ \t]*)>([ \t]+)(.+?)[ \t]*$/mg,
+                            (_, _i, _s, text) => `<p style="text-align:right;text-transform:uppercase">${_esc(text.trim())}</p>`)
+                        .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+                            (_, target, label) => {
+                                const t = target.trim();
+                                return `<span class="nb-wiki-link" data-selector="${_esc(t)}"${label ? '' : ' data-autolabel="1"'}>${_esc(label?.trim() || t)}</span>`;
+                            });
+                    return `<div class="nb-cine-plain-script nb-rendered">${marked.parse(processed)}</div>`;
                 },
             },
             {
