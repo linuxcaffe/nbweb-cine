@@ -133,11 +133,23 @@ button.nb-cine-actor {
     padding-bottom: 6px; margin-bottom: 24px;
     letter-spacing: .05em;
 }
-.nb-script-scene-tag { float: right; font-weight: normal; opacity: .45; font-size: .85em; }
-.nb-script-action   { margin: 0 0 12px; }
-.nb-script-char     { margin: 18px 0 0; padding-left: 38%; text-transform: uppercase; }
-.nb-script-dialogue { margin: 0 0 8px; padding: 0 15% 0 25%; }
-.nb-script-paren    { margin: 0; padding: 0 22% 0 32%; font-style: italic; }
+.nb-script-scene-tag  { float: right; font-weight: normal; opacity: .45; font-size: .85em; }
+.nb-script-action     { margin: 0 0 12px; white-space: pre-wrap; }
+.nb-script-char       { margin: 18px 0 0; padding-left: 38%; text-transform: uppercase; }
+.nb-script-dialogue   { margin: 0 0 8px; padding: 0 15% 0 25%; }
+.nb-script-paren      { margin: 0; padding: 0 22% 0 32%; font-style: italic; }
+.nb-script-speech     { margin: 0; }
+.nb-script-transition { text-align: right; text-transform: uppercase; margin: 18px 0; }
+.nb-script-centered   { text-align: center; margin: 12px 0; }
+.nb-script-lyrics     { text-align: center; font-style: italic; margin: 8px 0; }
+.nb-script-section    { text-transform: uppercase; letter-spacing: .07em; margin: 28px 0 10px; padding-top: 8px; border-top: 1px solid #ccc; }
+.nb-script-sec-1      { font-weight: bold; font-size: 1em; }
+.nb-script-sec-2      { font-weight: bold; font-size: .9em; opacity: .7; }
+.nb-script-sec-3      { font-style: italic; font-size: .85em; opacity: .55; border-top: none; margin-top: 12px; }
+.nb-script-synopsis   { font-style: italic; color: #888; font-size: .88em; margin: 0 0 10px; }
+.nb-script-note       { font-size: .8em; color: #aaa; background: #f5f5dc; padding: 0 3px; border-radius: 2px; }
+.nb-script-page-break { border-top: 1px dashed #bbb; margin: 32px 0; }
+.nb-script-slug-inline { margin: 20px 0 12px; border-top: 1px solid #555; padding-top: 8px; }
 
 /* Shot cue superscripts — [[1c]] inside screenplay body */
 sup.nb-cine-shot-cue {
@@ -662,48 +674,210 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // ── Script renderer ───────────────────────────────────────────────────────
 
-    function _parseScriptBody(raw) {
-        let text = raw || '';
-        if (text.startsWith('---')) {
-            const end = text.indexOf('\n---', 3);
-            if (end !== -1) text = text.slice(end + 4).trimStart();
-        }
-        const chunks = [];
-        let afterChar = false;
-        for (const line of text.split('\n')) {
-            const indent  = line.search(/\S/);
-            const trimmed = line.trim();
-            if (!trimmed) {
-                afterChar = false;
-                if (chunks.length && chunks[chunks.length - 1].type !== 'br')
-                    chunks.push({ type: 'br' });
-                continue;
+    // ── Fountain screenplay parser ────────────────────────────────────────────
+
+    // Render Fountain inline markup + [[shot-id]] cues → HTML.
+    function _renderInline(rawText) {
+        return rawText.split(/(\[\[[^\]]+\]\])/).map((seg, idx) => {
+            if (idx % 2 === 1) {
+                const id = seg.slice(2, -2).trim();
+                return `<sup class="nb-cine-shot-cue nb-wiki-link" data-selector="${_esc(id)}" title="Shot ${_esc(id)}">${_esc(id)}</sup>`;
             }
-            // Character name: 3+ spaces of indent, all-uppercase (parens/numbers allowed)
-            if (indent >= 3 && /^[A-Z][A-Z0-9\s\(\)\.\-\'\,]+$/.test(trimmed)) {
-                afterChar = true;
-                chunks.push({ type: 'char', text: trimmed });
-                continue;
-            }
-            if (afterChar && trimmed.startsWith('(') && trimmed.endsWith(')')) {
-                chunks.push({ type: 'paren', text: trimmed }); continue;
-            }
-            if (afterChar) {
-                afterChar = false;
-                chunks.push({ type: 'dialogue', text: trimmed }); continue;
-            }
-            chunks.push({ type: 'action', text: trimmed });
-        }
-        return chunks;
+            let s = _esc(seg);
+            s = s.replace(/\*{3}(.+?)\*{3}/g, '<strong><em>$1</em></strong>');
+            s = s.replace(/\*{2}(.+?)\*{2}/g, '<strong>$1</strong>');
+            s = s.replace(/\*(.+?)\*/g,        '<em>$1</em>');
+            s = s.replace(/_(.+?)_/g,           '<u>$1</u>');
+            s = s.replace(/\n/g,                '<br>');
+            return s;
+        }).join('');
     }
 
-    // Escape text but turn [[id]] into clickable superscript shot cues.
-    function _renderChunkText(text) {
-        return text.split(/(\[\[[^\]]+\]\])/).map((seg, i) => {
-            if (i % 2 === 0) return _esc(seg);
-            const id = seg.slice(2, -2);
-            return `<sup class="nb-cine-shot-cue nb-wiki-link" data-selector="${_esc(id)}" title="Shot ${_esc(id)}">${_esc(id)}</sup>`;
-        }).join('');
+    // Tokenise a Fountain body. Returns [{type, text, depth?, dual?}, …].
+    // Scene slug is synthesised from FM by _renderScript — body starts after it.
+    function _parseFountain(raw) {
+        let text = raw || '';
+        if (text.startsWith('---')) {
+            const fmEnd = text.indexOf('\n---', 3);
+            if (fmEnd !== -1) text = text.slice(fmEnd + 4).trimStart();
+        }
+
+        const lines  = text.split('\n');
+        const tokens = [];
+        let i         = 0;
+        let prevBlank = true; // treat document start as preceded by blank
+
+        function nx() { return i + 1 < lines.length ? lines[i + 1] : null; }
+
+        while (i < lines.length) {
+            const raw = lines[i];
+            const t   = raw.trim();
+
+            if (!t) { prevBlank = true; i++; continue; }
+
+            // Page break ===
+            if (/^={3,}\s*$/.test(t)) {
+                tokens.push({ type: 'page_break' });
+                prevBlank = false; i++; continue;
+            }
+
+            // Boneyard /* … */ — discarded entirely
+            if (t.startsWith('/*')) {
+                while (i < lines.length && !lines[i].includes('*/')) i++;
+                i++; prevBlank = false; continue;
+            }
+
+            // Note [[…]] — standalone shot cues or draft notes
+            if (t.startsWith('[[') && t.endsWith(']]')) {
+                tokens.push({ type: 'note', text: t.slice(2, -2) });
+                prevBlank = false; i++; continue;
+            }
+
+            // Section # / ## / ###
+            const secM = t.match(/^(#{1,3})\s+(.*)/);
+            if (secM) {
+                tokens.push({ type: 'section', depth: secM[1].length, text: secM[2] });
+                prevBlank = false; i++; continue;
+            }
+
+            // Synopsis =
+            if (/^=\s/.test(t)) {
+                tokens.push({ type: 'synopsis', text: t.slice(t.indexOf(' ') + 1) });
+                prevBlank = false; i++; continue;
+            }
+
+            // Forced scene heading .text (not .. like ellipsis)
+            if (t.startsWith('.') && !t.startsWith('..')) {
+                tokens.push({ type: 'scene_heading', text: t.slice(1).trim() });
+                prevBlank = false; i++; continue;
+            }
+
+            // Scene heading (auto) — INT. / EXT. / EST. / INT./EXT.
+            if (/^(int\.?|ext\.?|est\.?|int\.?\/ext\.?|i\/e)[\s.\-]/i.test(t)) {
+                tokens.push({ type: 'scene_heading', text: t.toUpperCase() });
+                prevBlank = false; i++; continue;
+            }
+
+            // Centered > text <
+            if (t.startsWith('>') && t.endsWith('<')) {
+                tokens.push({ type: 'centered', text: t.slice(1, -1).trim() });
+                prevBlank = false; i++; continue;
+            }
+
+            // Transition forced > text (no closing <)
+            if (raw.startsWith('>') && !t.endsWith('<')) {
+                tokens.push({ type: 'transition', text: t.slice(1).trim() });
+                prevBlank = false; i++; continue;
+            }
+
+            // Lyrics ~
+            if (t.startsWith('~')) {
+                tokens.push({ type: 'lyrics', text: t.slice(1).trim() });
+                prevBlank = false; i++; continue;
+            }
+
+            // Transition (auto) — ALL CAPS + TO:, preceded by blank, followed by blank/end
+            const nxLine = nx();
+            if (prevBlank && /^[A-Z][A-Z\s]+TO:\s*$/.test(t) && (!nxLine || !nxLine.trim())) {
+                tokens.push({ type: 'transition', text: t });
+                prevBlank = false; i++; continue;
+            }
+
+            // Character cue + dialogue block
+            // Rule: preceded by blank, all-caps, not a scene heading or transition, followed by non-blank
+            const isAllCaps  = t === t.toUpperCase() && /[A-Z]/.test(t);
+            const nxNonBlank = nxLine !== null && nxLine.trim() !== '';
+            if (prevBlank && isAllCaps && nxNonBlank
+                && !/^(int|ext|est)[\s.\-]/i.test(t)
+                && !t.trimEnd().endsWith('TO:')) {
+                const dual  = t.trimEnd().endsWith('^');
+                const cname = t.replace(/\s*\^\s*$/, '').replace(/^@/, '').trim();
+                tokens.push({ type: 'character', text: cname, dual });
+                i++;
+                while (i < lines.length && lines[i].trim()) {
+                    const dl = lines[i].trim();
+                    tokens.push(dl.startsWith('(') && dl.endsWith(')')
+                        ? { type: 'parenthetical', text: dl }
+                        : { type: 'dialogue',      text: dl });
+                    i++;
+                }
+                prevBlank = false;
+                continue;
+            }
+
+            // Action (default; ! forces action even on all-caps lines)
+            let actionText = t.startsWith('!') ? t.slice(1) : t;
+            i++;
+            // Absorb continuation lines until blank or an obvious special element
+            while (i < lines.length) {
+                const cl = lines[i].trim();
+                if (!cl) break;
+                if (/^(={3,}|#{1,3}\s|=\s|\.\S|>|~|\[\[|\/\*)/.test(cl)) break;
+                if (/^(int\.?|ext\.?|est\.)[\s.\-]/i.test(cl)) break;
+                if (cl === cl.toUpperCase() && /[A-Z]/.test(cl) && lines[i + 1]?.trim()) break;
+                actionText += '\n' + (cl.startsWith('!') ? cl.slice(1) : cl);
+                i++;
+            }
+            tokens.push({ type: 'action', text: actionText });
+            prevBlank = false;
+        }
+
+        return tokens;
+    }
+
+    // Render Fountain tokens → HTML string.
+    function _renderFountainTokens(tokens) {
+        const out = [];
+        let i = 0;
+        while (i < tokens.length) {
+            const tok = tokens[i];
+            switch (tok.type) {
+                case 'page_break':
+                    out.push('<div class="nb-script-page-break"></div>');
+                    break;
+                case 'note':
+                    out.push(_renderInline(`[[${tok.text}]]`));
+                    break;
+                case 'scene_heading':
+                    out.push(`<div class="nb-script-slug nb-script-slug-inline">${_esc(tok.text)}</div>`);
+                    break;
+                case 'action':
+                    out.push(`<p class="nb-script-action">${_renderInline(tok.text)}</p>`);
+                    break;
+                case 'transition':
+                    out.push(`<p class="nb-script-transition">${_esc(tok.text)}</p>`);
+                    break;
+                case 'centered':
+                    out.push(`<p class="nb-script-centered">${_renderInline(tok.text)}</p>`);
+                    break;
+                case 'lyrics':
+                    out.push(`<p class="nb-script-lyrics">${_renderInline(tok.text)}</p>`);
+                    break;
+                case 'section':
+                    out.push(`<div class="nb-script-section nb-script-sec-${tok.depth}">${_esc(tok.text)}</div>`);
+                    break;
+                case 'synopsis':
+                    out.push(`<div class="nb-script-synopsis">${_esc(tok.text)}</div>`);
+                    break;
+                case 'character': {
+                    let j = i + 1;
+                    const dHtml = [];
+                    while (j < tokens.length && (tokens[j].type === 'dialogue' || tokens[j].type === 'parenthetical')) {
+                        const d = tokens[j++];
+                        dHtml.push(d.type === 'parenthetical'
+                            ? `<p class="nb-script-paren">${_esc(d.text)}</p>`
+                            : `<p class="nb-script-dialogue">${_renderInline(d.text)}</p>`);
+                    }
+                    out.push(`<div class="nb-script-speech${tok.dual ? ' nb-script-dual' : ''}">` +
+                             `<p class="nb-script-char">${_esc(tok.text)}</p>` +
+                             dHtml.join('') + `</div>`);
+                    i = j;
+                    continue;
+                }
+            }
+            i++;
+        }
+        return out.join('\n');
     }
 
     function _renderScript(note) {
@@ -716,15 +890,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const slug     = `${ie} ${loc} — ${dn}`;
         const sceneTag = `SCENE ${meta.alias ?? ''}`;
 
-        const bodyHtml = _parseScriptBody(note.raw).map(c => {
-            if (c.type === 'br')       return '';
-            const t = _renderChunkText(c.text);
-            if (c.type === 'action')   return `<p class="nb-script-action">${t}</p>`;
-            if (c.type === 'char')     return `<p class="nb-script-char">${t}</p>`;
-            if (c.type === 'dialogue') return `<p class="nb-script-dialogue">${t}</p>`;
-            if (c.type === 'paren')    return `<p class="nb-script-paren">${t}</p>`;
-            return '';
-        }).join('');
+        const bodyHtml = _renderFountainTokens(_parseFountain(note.raw));
 
         return `<div class="nb-cine-screenplay"><div class="nb-script-page">` +
                `<div class="nb-script-slug"><span class="nb-script-scene-tag">${_esc(sceneTag)}</span>${_esc(slug)}</div>` +
