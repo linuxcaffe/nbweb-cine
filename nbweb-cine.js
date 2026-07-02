@@ -116,40 +116,66 @@ button.nb-cine-actor {
 .nb-cine-subtitle { font-size: .8em; opacity: .6; margin-left: 8px; }
 
 /* Screenplay preview — paper page */
+@font-face {
+    font-family: 'Courier Prime';
+    font-weight: normal; font-style: normal;
+    src: url('/fonts/courier-prime/Courier Prime.otf') format('opentype');
+}
+@font-face {
+    font-family: 'Courier Prime';
+    font-weight: bold; font-style: normal;
+    src: url('/fonts/courier-prime/Courier Prime Bold.otf') format('opentype');
+}
+@font-face {
+    font-family: 'Courier Prime';
+    font-weight: normal; font-style: italic;
+    src: url('/fonts/courier-prime/Courier Prime Italic.otf') format('opentype');
+}
+@font-face {
+    font-family: 'Courier Prime';
+    font-weight: bold; font-style: italic;
+    src: url('/fonts/courier-prime/Courier Prime Bold Italic.otf') format('opentype');
+}
+
 .nb-cine-screenplay {
     padding: 24px; background: var(--bg, #1a1a1a); min-height: 100%;
 }
 .nb-script-page {
-    max-width: 640px; margin: 0 auto;
+    /* WGA-standard page: 8.5" wide, 1.5" left/1" right margins at 12pt Courier = ~57 chars */
+    max-width: 680px; margin: 0 auto;
     background: #fff; color: #111;
     font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-    font-size: 12pt; line-height: 1.55;
-    padding: 72px 72px 96px;
+    font-size: 12pt; line-height: 1.65;
+    padding: 72px 80px 96px 96px;
     box-shadow: 0 4px 28px rgba(0,0,0,.5);
 }
 .nb-script-slug {
     font-weight: bold; text-transform: uppercase;
     border-bottom: 1px solid #222;
-    padding-bottom: 6px; margin-bottom: 24px;
-    letter-spacing: .05em;
+    padding-bottom: 6px; margin-bottom: 20px;
+    letter-spacing: .04em;
 }
-.nb-script-scene-tag  { float: right; font-weight: normal; opacity: .45; font-size: .85em; }
-.nb-script-action     { margin: 0 0 12px; white-space: pre-wrap; }
-.nb-script-char       { margin: 18px 0 0; padding-left: 38%; text-transform: uppercase; }
-.nb-script-dialogue   { margin: 0 0 8px; padding: 0 15% 0 25%; }
-.nb-script-paren      { margin: 0; padding: 0 22% 0 32%; font-style: italic; }
-.nb-script-speech     { margin: 0; }
-.nb-script-transition { text-align: right; text-transform: uppercase; margin: 18px 0; }
-.nb-script-centered   { text-align: center; margin: 12px 0; }
-.nb-script-lyrics     { text-align: center; font-style: italic; margin: 8px 0; }
-.nb-script-section    { text-transform: uppercase; letter-spacing: .07em; margin: 28px 0 10px; padding-top: 8px; border-top: 1px solid #ccc; }
+.nb-script-scene-tag  { float: right; font-weight: normal; opacity: .4; font-size: .85em; }
+/* Action: blank line above, blank line below each paragraph */
+.nb-script-action     { margin: 0 0 1em; white-space: pre-wrap; }
+/* Character: 3.7" from left = ~37% of 10" text width */
+.nb-script-char       { margin: 1em 0 0; padding-left: 37%; text-transform: uppercase; }
+/* Dialogue: 2.5" from left, ends 2.5" from right */
+.nb-script-dialogue   { margin: 0; padding: 0 16% 0 24%; }
+/* Parenthetical: 3.1" from left */
+.nb-script-paren      { margin: 0; padding: 0 22% 0 30%; font-style: italic; }
+.nb-script-speech     { margin: 0 0 1em; }
+.nb-script-transition { text-align: right; text-transform: uppercase; margin: 1em 0; }
+.nb-script-centered   { text-align: center; margin: 1em 0; }
+.nb-script-lyrics     { text-align: center; font-style: italic; margin: .5em 0; }
+.nb-script-section    { text-transform: uppercase; letter-spacing: .06em; margin: 2em 0 .5em; padding-top: 6px; border-top: 1px solid #ccc; }
 .nb-script-sec-1      { font-weight: bold; font-size: 1em; }
-.nb-script-sec-2      { font-weight: bold; font-size: .9em; opacity: .7; }
-.nb-script-sec-3      { font-style: italic; font-size: .85em; opacity: .55; border-top: none; margin-top: 12px; }
-.nb-script-synopsis   { font-style: italic; color: #888; font-size: .88em; margin: 0 0 10px; }
-.nb-script-note       { font-size: .8em; color: #aaa; background: #f5f5dc; padding: 0 3px; border-radius: 2px; }
-.nb-script-page-break { border-top: 1px dashed #bbb; margin: 32px 0; }
-.nb-script-slug-inline { margin: 20px 0 12px; border-top: 1px solid #555; padding-top: 8px; }
+.nb-script-sec-2      { font-weight: bold; font-size: .9em; opacity: .65; }
+.nb-script-sec-3      { font-style: italic; font-size: .85em; opacity: .5; border-top: none; margin-top: 1em; }
+.nb-script-synopsis   { font-style: italic; color: #777; font-size: .88em; margin: 0 0 .75em; }
+.nb-script-note       { font-size: .75em; color: #999; background: #fffbe6; padding: 1px 4px; border-radius: 2px; border: 1px solid #e8d87f; }
+.nb-script-page-break { border: none; border-top: 1px dashed #ccc; margin: 2.5em 0; }
+.nb-script-slug-inline { margin: 2em 0 .75em; border-top: 1px solid #444; padding-top: 6px; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; }
 
 /* Shot cue superscripts — [[1c]] inside screenplay body */
 sup.nb-cine-shot-cue {
