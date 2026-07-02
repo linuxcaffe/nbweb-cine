@@ -681,7 +681,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         return rawText.split(/(\[\[[^\]]+\]\])/).map((seg, idx) => {
             if (idx % 2 === 1) {
                 const id = seg.slice(2, -2).trim();
-                return `<sup class="nb-cine-shot-cue nb-wiki-link" data-selector="${_esc(id)}" title="Shot ${_esc(id)}">${_esc(id)}</sup>`;
+                return `<sup class="nb-cine-shot-cue nb-wiki-link" data-selector="${_esc(id)}" data-autolabel title="${_esc(id)}">${_esc(id)}</sup>`;
             }
             let s = _esc(seg);
             s = s.replace(/\*{3}(.+?)\*{3}/g, '<strong><em>$1</em></strong>');
