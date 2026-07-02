@@ -1849,6 +1849,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const dateStr = today.toISOString().slice(0, 10);
         const vars = {
             shot_id:   alias,
+            filename:  filename,
             scene:     String(sceneMeta.alias ?? ''),
             title:     title,
             desc:      title,
@@ -1867,7 +1868,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             content = [
                 '---',
                 `scene: ${vars.scene}`,
-                `shot: ${alias}`,
+                `shot: ${filename}`,
                 `alias: ${alias}`,
                 `title: ${title}`,
                 `type: shot`,
