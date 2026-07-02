@@ -185,6 +185,20 @@ sup.nb-cine-shot-cue {
 }
 sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
+/* Script title-page header (type: script) */
+.nb-script-title-page {
+    font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+    text-align: center; padding: 48px 24px 32px;
+    border-bottom: 2px solid var(--border, #444);
+    margin-bottom: 24px;
+}
+.nb-stp-title  { font-size: 2em; font-weight: bold; text-transform: uppercase;
+                  letter-spacing: .08em; margin-bottom: 20px; color: var(--text, #eee); }
+.nb-stp-byline { font-size: .85em; opacity: .55; margin-bottom: 4px; }
+.nb-stp-author { font-size: 1.1em; margin-bottom: 12px; color: var(--text, #eee); }
+.nb-stp-info   { font-size: .8em; opacity: .5; margin-bottom: 20px; }
+.nb-stp-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; align-items: center; }
+
 /* Insert Shot overlay */
 .nb-cine-insert-overlay {
     position: fixed; inset: 0; z-index: 9000;
@@ -922,6 +936,44 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                `<div class="nb-script-slug"><span class="nb-script-scene-tag">${_esc(sceneTag)}</span>${_esc(slug)}</div>` +
                `<div class="nb-script-body">${bodyHtml}</div>` +
                `</div></div>`;
+    }
+
+    // ── Script title-page header (type: script) ──────────────────────────────
+
+    async function _renderScriptNote(note) {
+        const meta    = note.meta || {};
+        const title   = meta.title || note.title || 'Untitled';
+        const author  = meta.author   ? `<div class="nb-stp-byline">written by</div><div class="nb-stp-author">${_esc(meta.author)}</div>` : '';
+        const info    = [meta.draft, meta.copyright ? `© ${meta.copyright}` : ''].filter(Boolean).join(' · ');
+
+        let sceneCount = 0, maxAlias = 0;
+        try {
+            const data   = await _fetchData(note.notebook);
+            const scenes = (data.scenes || []).filter(s => /^\d+$/.test(String(s.alias || '')));
+            sceneCount   = scenes.length;
+            maxAlias     = Math.max(0, ...scenes.map(s => parseInt(s.alias)));
+        } catch (_) {}
+
+        const stats = [
+            sceneCount ? `<span class="nb-specialty-pill">${sceneCount} scene${sceneCount !== 1 ? 's' : ''}</span>` : '',
+            maxAlias   ? `<span class="nb-specialty-pill">~${maxAlias} min est.</span>` : '',
+        ].join('');
+
+        const exportBtns = `
+            <button class="nb-specialty-action nb-script-dl-fountain" data-notebook="${_esc(note.notebook || '')}" title="Download .fountain">⬇ .fountain</button>
+            <button class="nb-specialty-action nb-script-dl-pdf"      data-notebook="${_esc(note.notebook || '')}" title="Export PDF (step 4)" disabled>⬇ PDF</button>`;
+
+        const bodyHtml = typeof marked !== 'undefined'
+            ? marked.parse(note.body || '')
+            : `<pre>${_esc(note.body || '')}</pre>`;
+
+        return `<div class="nb-script-title-page">
+            <div class="nb-stp-title">${_esc(title)}</div>
+            ${author}
+            ${info ? `<div class="nb-stp-info">${_esc(info)}</div>` : ''}
+            <div class="nb-stp-actions">${stats}${exportBtns}</div>
+        </div>
+        <div class="nb-rendered">${bodyHtml}</div>`;
     }
 
     // ── Shot sheet renderer (shots.sheet) ────────────────────────────────────
@@ -2369,6 +2421,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         },
 
         previewRenderers: [
+            {
+                id:     'script',
+                icon:   '🎬',
+                label:  'Script',
+                types:  ['script'],
+                detect: note => note.type === 'script',
+                render: note => _renderScriptNote(note),
+            },
             {
                 id:       'shot-card',
                 icon:     '🎬',
