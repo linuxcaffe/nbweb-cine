@@ -1850,6 +1850,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const vars = {
             shot_id:   alias,
             scene:     String(sceneMeta.alias ?? ''),
+            title:     title,
             desc:      title,
             actors:    actors,
             loc:       String(sceneMeta.loc       ?? ''),
