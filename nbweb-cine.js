@@ -116,28 +116,66 @@ button.nb-cine-actor {
 .nb-cine-subtitle { font-size: .8em; opacity: .6; margin-left: 8px; }
 
 /* Screenplay preview — paper page */
+@font-face {
+    font-family: 'Courier Prime';
+    font-weight: normal; font-style: normal;
+    src: url('/fonts/courier-prime/Courier Prime.otf') format('opentype');
+}
+@font-face {
+    font-family: 'Courier Prime';
+    font-weight: bold; font-style: normal;
+    src: url('/fonts/courier-prime/Courier Prime Bold.otf') format('opentype');
+}
+@font-face {
+    font-family: 'Courier Prime';
+    font-weight: normal; font-style: italic;
+    src: url('/fonts/courier-prime/Courier Prime Italic.otf') format('opentype');
+}
+@font-face {
+    font-family: 'Courier Prime';
+    font-weight: bold; font-style: italic;
+    src: url('/fonts/courier-prime/Courier Prime Bold Italic.otf') format('opentype');
+}
+
 .nb-cine-screenplay {
     padding: 24px; background: var(--bg, #1a1a1a); min-height: 100%;
 }
 .nb-script-page {
-    max-width: 640px; margin: 0 auto;
+    /* WGA-standard page: 8.5" wide, 1.5" left/1" right margins at 12pt Courier = ~57 chars */
+    max-width: 680px; margin: 0 auto;
     background: #fff; color: #111;
     font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-    font-size: 12pt; line-height: 1.55;
-    padding: 72px 72px 96px;
+    font-size: 12pt; line-height: 1.65;
+    padding: 72px 80px 96px 96px;
     box-shadow: 0 4px 28px rgba(0,0,0,.5);
 }
 .nb-script-slug {
     font-weight: bold; text-transform: uppercase;
     border-bottom: 1px solid #222;
-    padding-bottom: 6px; margin-bottom: 24px;
-    letter-spacing: .05em;
+    padding-bottom: 6px; margin-bottom: 20px;
+    letter-spacing: .04em;
 }
-.nb-script-scene-tag { float: right; font-weight: normal; opacity: .45; font-size: .85em; }
-.nb-script-action   { margin: 0 0 12px; }
-.nb-script-char     { margin: 18px 0 0; padding-left: 38%; text-transform: uppercase; }
-.nb-script-dialogue { margin: 0 0 8px; padding: 0 15% 0 25%; }
-.nb-script-paren    { margin: 0; padding: 0 22% 0 32%; font-style: italic; }
+.nb-script-scene-tag  { float: right; font-weight: normal; opacity: .4; font-size: .85em; }
+/* Action: blank line above, blank line below each paragraph */
+.nb-script-action     { margin: 0 0 1em; white-space: pre-wrap; }
+/* Character: 3.7" from left = ~37% of 10" text width */
+.nb-script-char       { margin: 1em 0 0; padding-left: 37%; text-transform: uppercase; }
+/* Dialogue: 2.5" from left, ends 2.5" from right */
+.nb-script-dialogue   { margin: 0; padding: 0 16% 0 24%; }
+/* Parenthetical: 3.1" from left */
+.nb-script-paren      { margin: 0; padding: 0 22% 0 30%; font-style: italic; }
+.nb-script-speech     { margin: 0 0 1em; }
+.nb-script-transition { text-align: right; text-transform: uppercase; margin: 1em 0; }
+.nb-script-centered   { text-align: center; margin: 1em 0; }
+.nb-script-lyrics     { text-align: center; font-style: italic; margin: .5em 0; }
+.nb-script-section    { text-transform: uppercase; letter-spacing: .06em; margin: 2em 0 .5em; padding-top: 6px; border-top: 1px solid #ccc; }
+.nb-script-sec-1      { font-weight: bold; font-size: 1em; }
+.nb-script-sec-2      { font-weight: bold; font-size: .9em; opacity: .65; }
+.nb-script-sec-3      { font-style: italic; font-size: .85em; opacity: .5; border-top: none; margin-top: 1em; }
+.nb-script-synopsis   { font-style: italic; color: #777; font-size: .88em; margin: 0 0 .75em; }
+.nb-script-note       { font-size: .75em; color: #999; background: #fffbe6; padding: 1px 4px; border-radius: 2px; border: 1px solid #e8d87f; }
+.nb-script-page-break { border: none; border-top: 1px dashed #ccc; margin: 2.5em 0; }
+.nb-script-slug-inline { margin: 2em 0 .75em; border-top: 1px solid #444; padding-top: 6px; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; }
 
 /* Shot cue superscripts — [[1c]] inside screenplay body */
 sup.nb-cine-shot-cue {
@@ -146,6 +184,20 @@ sup.nb-cine-shot-cue {
     cursor: pointer; user-select: none; margin-left: 1px;
 }
 sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
+
+/* Script title-page header (type: script) */
+.nb-script-title-page {
+    font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+    text-align: center; padding: 48px 24px 32px;
+    border-bottom: 2px solid var(--border, #444);
+    margin-bottom: 24px;
+}
+.nb-stp-title  { font-size: 2em; font-weight: bold; text-transform: uppercase;
+                  letter-spacing: .08em; margin-bottom: 20px; color: var(--text, #eee); }
+.nb-stp-byline { font-size: .85em; opacity: .55; margin-bottom: 4px; }
+.nb-stp-author { font-size: 1.1em; margin-bottom: 12px; color: var(--text, #eee); }
+.nb-stp-info   { font-size: .8em; opacity: .5; margin-bottom: 20px; }
+.nb-stp-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; align-items: center; }
 
 /* Insert Shot overlay */
 .nb-cine-insert-overlay {
@@ -662,48 +714,210 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // ── Script renderer ───────────────────────────────────────────────────────
 
-    function _parseScriptBody(raw) {
-        let text = raw || '';
-        if (text.startsWith('---')) {
-            const end = text.indexOf('\n---', 3);
-            if (end !== -1) text = text.slice(end + 4).trimStart();
-        }
-        const chunks = [];
-        let afterChar = false;
-        for (const line of text.split('\n')) {
-            const indent  = line.search(/\S/);
-            const trimmed = line.trim();
-            if (!trimmed) {
-                afterChar = false;
-                if (chunks.length && chunks[chunks.length - 1].type !== 'br')
-                    chunks.push({ type: 'br' });
-                continue;
+    // ── Fountain screenplay parser ────────────────────────────────────────────
+
+    // Render Fountain inline markup + [[shot-id]] cues → HTML.
+    function _renderInline(rawText) {
+        return rawText.split(/(\[\[[^\]]+\]\])/).map((seg, idx) => {
+            if (idx % 2 === 1) {
+                const id = seg.slice(2, -2).trim();
+                return `<sup class="nb-cine-shot-cue nb-wiki-link" data-selector="${_esc(id)}" data-autolabel title="${_esc(id)}">${_esc(id)}</sup>`;
             }
-            // Character name: 3+ spaces of indent, all-uppercase (parens/numbers allowed)
-            if (indent >= 3 && /^[A-Z][A-Z0-9\s\(\)\.\-\'\,]+$/.test(trimmed)) {
-                afterChar = true;
-                chunks.push({ type: 'char', text: trimmed });
-                continue;
-            }
-            if (afterChar && trimmed.startsWith('(') && trimmed.endsWith(')')) {
-                chunks.push({ type: 'paren', text: trimmed }); continue;
-            }
-            if (afterChar) {
-                afterChar = false;
-                chunks.push({ type: 'dialogue', text: trimmed }); continue;
-            }
-            chunks.push({ type: 'action', text: trimmed });
-        }
-        return chunks;
+            let s = _esc(seg);
+            s = s.replace(/\*{3}(.+?)\*{3}/g, '<strong><em>$1</em></strong>');
+            s = s.replace(/\*{2}(.+?)\*{2}/g, '<strong>$1</strong>');
+            s = s.replace(/\*(.+?)\*/g,        '<em>$1</em>');
+            s = s.replace(/_(.+?)_/g,           '<u>$1</u>');
+            s = s.replace(/\n/g,                '<br>');
+            return s;
+        }).join('');
     }
 
-    // Escape text but turn [[id]] into clickable superscript shot cues.
-    function _renderChunkText(text) {
-        return text.split(/(\[\[[^\]]+\]\])/).map((seg, i) => {
-            if (i % 2 === 0) return _esc(seg);
-            const id = seg.slice(2, -2);
-            return `<sup class="nb-cine-shot-cue nb-wiki-link" data-selector="${_esc(id)}" title="Shot ${_esc(id)}">${_esc(id)}</sup>`;
-        }).join('');
+    // Tokenise a Fountain body. Returns [{type, text, depth?, dual?}, …].
+    // Scene slug is synthesised from FM by _renderScript — body starts after it.
+    function _parseFountain(raw) {
+        let text = raw || '';
+        if (text.startsWith('---')) {
+            const fmEnd = text.indexOf('\n---', 3);
+            if (fmEnd !== -1) text = text.slice(fmEnd + 4).trimStart();
+        }
+
+        const lines  = text.split('\n');
+        const tokens = [];
+        let i         = 0;
+        let prevBlank = true; // treat document start as preceded by blank
+
+        function nx() { return i + 1 < lines.length ? lines[i + 1] : null; }
+
+        while (i < lines.length) {
+            const raw = lines[i];
+            const t   = raw.trim();
+
+            if (!t) { prevBlank = true; i++; continue; }
+
+            // Page break ===
+            if (/^={3,}\s*$/.test(t)) {
+                tokens.push({ type: 'page_break' });
+                prevBlank = false; i++; continue;
+            }
+
+            // Boneyard /* … */ — discarded entirely
+            if (t.startsWith('/*')) {
+                while (i < lines.length && !lines[i].includes('*/')) i++;
+                i++; prevBlank = false; continue;
+            }
+
+            // Note [[…]] — standalone shot cues or draft notes
+            if (t.startsWith('[[') && t.endsWith(']]')) {
+                tokens.push({ type: 'note', text: t.slice(2, -2) });
+                prevBlank = false; i++; continue;
+            }
+
+            // Section # / ## / ###
+            const secM = t.match(/^(#{1,3})\s+(.*)/);
+            if (secM) {
+                tokens.push({ type: 'section', depth: secM[1].length, text: secM[2] });
+                prevBlank = false; i++; continue;
+            }
+
+            // Synopsis =
+            if (/^=\s/.test(t)) {
+                tokens.push({ type: 'synopsis', text: t.slice(t.indexOf(' ') + 1) });
+                prevBlank = false; i++; continue;
+            }
+
+            // Forced scene heading .text (not .. like ellipsis)
+            if (t.startsWith('.') && !t.startsWith('..')) {
+                tokens.push({ type: 'scene_heading', text: t.slice(1).trim() });
+                prevBlank = false; i++; continue;
+            }
+
+            // Scene heading (auto) — INT. / EXT. / EST. / INT./EXT.
+            if (/^(int\.?|ext\.?|est\.?|int\.?\/ext\.?|i\/e)[\s.\-]/i.test(t)) {
+                tokens.push({ type: 'scene_heading', text: t.toUpperCase() });
+                prevBlank = false; i++; continue;
+            }
+
+            // Centered > text <
+            if (t.startsWith('>') && t.endsWith('<')) {
+                tokens.push({ type: 'centered', text: t.slice(1, -1).trim() });
+                prevBlank = false; i++; continue;
+            }
+
+            // Transition forced > text (no closing <)
+            if (raw.startsWith('>') && !t.endsWith('<')) {
+                tokens.push({ type: 'transition', text: t.slice(1).trim() });
+                prevBlank = false; i++; continue;
+            }
+
+            // Lyrics ~
+            if (t.startsWith('~')) {
+                tokens.push({ type: 'lyrics', text: t.slice(1).trim() });
+                prevBlank = false; i++; continue;
+            }
+
+            // Transition (auto) — ALL CAPS + TO:, preceded by blank, followed by blank/end
+            const nxLine = nx();
+            if (prevBlank && /^[A-Z][A-Z\s]+TO:\s*$/.test(t) && (!nxLine || !nxLine.trim())) {
+                tokens.push({ type: 'transition', text: t });
+                prevBlank = false; i++; continue;
+            }
+
+            // Character cue + dialogue block
+            // Rule: preceded by blank, all-caps, not a scene heading or transition, followed by non-blank
+            const isAllCaps  = t === t.toUpperCase() && /[A-Z]/.test(t);
+            const nxNonBlank = nxLine !== null && nxLine.trim() !== '';
+            if (prevBlank && isAllCaps && nxNonBlank
+                && !/^(int|ext|est)[\s.\-]/i.test(t)
+                && !t.trimEnd().endsWith('TO:')) {
+                const dual  = t.trimEnd().endsWith('^');
+                const cname = t.replace(/\s*\^\s*$/, '').replace(/^@/, '').trim();
+                tokens.push({ type: 'character', text: cname, dual });
+                i++;
+                while (i < lines.length && lines[i].trim()) {
+                    const dl = lines[i].trim();
+                    tokens.push(dl.startsWith('(') && dl.endsWith(')')
+                        ? { type: 'parenthetical', text: dl }
+                        : { type: 'dialogue',      text: dl });
+                    i++;
+                }
+                prevBlank = false;
+                continue;
+            }
+
+            // Action (default; ! forces action even on all-caps lines)
+            let actionText = t.startsWith('!') ? t.slice(1) : t;
+            i++;
+            // Absorb continuation lines until blank or an obvious special element
+            while (i < lines.length) {
+                const cl = lines[i].trim();
+                if (!cl) break;
+                if (/^(={3,}|#{1,3}\s|=\s|\.\S|>|~|\[\[|\/\*)/.test(cl)) break;
+                if (/^(int\.?|ext\.?|est\.)[\s.\-]/i.test(cl)) break;
+                if (cl === cl.toUpperCase() && /[A-Z]/.test(cl) && lines[i + 1]?.trim()) break;
+                actionText += '\n' + (cl.startsWith('!') ? cl.slice(1) : cl);
+                i++;
+            }
+            tokens.push({ type: 'action', text: actionText });
+            prevBlank = false;
+        }
+
+        return tokens;
+    }
+
+    // Render Fountain tokens → HTML string.
+    function _renderFountainTokens(tokens) {
+        const out = [];
+        let i = 0;
+        while (i < tokens.length) {
+            const tok = tokens[i];
+            switch (tok.type) {
+                case 'page_break':
+                    out.push('<div class="nb-script-page-break"></div>');
+                    break;
+                case 'note':
+                    out.push(_renderInline(`[[${tok.text}]]`));
+                    break;
+                case 'scene_heading':
+                    out.push(`<div class="nb-script-slug nb-script-slug-inline">${_esc(tok.text)}</div>`);
+                    break;
+                case 'action':
+                    out.push(`<p class="nb-script-action">${_renderInline(tok.text)}</p>`);
+                    break;
+                case 'transition':
+                    out.push(`<p class="nb-script-transition">${_esc(tok.text)}</p>`);
+                    break;
+                case 'centered':
+                    out.push(`<p class="nb-script-centered">${_renderInline(tok.text)}</p>`);
+                    break;
+                case 'lyrics':
+                    out.push(`<p class="nb-script-lyrics">${_renderInline(tok.text)}</p>`);
+                    break;
+                case 'section':
+                    out.push(`<div class="nb-script-section nb-script-sec-${tok.depth}">${_esc(tok.text)}</div>`);
+                    break;
+                case 'synopsis':
+                    out.push(`<div class="nb-script-synopsis">${_esc(tok.text)}</div>`);
+                    break;
+                case 'character': {
+                    let j = i + 1;
+                    const dHtml = [];
+                    while (j < tokens.length && (tokens[j].type === 'dialogue' || tokens[j].type === 'parenthetical')) {
+                        const d = tokens[j++];
+                        dHtml.push(d.type === 'parenthetical'
+                            ? `<p class="nb-script-paren">${_esc(d.text)}</p>`
+                            : `<p class="nb-script-dialogue">${_renderInline(d.text)}</p>`);
+                    }
+                    out.push(`<div class="nb-script-speech${tok.dual ? ' nb-script-dual' : ''}">` +
+                             `<p class="nb-script-char">${_esc(tok.text)}</p>` +
+                             dHtml.join('') + `</div>`);
+                    i = j;
+                    continue;
+                }
+            }
+            i++;
+        }
+        return out.join('\n');
     }
 
     function _renderScript(note) {
@@ -716,20 +930,59 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const slug     = `${ie} ${loc} — ${dn}`;
         const sceneTag = `SCENE ${meta.alias ?? ''}`;
 
-        const bodyHtml = _parseScriptBody(note.raw).map(c => {
-            if (c.type === 'br')       return '';
-            const t = _renderChunkText(c.text);
-            if (c.type === 'action')   return `<p class="nb-script-action">${t}</p>`;
-            if (c.type === 'char')     return `<p class="nb-script-char">${t}</p>`;
-            if (c.type === 'dialogue') return `<p class="nb-script-dialogue">${t}</p>`;
-            if (c.type === 'paren')    return `<p class="nb-script-paren">${t}</p>`;
-            return '';
-        }).join('');
+        const bodyHtml = _renderFountainTokens(_parseFountain(note.raw));
 
         return `<div class="nb-cine-screenplay"><div class="nb-script-page">` +
                `<div class="nb-script-slug"><span class="nb-script-scene-tag">${_esc(sceneTag)}</span>${_esc(slug)}</div>` +
                `<div class="nb-script-body">${bodyHtml}</div>` +
                `</div></div>`;
+    }
+
+    // ── Script title-page header (type: script) ──────────────────────────────
+
+    async function _renderScriptNote(note) {
+        const meta    = note.meta || {};
+        const title   = meta.title || note.title || 'Untitled';
+        const author  = meta.author   ? `<div class="nb-stp-byline">written by</div><div class="nb-stp-author">${_esc(meta.author)}</div>` : '';
+        const info    = [meta.draft, meta.copyright ? `© ${meta.copyright}` : ''].filter(Boolean).join(' · ');
+
+        let sceneCount = 0, maxAlias = 0, assembledHtml = '';
+        try {
+            const data   = await _fetchData(note.notebook);
+            const scenes = (data.scenes || [])
+                .filter(s => /^\d+$/.test(String(s.alias || '')))
+                .sort((a, b) => parseInt(a.alias) - parseInt(b.alias));
+            sceneCount = scenes.length;
+            maxAlias   = Math.max(0, ...scenes.map(s => parseInt(s.alias)));
+
+            const sceneNotes = await Promise.all(
+                scenes.map(s =>
+                    fetch(`/api/note?selector=${encodeURIComponent(s.selector)}`)
+                        .then(r => r.json()).catch(() => null)
+                )
+            );
+            assembledHtml = sceneNotes
+                .filter(Boolean)
+                .map(sn => _renderScript(sn) || '')
+                .join('');
+        } catch (_) {}
+
+        const stats = [
+            sceneCount ? `<span class="nb-specialty-pill">${sceneCount} scene${sceneCount !== 1 ? 's' : ''}</span>` : '',
+            maxAlias   ? `<span class="nb-specialty-pill">~${maxAlias} min est.</span>` : '',
+        ].join('');
+
+        const exportBtns = `
+            <button class="nb-specialty-action nb-script-dl-fountain" data-notebook="${_esc(note.notebook || '')}" title="Download .fountain">⬇ .fountain</button>
+            <button class="nb-specialty-action nb-script-dl-pdf"      data-notebook="${_esc(note.notebook || '')}" title="Export PDF via afterwriting">⬇ PDF</button>`;
+
+        return `<div class="nb-script-title-page">
+            <div class="nb-stp-title">${_esc(title)}</div>
+            ${author}
+            ${info ? `<div class="nb-stp-info">${_esc(info)}</div>` : ''}
+            <div class="nb-stp-actions">${stats}${exportBtns}</div>
+        </div>
+        ${assembledHtml}`;
     }
 
     // ── Shot sheet renderer (shots.sheet) ────────────────────────────────────
@@ -1683,7 +1936,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const dateStr = today.toISOString().slice(0, 10);
         const vars = {
             shot_id:   alias,
+            filename:  filename,
             scene:     String(sceneMeta.alias ?? ''),
+            title:     title,
             desc:      title,
             actors:    actors,
             loc:       String(sceneMeta.loc       ?? ''),
@@ -1700,7 +1955,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             content = [
                 '---',
                 `scene: ${vars.scene}`,
-                `shot: ${alias}`,
+                `shot: ${filename}`,
                 `alias: ${alias}`,
                 `title: ${title}`,
                 `type: shot`,
@@ -2126,6 +2381,33 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         return title || alias || note.filename || '';
     }
 
+    // ── Script export button wiring ───────────────────────────────────────────
+
+    document.addEventListener('click', e => {
+        const fountain = e.target.closest('.nb-script-dl-fountain');
+        const pdf      = e.target.closest('.nb-script-dl-pdf');
+        const btn      = fountain || pdf;
+        if (!btn) return;
+        const nb = btn.dataset.notebook;
+        if (!nb) return;
+        const endpoint = fountain
+            ? `/api/cine/export-fountain?notebook=${encodeURIComponent(nb)}`
+            : `/api/cine/export-pdf?notebook=${encodeURIComponent(nb)}`;
+        if (pdf) {
+            btn.textContent = '⏳ PDF…';
+            btn.disabled = true;
+        }
+        const a = document.createElement('a');
+        a.href = endpoint;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        if (pdf) {
+            setTimeout(() => { btn.textContent = '⬇ PDF'; btn.disabled = false; }, 4000);
+        }
+    });
+
     // ── Plugin registration ───────────────────────────────────────────────────
 
     NbWeb.registerModule('cine', {
@@ -2176,6 +2458,27 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         previewRenderers: [
             {
+                id:     'script',
+                icon:   '🎬',
+                label:  'Script',
+                types:  ['script'],
+                detect: note => note.type === 'script',
+                render: note => _renderScriptNote(note),
+            },
+            {
+                id:     'script-markdown',
+                icon:   '📝',
+                label:  'Markdown',
+                types:  ['script'],
+                detect: note => note.type === 'script',
+                render: note => {
+                    const body = typeof marked !== 'undefined'
+                        ? marked.parse(note.body || '')
+                        : `<pre>${_esc(note.body || '')}</pre>`;
+                    return `<div class="nb-rendered">${body}</div>`;
+                },
+            },
+            {
                 id:       'shot-card',
                 icon:     '🎬',
                 label:    'Shot card',
@@ -2203,16 +2506,21 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     const body = (note.body || '').trim();
                     if (typeof marked === 'undefined')
                         return `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
-                    // Pre-process [[wikilinks]] into nb-wiki-link spans before marked runs;
-                    // _enrichRendered will then attach click handlers to them.
-                    const withLinks = body.replace(
-                        /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
-                        (_, target, label) => {
-                            const t = target.trim();
-                            return `<span class="nb-wiki-link" data-selector="${_esc(t)}"${label ? '' : ' data-autolabel="1"'}>${_esc(label?.trim() || t)}</span>`;
-                        }
-                    );
-                    return `<div class="nb-cine-plain-script nb-rendered">${marked.parse(withLinks)}</div>`;
+                    // Pre-process Fountain syntax that marked would misinterpret:
+                    // > centered < → marked treats as blockquote; protect it with a span.
+                    // > transition → same issue; right-align it.
+                    // [[wikilinks]] → nb-wiki-link spans for _enrichRendered.
+                    let processed = body
+                        .replace(/^([ \t]*)>([ \t]+)(.+?)([ \t]+<)[ \t]*$/mg,
+                            (_, _i, _s, text) => `<p style="text-align:center">${_esc(text.trim())}</p>`)
+                        .replace(/^([ \t]*)>([ \t]+)(.+?)[ \t]*$/mg,
+                            (_, _i, _s, text) => `<p style="text-align:right;text-transform:uppercase">${_esc(text.trim())}</p>`)
+                        .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+                            (_, target, label) => {
+                                const t = target.trim();
+                                return `<span class="nb-wiki-link" data-selector="${_esc(t)}"${label ? '' : ' data-autolabel="1"'}>${_esc(label?.trim() || t)}</span>`;
+                            });
+                    return `<div class="nb-cine-plain-script nb-rendered">${marked.parse(processed)}</div>`;
                 },
             },
             {
