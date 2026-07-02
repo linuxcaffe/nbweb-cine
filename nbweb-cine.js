@@ -946,12 +946,25 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const author  = meta.author   ? `<div class="nb-stp-byline">written by</div><div class="nb-stp-author">${_esc(meta.author)}</div>` : '';
         const info    = [meta.draft, meta.copyright ? `© ${meta.copyright}` : ''].filter(Boolean).join(' · ');
 
-        let sceneCount = 0, maxAlias = 0;
+        let sceneCount = 0, maxAlias = 0, assembledHtml = '';
         try {
             const data   = await _fetchData(note.notebook);
-            const scenes = (data.scenes || []).filter(s => /^\d+$/.test(String(s.alias || '')));
-            sceneCount   = scenes.length;
-            maxAlias     = Math.max(0, ...scenes.map(s => parseInt(s.alias)));
+            const scenes = (data.scenes || [])
+                .filter(s => /^\d+$/.test(String(s.alias || '')))
+                .sort((a, b) => parseInt(a.alias) - parseInt(b.alias));
+            sceneCount = scenes.length;
+            maxAlias   = Math.max(0, ...scenes.map(s => parseInt(s.alias)));
+
+            const sceneNotes = await Promise.all(
+                scenes.map(s =>
+                    fetch(`/api/note?selector=${encodeURIComponent(s.selector)}`)
+                        .then(r => r.json()).catch(() => null)
+                )
+            );
+            assembledHtml = sceneNotes
+                .filter(Boolean)
+                .map(sn => _renderScript(sn) || '')
+                .join('');
         } catch (_) {}
 
         const stats = [
@@ -961,11 +974,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         const exportBtns = `
             <button class="nb-specialty-action nb-script-dl-fountain" data-notebook="${_esc(note.notebook || '')}" title="Download .fountain">⬇ .fountain</button>
-            <button class="nb-specialty-action nb-script-dl-pdf"      data-notebook="${_esc(note.notebook || '')}" title="Export PDF (step 4)" disabled>⬇ PDF</button>`;
-
-        const bodyHtml = typeof marked !== 'undefined'
-            ? marked.parse(note.body || '')
-            : `<pre>${_esc(note.body || '')}</pre>`;
+            <button class="nb-specialty-action nb-script-dl-pdf"      data-notebook="${_esc(note.notebook || '')}" title="Export PDF via afterwriting">⬇ PDF</button>`;
 
         return `<div class="nb-script-title-page">
             <div class="nb-stp-title">${_esc(title)}</div>
@@ -973,7 +982,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             ${info ? `<div class="nb-stp-info">${_esc(info)}</div>` : ''}
             <div class="nb-stp-actions">${stats}${exportBtns}</div>
         </div>
-        <div class="nb-rendered">${bodyHtml}</div>`;
+        ${assembledHtml}`;
     }
 
     // ── Shot sheet renderer (shots.sheet) ────────────────────────────────────
@@ -2375,16 +2384,28 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Script export button wiring ───────────────────────────────────────────
 
     document.addEventListener('click', e => {
-        const btn = e.target.closest('.nb-script-dl-fountain');
+        const fountain = e.target.closest('.nb-script-dl-fountain');
+        const pdf      = e.target.closest('.nb-script-dl-pdf');
+        const btn      = fountain || pdf;
         if (!btn) return;
         const nb = btn.dataset.notebook;
         if (!nb) return;
+        const endpoint = fountain
+            ? `/api/cine/export-fountain?notebook=${encodeURIComponent(nb)}`
+            : `/api/cine/export-pdf?notebook=${encodeURIComponent(nb)}`;
+        if (pdf) {
+            btn.textContent = '⏳ PDF…';
+            btn.disabled = true;
+        }
         const a = document.createElement('a');
-        a.href = `/api/cine/export-fountain?notebook=${encodeURIComponent(nb)}`;
+        a.href = endpoint;
         a.download = '';
         document.body.appendChild(a);
         a.click();
         a.remove();
+        if (pdf) {
+            setTimeout(() => { btn.textContent = '⬇ PDF'; btn.disabled = false; }, 4000);
+        }
     });
 
     // ── Plugin registration ───────────────────────────────────────────────────
