@@ -1435,7 +1435,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const cardsByLane = new Map();
         allLanes.forEach(l => cardsByLane.set(l.stem, []));
         for (const story of (stories || [])) {
-            const key = story.storyline || '';
+            const key = story.plotline || '';
             if (!cardsByLane.has(key)) cardsByLane.set(key, []);
             cardsByLane.get(key).push(story);
         }
@@ -1448,7 +1448,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const card = document.createElement('div');
             card.className = `nb-cine-story-card nb-cine-story-${cardSize}`;
             card.dataset.selector  = story.selector;
-            card.dataset.storyline = story.storyline || '';
+            card.dataset.storyline = story.plotline || '';
             card.dataset.seq       = story.seq ?? 999;
 
             const titleEl = document.createElement('div');
@@ -1471,7 +1471,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             // Large: show additional meta fields (skip structural fields)
             if (cardSize === 'large') {
-                const skip = new Set(['title','storyline','seq','scenes','color','lock']);
+                const skip = new Set(['title','storyline','plotline','seq','scenes','color','lock']);
                 const extras = Object.entries(story.meta || {})
                     .filter(([k]) => !skip.has(k) && k !== 'scenes_raw');
                 if (extras.length) {
