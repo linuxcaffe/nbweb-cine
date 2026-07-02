@@ -2430,6 +2430,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 render: note => _renderScriptNote(note),
             },
             {
+                id:     'script-markdown',
+                icon:   '📝',
+                label:  'Markdown',
+                types:  ['script'],
+                detect: note => note.type === 'script',
+                render: note => {
+                    const body = typeof marked !== 'undefined'
+                        ? marked.parse(note.body || '')
+                        : `<pre>${_esc(note.body || '')}</pre>`;
+                    return `<div class="nb-rendered">${body}</div>`;
+                },
+            },
+            {
                 id:       'shot-card',
                 icon:     '🎬',
                 label:    'Shot card',
