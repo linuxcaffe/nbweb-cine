@@ -1,0 +1,22 @@
+# nbweb-cine plugin — load-bearing identifiers
+# Add a new line whenever you introduce a major feature section.
+
+# ── Storylines board ──────────────────────────────────────────────────────────
+nbweb-cine.js:_openStorylineOverlay
+nbweb-cine.js:_buildStorylines
+nbweb-cine.js:_SL_VIEW_KEY
+
+# ── Data layer ────────────────────────────────────────────────────────────────
+nbweb-cine.js:_fetchData
+nbweb-cine.js:_loadCineBlock
+
+# ── Fountain screenplay pipeline ──────────────────────────────────────────────
+nbweb-cine.js:_renderInline
+nbweb-cine.js:_parseFountain
+nbweb-cine.js:_renderFountainTokens
+nbweb-cine.js:_renderScriptNote
+
+# ── Shot / scene renderers ────────────────────────────────────────────────────
+nbweb-cine.js:_renderScript
+nbweb-cine.js:_renderShotCard
+nbweb-cine.js:_renderSceneCard
