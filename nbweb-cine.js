@@ -3300,6 +3300,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Slate overlay ─────────────────────────────────────────────────────────
 
     // Walk up from the note's selector looking for a slate.md config note.
+    async function _fetchSceneTitle(notebook, sceneAlias) {
+        if (!sceneAlias || !notebook) return '';
+        try {
+            const r = await fetch(`/api/notes?notebook=${encodeURIComponent(notebook)}&folder=script&limit=300`);
+            if (!r.ok) return '';
+            const items = await r.json();
+            const hit = (Array.isArray(items) ? items : (items.notes || [])).find(
+                n => String(n.meta?.alias ?? '') === String(sceneAlias)
+            );
+            return String(hit?.meta?.title || hit?.title || '');
+        } catch (_) { return ''; }
+    }
+
     async function _findSlateConfig(note) {
         const sel = note.selector || '';
         const colonIdx = sel.indexOf(':');
@@ -3493,14 +3506,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const loc   = m.loc ? String(m.loc) : '';
         // Crew — shot FM > effective_fm > slate.md FM (loaded below)
         // slateM not yet available here; overridden after slateCfg load
-        // Production title from notebook config
-        let production = '';
-        try {
-            const cfg = await NbWeb.loadNotebookConfig(note.notebook || NbNav?.notebook || '');
-            production = cfg?.cine?.project || cfg?.project || note.notebook || '';
-        } catch (_) {}
+        const notebook = (note.selector || '').split(':')[0] || note.notebook || '';
 
-        const slateCfg  = await _findSlateConfig(note);
+        // Parallel fetches: production config, slate config, scene title
+        const [cfg, slateCfg, sceneTitle] = await Promise.all([
+            NbWeb.loadNotebookConfig(notebook || NbNav?.notebook || '').catch(() => ({})),
+            _findSlateConfig(note),
+            _fetchSceneTitle(notebook, scene),
+        ]);
+        const production = cfg?.cine?.project || cfg?.project || notebook || '';
+
         const slateM    = slateCfg.meta || {};
         const initState = _slateReadState(note.annotation || '', slateM);
 
@@ -3514,9 +3529,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
             return String(raw).split(',').map(s => s.trim()).filter(Boolean);
         };
-        const cameraList  = _parseCams(m.cameras || ef.cameras || slateM.cameras);
-        const shotTitle   = String(m.title        || ef.title        || '');
-        const sceneTitle  = String(m.scene_title  || ef.scene_title  || '');
+        const cameraList = _parseCams(m.cameras || ef.cameras || slateM.cameras);
+        const shotTitle  = String(m.title || ef.title || '');
 
         const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
         const _d = new Date();
