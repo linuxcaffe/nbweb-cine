@@ -703,19 +703,30 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     font-weight: 700; color: #111; text-align: center; line-height: 1.1;
     font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-/* PRODUCTION row: name left-fills, day badge fixed-width on right */
-.nb-sc-prod .nb-slate-cell-content { flex-direction: row; align-items: center; gap: 0; padding: 2px 6px; }
-.nb-sc-prod-name { flex: 1 1 0; display: flex; align-items: center; overflow: hidden; min-width: 0; }
-.nb-slate-day-badge {
-    flex: 0 0 64px; text-align: center; white-space: nowrap;
-    font-size: clamp(9px, 1.6vw, 13px); font-weight: 700; color: #555;
-    border-left: 1px solid rgba(0,0,0,0.18); padding: 0 6px; line-height: 1.1;
+/* PRODUCTION row: name left-fills, then DAY label bar + number box on right */
+.nb-sc-prod .nb-slate-cell-content { flex-direction: row; align-items: stretch; gap: 0; padding: 0; }
+.nb-sc-prod-name { flex: 1 1 0; display: flex; align-items: center; overflow: hidden; min-width: 0; padding: 2px 6px; }
+/* DAY: vertical label bar acts as separator, then a number box */
+.nb-slate-day-sep {
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    background: #111; color: #fff;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; flex-shrink: 0;
 }
-/* Left-align crew/production text fields */
+.nb-slate-day-num {
+    flex: 0 0 52px; display: flex; align-items: center; justify-content: center;
+    font-size: clamp(16px, 3.5vw, 28px); font-weight: 700; color: #111; text-align: center;
+}
+/* Crew/text cells: CSS-sized, left-aligned, ellipsis — no _fitText */
 .nb-sc-prod .nb-slate-display,
 .nb-sc-dir  .nb-slate-display,
-.nb-sc-dop  .nb-slate-display { text-align: left; justify-content: flex-start; }
-/* Scene/Shot: 3-zone vertical split — big number top 2/3, small title bottom 1/3 */
+.nb-sc-dop  .nb-slate-display {
+    text-align: left; justify-content: flex-start;
+    font-size: clamp(13px, 2.8vw, 22px);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Scene/Shot: 3-zone vertical split — big number top 2/3, title bottom 1/3 */
 .nb-sc-scene .nb-slate-cell-content,
 .nb-sc-shot  .nb-slate-cell-content { flex-direction: column; padding: 1px 4px; gap: 0; }
 .nb-slate-cell-number {
@@ -724,22 +735,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 }
 .nb-slate-cell-subtitle {
     flex: 1 0 0; display: flex; align-items: flex-end; justify-content: center;
-    font-size: clamp(10px, 2.2vw, 16px); font-weight: 600; color: #555;
+    font-size: clamp(12px, 2.5vw, 18px); font-weight: 600; color: #555;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     text-align: center; min-height: 0; padding-bottom: 3px; width: 100%;
     max-width: 100%; line-height: 1.1;
 }
-/* Nudge buttons on incrementable cell edges (< and >) */
+/* Nudge buttons (< >) — wider targets, bolder, more contrast */
 .nb-slate-cell-nudge {
     display: flex; align-items: center; justify-content: center;
-    width: 22px; flex-shrink: 0; background: transparent; border: none;
-    font-family: inherit; font-size: 18px; font-weight: 400;
-    color: rgba(0,0,0,0.2); cursor: pointer;
+    width: 36px; flex-shrink: 0; background: transparent; border: none;
+    font-family: inherit; font-size: 24px; font-weight: 700;
+    color: rgba(0,0,0,0.35); cursor: pointer;
     user-select: none; -webkit-tap-highlight-color: transparent;
     transition: color 0.08s, background 0.08s;
 }
-.nb-slate-cell-nudge:hover  { color: rgba(0,0,0,0.5); }
-.nb-slate-cell-nudge:active { color: #111; background: rgba(0,0,0,0.1); }
+.nb-slate-cell-nudge:hover  { color: rgba(0,0,0,0.6); }
+.nb-slate-cell-nudge:active { color: #111; background: rgba(0,0,0,0.12); }
 /* CTRL context panel: 2×4 button grid */
 .nb-sc-ctrl .nb-slate-cell-content { padding: 4px; }
 .nb-slate-ctrl-grid {
@@ -3547,12 +3558,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 </div>
 <div class="nb-slate-body">
   <div class="nb-slate-cell nb-sc-prod">
-    <div class="nb-slate-cell-label">PRODUCTION</div>
+    <div class="nb-slate-cell-label">PROD</div>
     <div class="nb-slate-cell-content">
       <div class="nb-sc-prod-name">
         <div class="nb-slate-display">${_esc(production || 'Production')}</div>
       </div>
-      ${shootDay ? `<div class="nb-slate-day-badge">Day&nbsp;${_esc(String(shootDay))}</div>` : ''}
+      ${shootDay !== '' && shootDay != null ? `<div class="nb-slate-day-sep">DAY</div><div class="nb-slate-day-num">${_esc(String(shootDay))}</div>` : ''}
     </div>
   </div>
   <div class="nb-slate-cell nb-sc-date">
@@ -3850,12 +3861,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             _fitText(takeInp,   takeCon);
             _fitText(camInp,    camCon);
             _fitText(rollInp,   rollCon);
-            if (prodDisp)  _fitText(prodDisp,  prodNameEl);
             if (sceneDisp) _fitText(sceneDisp, sceneNumCon || sceneCon);
             if (shotDisp)  _fitText(shotDisp,  shotNumCon  || shotCon);
-            if (dirDisp)   _fitText(dirDisp,   dirCon);
-            if (dopDisp)   _fitText(dopDisp,   dopCon);
-            if (dateDisp)  _fitText(dateDisp,  dateCon);
         };
         requestAnimationFrame(_fitAll);
         window.addEventListener('resize', _fitAll);
