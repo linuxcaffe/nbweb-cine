@@ -604,6 +604,149 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 /* nb-cine-card-fm is the togglable field block. Zero horizontal padding so child */
 /* elements keep their own 12px side padding without doubling up from .nb-card.   */
 .nb-cine-card-fm  { padding-left: 0; padding-right: 0; padding-top: 4px; padding-bottom: 8px; }
+
+/* ── Slate overlay ───────────────────────────────────────────────────────────── */
+.nb-slate-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: #fff;
+    display: flex; flex-direction: column;
+    font-family: 'Courier New', Courier, monospace;
+    color: #111;
+    user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;
+    overflow: hidden;
+}
+.nb-slate-bar {
+    flex: 0 0 15vh; min-height: 55px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; position: relative; overflow: hidden;
+    border-top: 3px solid #111; border-bottom: 3px solid #111;
+    -webkit-tap-highlight-color: transparent;
+}
+.nb-slate-bar-top    { background: repeating-linear-gradient(-45deg, #000 0px, #000 54px, #fff 54px, #fff 108px); }
+.nb-slate-bar-bottom { background: repeating-linear-gradient( 45deg, #000 0px, #000 54px, #fff 54px, #fff 108px); }
+.nb-slate-bar:active { filter: brightness(1.15); }
+@keyframes nb-slate-snap-top    { 0%{transform:translateY(0)} 35%{transform:translateY(350%)} 58%{transform:translateY(350%)} 100%{transform:translateY(0)} }
+@keyframes nb-slate-snap-bottom { 0%{transform:translateY(0)} 35%{transform:translateY(-350%)} 58%{transform:translateY(-350%)} 100%{transform:translateY(0)} }
+@keyframes nb-slate-flash-anim  { 0%{opacity:0} 25%{opacity:0} 32%{opacity:0.92} 58%{opacity:0.92} 82%{opacity:0} 100%{opacity:0} }
+.nb-slate-bar-top.nb-slate-snapping    { animation: nb-slate-snap-top    0.30s cubic-bezier(.17,.67,.35,1.15) forwards; }
+.nb-slate-bar-bottom.nb-slate-snapping { animation: nb-slate-snap-bottom  0.30s cubic-bezier(.17,.67,.35,1.15) forwards; }
+.nb-slate-flash {
+    position: absolute; inset: 0; background: #fff;
+    pointer-events: none; opacity: 0; z-index: 2;
+}
+.nb-slate-flash.nb-slate-flashing { animation: nb-slate-flash-anim 0.30s linear forwards; }
+
+.nb-slate-body {
+    flex: 1 1 auto; display: flex; flex-direction: column;
+    padding: 10px 18px; gap: 8px; overflow: hidden; justify-content: space-between;
+}
+.nb-slate-prod {
+    font-size: clamp(0.85rem, 3vw, 1.35rem); font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    text-align: center; border-bottom: 2px solid #ccc; padding-bottom: 7px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nb-slate-info-row {
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+    font-size: clamp(0.72rem, 2.2vw, 1rem); color: #555;
+}
+.nb-slate-info-row b { color: #111; }
+.nb-slate-crew-row {
+    display: flex; gap: 24px; font-size: clamp(0.68rem, 2vw, 0.9rem); color: #888;
+    letter-spacing: 0.04em;
+}
+.nb-slate-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 3px; flex: 1 1 0; min-height: 0; align-content: stretch;
+}
+.nb-slate-cell {
+    background: #f2f2f0; display: flex; flex-direction: column;
+    padding: 5px 8px 6px; overflow: hidden; min-height: 0;
+}
+.nb-slate-cell-label {
+    font-size: 10px; letter-spacing: 0.18em; color: #999;
+    text-transform: uppercase; line-height: 1.2; flex-shrink: 0;
+}
+.nb-slate-cell-value {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    min-height: 0; overflow: hidden; gap: 4px;
+}
+.nb-slate-cell .nb-slate-display,
+.nb-slate-cell input {
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: 700; color: #111; text-align: center;
+    background: transparent; border: none; outline: none;
+    width: 100%; padding: 0; line-height: 1; min-width: 0;
+}
+.nb-slate-cell input[type="number"]::-webkit-inner-spin-button,
+.nb-slate-cell input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+.nb-slate-cell input[type="number"] { -moz-appearance: textfield; }
+.nb-slate-cell input:focus { background: rgba(0,0,0,0.04); }
+.nb-slate-cell .nb-slate-display { color: #333; }
+.nb-slate-inc-btn {
+    font-family: 'Courier New', Courier, monospace; font-weight: 700; font-size: 1.1rem;
+    background: none; border: none; color: #ccc; cursor: pointer;
+    padding: 0 2px; line-height: 1; flex: 0 0 auto;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none; -webkit-user-select: none;
+}
+.nb-slate-inc-btn:active { color: #555; }
+.nb-slate-status-row {
+    display: flex; align-items: center; justify-content: space-between;
+    border-top: 1px solid #ddd; padding-top: 7px;
+}
+.nb-slate-mos-btn {
+    font-family: inherit; font-size: clamp(0.8rem, 2.5vw, 1.05rem); font-weight: 700;
+    letter-spacing: 0.1em; background: #eee; color: #666;
+    border: 2px solid #bbb; border-radius: 6px; padding: 6px 18px; cursor: pointer;
+    transition: all 0.12s; -webkit-tap-highlight-color: transparent;
+}
+.nb-slate-mos-btn.nb-slate-mos-active { background: #a93226; color: #fff; border-color: #a93226; }
+.nb-slate-time {
+    font-size: clamp(1rem, 3.5vw, 1.8rem); font-variant-numeric: tabular-nums; color: #333;
+}
+.nb-slate-take-count { font-size: clamp(0.65rem,1.8vw,0.85rem); color: #aaa; letter-spacing:0.04em; }
+.nb-slate-exit {
+    align-self: flex-end;
+    font-size: 0.65rem; font-family: inherit; letter-spacing: 0.1em; text-transform: uppercase;
+    background: transparent; color: #bbb;
+    border: 1px solid #ddd; border-radius: 99px; padding: 3px 14px;
+    cursor: pointer; transition: color 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+.nb-slate-exit:hover { color: #555; border-color: #999; }
+/* Rolling state — bars transform; bottom bar becomes CUT target */
+.nb-slate-overlay.nb-slate-rolling .nb-slate-bar-top {
+    background: repeating-linear-gradient(-45deg, #7a0000 0px, #7a0000 54px, #aa1111 54px, #aa1111 108px);
+    cursor: default;
+}
+.nb-slate-overlay.nb-slate-rolling .nb-slate-bar-bottom {
+    background: #a93226; cursor: pointer;
+}
+.nb-slate-overlay.nb-slate-rolling .nb-slate-bar-bottom:active { filter: brightness(1.2); }
+.nb-slate-rolling-label {
+    display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-family: 'Courier New', Courier, monospace; font-weight: 700;
+    font-size: clamp(0.85rem, 2.8vw, 1.4rem); letter-spacing: 0.2em;
+    color: rgba(255,255,255,0.92); pointer-events: none; white-space: nowrap;
+}
+.nb-slate-overlay.nb-slate-rolling .nb-slate-rolling-label { display: block; }
+.nb-slate-overlay.nb-slate-rolling .nb-slate-mos-btn { opacity: 0.3; pointer-events: none; }
+.nb-slate-rolling-pill {
+    font-size: clamp(0.65rem, 1.8vw, 0.85rem); color: #a93226; letter-spacing: 0.08em;
+    font-weight: 700; display: none;
+}
+.nb-slate-overlay.nb-slate-rolling .nb-slate-rolling-pill { display: inline; }
+.nb-slate-overlay.nb-slate-rolling .nb-slate-take-count { display: none; }
+/* Shot specialty header — color-coded border by INT/EXT · DAY/NIGHT */
+.nb-cine-shot-hdr[data-dnie="ID"] { border-left-color: #a8a890; }
+.nb-cine-shot-hdr[data-dnie="ED"] { border-left-color: #c8a800; }
+.nb-cine-shot-hdr[data-dnie="IN"] { border-left-color: #6a8bba; }
+.nb-cine-shot-hdr[data-dnie="EN"] { border-left-color: #5ba35b; }
+.nb-cine-shot-pill-dnie { font-weight: 700; font-size: 0.78em; letter-spacing: 0.04em; }
+.nb-cine-takes-pill { cursor: pointer; border: 1px solid var(--border); background: var(--bg3, var(--bg2)); color: var(--text-muted); padding: 1px 7px; border-radius: 10px; font-size: 0.9em; }
+.nb-cine-takes-pill:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 `;
 
     if (!document.getElementById('nb-cine-styles')) {
@@ -3044,6 +3187,499 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             `${bodyHtml}</div>`;
     }
 
+    // ── Slate overlay ─────────────────────────────────────────────────────────
+
+    // Walk up from the note's selector looking for a slate.md config note.
+    async function _findSlateConfig(note) {
+        const sel = note.selector || '';
+        const colonIdx = sel.indexOf(':');
+        if (colonIdx < 0) return { meta: {}, fields: null };
+        const notebook = sel.slice(0, colonIdx);
+        const parts = sel.slice(colonIdx + 1).split('/');
+        parts.pop();
+        while (true) {
+            const folder = parts.length > 0 ? parts.join('/') + '/' : '';
+            try {
+                const r = await fetch(`/api/note?selector=${encodeURIComponent(notebook + ':' + folder + 'slate.md')}`);
+                if (r.ok) {
+                    const data = await r.json();
+                    if (data && !data.error && data.meta) {
+                        return { meta: data.meta };
+                    }
+                }
+            } catch (_) {}
+            if (parts.length === 0) break;
+            parts.pop();
+        }
+        return { meta: {}, fields: null };
+    }
+
+
+
+    // Parse annotation FM + take table; return state for the next snap.
+    function _slateDateTime() {
+        const d = new Date(), pad = n => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    // Read slate state from annotation sidecar. Parses timelog fenced block.
+    // slateDefaults = meta from nearest slate.md — fallback when no annotation yet.
+    // Outer annotation FM may have uncommented camera:/fps: to override per-shot defaults.
+    function _slateReadState(annotation, slateDefaults = {}) {
+        const empty = { nextTake: 1, tape: '', camera: slateDefaults.camera || 'A', fps: slateDefaults.fps || '24', takeCount: 0, rolling: false };
+        if (!annotation) return empty;
+        // Parse outer FM — only camera: and fps: are per-shot overrides (uncommented lines only)
+        const fmOverrides = {};
+        let body = annotation;
+        if (body.startsWith('---')) {
+            const end = body.indexOf('\n---', 3);
+            if (end >= 0) {
+                for (const line of body.slice(3, end).split('\n')) {
+                    const mx = line.match(/^(camera|fps):\s*(\S+)/);
+                    if (mx) fmOverrides[mx[1]] = mx[2];
+                }
+                body = body.slice(end + 4);
+            }
+        }
+        // Find timelog fenced block
+        const tlMatch = body.match(/```timelog\n([\s\S]*?)```/);
+        if (!tlMatch) {
+            // Migration: read legacy ## Takes table so existing shots keep their take count
+            const legacyRows = [...annotation.matchAll(/^\|(.+)\|$/gm)]
+                .map(m => m[1].split('|').map(s => s.trim()))
+                .filter(cells => cells.length >= 3 && /^\d+$/.test(cells[2]));
+            const legacyMax = legacyRows.length > 0 ? Math.max(...legacyRows.map(c => parseInt(c[2], 10))) : 0;
+            return {
+                nextTake: legacyMax + 1, tape: '',
+                camera: fmOverrides.camera || slateDefaults.camera || 'A',
+                fps:    fmOverrides.fps    || slateDefaults.fps    || '24',
+                takeCount: legacyRows.length, rolling: false,
+            };
+        }
+        const tlContent = tlMatch[1];
+        const iLines = [...tlContent.matchAll(/^i \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} (\S+)(.*)/gm)];
+        const oCount = (tlContent.match(/^o \d{4}-\d{2}-\d{2}/gm) || []).length;
+        let maxTake = 0, lastTape = '', lastCamera = slateDefaults.camera || 'A', lastFps = slateDefaults.fps || '24';
+        for (const m of iLines) {
+            const parts = m[1].split(':');
+            const n = parseInt(parts[parts.length - 1], 10);
+            if (!isNaN(n)) maxTake = Math.max(maxTake, n);
+            const tagPart = (m[2] || '').includes(';') ? m[2].slice(m[2].indexOf(';') + 1) : '';
+            const tm = tagPart.match(/\btape:(\S+)/); if (tm) lastTape   = tm[1];
+            const cm = tagPart.match(/\bcam:(\S+)/);  if (cm) lastCamera = cm[1];
+            const fm = tagPart.match(/\bfps:(\S+)/);  if (fm) lastFps   = fm[1];
+        }
+        // FM overrides win over per-take tags (uncommenting camera:/fps: pins this shot)
+        if (fmOverrides.camera) lastCamera = fmOverrides.camera;
+        if (fmOverrides.fps)    lastFps    = fmOverrides.fps;
+        return {
+            nextTake: maxTake + 1, tape: lastTape, camera: lastCamera, fps: lastFps,
+            takeCount: iLines.length, rolling: iLines.length > oCount,
+        };
+    }
+
+    // Minimal annotation FM template — written once when annotation is first created.
+    // camera:/fps: are commented out; uncomment to pin this shot's slate defaults.
+    const _SLATE_ANNOTATION_TEMPLATE = [
+        '---',
+        'lock:',
+        '# camera:    ← uncomment to override inherited default',
+        '# fps:       ← uncomment to override inherited default',
+        '---',
+    ].join('\n');
+
+    // Write 'i' timelog line to annotation — called at SNAP (clap). Returns updated annotation string.
+    function _slateOpenTake(existing, snap) {
+        const { take, tape, camera, fps, mos, scene = '', alias = '', shotFile = '' } = snap;
+        const dt      = _slateDateTime();
+        const account = `${scene}:${shotFile || alias}:${take}`;
+        const tags = [];
+        if (tape) tags.push(`tape:${tape}`); // omit entirely when empty — blank tape: poisons following tags
+        tags.push(`cam:${camera || 'A'}`, `fps:${fps || '24'}`);
+        if (mos) tags.push(':MOS:');
+        const iLine = `i ${dt} ${account}  ; ${tags.join(', ')}`; // comma-separated: hledger tag delimiter
+        const tlRx  = /```timelog\n([\s\S]*?)```/;
+
+        let body  = existing || '';
+        let hasFm = false;
+
+        // Detect and handle existing FM
+        if (body.startsWith('---')) {
+            const fmEnd = body.indexOf('\n---', 3);
+            if (fmEnd >= 0) {
+                if (body.slice(3, fmEnd).includes('lock:')) {
+                    hasFm = true; // new-style template FM — leave it alone
+                } else {
+                    body = body.slice(fmEnd + 4).replace(/^\n+/, ''); // old state-cache FM — strip it
+                }
+            }
+        }
+
+        const tlMatch = body.match(tlRx);
+        if (tlMatch) {
+            // Timelog block exists — append i line only
+            const tlContent = tlMatch[1].trimEnd() + '\n' + iLine + '\n';
+            const updated   = body.replace(tlRx, '```timelog\n' + tlContent + '```');
+            // If old FM was stripped, prepend the template now
+            return hasFm ? updated : _SLATE_ANNOTATION_TEMPLATE + '\n\n' + updated.trim() + '\n';
+        } else {
+            // No timelog block — create it; add template FM if needed
+            const prefix   = hasFm ? '' : _SLATE_ANNOTATION_TEMPLATE + '\n\n';
+            const rest     = body.trim();
+            const tlFenced = '```timelog\n' + iLine + '\n```';
+            return prefix + (rest ? rest + '\n\n' : '') + tlFenced + '\n';
+        }
+    }
+
+    // Write 'o' timelog line to annotation — called at CUT. Returns updated annotation string.
+    function _slateCloseTake(existing) {
+        const oLine  = `o ${_slateDateTime()}`;
+        const tlRx   = /```timelog\n([\s\S]*?)```/;
+        const tlMatch = (existing || '').match(tlRx);
+        if (!tlMatch) return existing;
+        const tlContent = tlMatch[1].trimEnd() + '\n' + oLine + '\n';
+        return existing.replace(tlRx, '```timelog\n' + tlContent + '```');
+    }
+
+    const DEFAULT_SLATE_FIELDS = [
+        { key: 'scene',  label: 'SCENE', span: 2, inc: false },
+        { key: 'alias',  label: 'SHOT',  span: 2, inc: false },
+        { key: 'take',   label: 'TAKE',  span: 2, inc: true  },
+        { key: 'tape',   label: 'TAPE',  span: 2, inc: false },
+        { key: 'camera', label: 'CAM',   span: 2, inc: false },
+        { key: 'fps',    label: 'FPS',   span: 2, inc: false },
+    ];
+
+    // Auto-size inp font to fill cell. Uses a shared off-screen mirror span to measure.
+    function _fitText(inp, cell) {
+        const isInput = inp.tagName === 'INPUT';
+        const text = isInput ? (inp.value || inp.placeholder || '0') : (inp.textContent.trim() || '0');
+        let mirror = document._nbSlateMirror;
+        if (!mirror) {
+            mirror = document.createElement('span');
+            mirror.style.cssText = 'position:fixed;top:-9999px;left:-9999px;white-space:nowrap;' +
+                'font-family:"Courier New",Courier,monospace;font-weight:700;pointer-events:none;';
+            document.body.appendChild(mirror);
+            document._nbSlateMirror = mirror;
+        }
+        mirror.textContent = text;
+        const label = cell.querySelector('.nb-slate-cell-label');
+        const maxW  = cell.clientWidth  - 20;
+        const maxH  = cell.clientHeight - (label ? label.offsetHeight + 8 : 8);
+        if (maxW <= 0 || maxH <= 0) return;
+        let lo = 8, hi = 400;
+        while (hi - lo > 1) {
+            const mid = Math.round((lo + hi) / 2);
+            mirror.style.fontSize = mid + 'px';
+            if (mirror.offsetWidth > maxW || mirror.offsetHeight > maxH) hi = mid;
+            else lo = mid;
+        }
+        inp.style.fontSize = lo + 'px';
+        inp.style.lineHeight = '1';
+    }
+
+    async function _showSlate(note) {
+        const m  = note.meta || {};
+        const ef = note.effective_fm || {};
+        const alias    = m.alias ? String(m.alias) : '';
+        const scene    = m.scene != null ? String(m.scene) : '';
+        const shotFile = (note.selector || '').split('/').pop().replace(/\.md$/, '');
+        const ie    = (m.int_ext   || '').toUpperCase();
+        const dn    = (m.day_night || '').toUpperCase();
+        const loc   = m.loc ? String(m.loc) : '';
+        // Crew from config chain — set in folder dotfile or .nb-cine.json
+        const director = String(m.director || ef.director || '');
+        const dp       = String(m.dp       || ef.dp       || '');
+        const producer = String(m.producer || ef.producer || '');
+        // Production title from notebook config
+        let production = '';
+        try {
+            const cfg = await NbWeb.loadNotebookConfig(note.notebook || NbNav?.notebook || '');
+            production = cfg?.cine?.project || cfg?.project || note.notebook || '';
+        } catch (_) {}
+
+        const slateCfg  = await _findSlateConfig(note);
+        const initState = _slateReadState(note.annotation || '', slateCfg.meta || {});
+        const fields    = DEFAULT_SLATE_FIELDS;
+
+        // Static initial values by field key
+        const READONLY = new Set(['scene', 'alias']);
+        const initVals = {
+            scene:  scene,
+            alias:  alias,
+            take:   String(initState.nextTake),
+            tape:   initState.tape,
+            camera: initState.camera,
+            fps:    initState.fps,
+        };
+
+        const overlay = document.createElement('div');
+        overlay.className = 'nb-slate-overlay';
+        overlay.innerHTML = `
+<div class="nb-slate-bar nb-slate-bar-top" role="button" aria-label="Snap">
+  <span class="nb-slate-rolling-label">● ROLLING</span>
+</div>
+<div class="nb-slate-body">
+  <div class="nb-slate-prod">${_esc(production || 'Production')}</div>
+  <div class="nb-slate-info-row">
+    ${scene  ? `<span>SC&nbsp;<b>${_esc(scene)}</b></span>`                       : ''}
+    ${alias  ? `<span>SHOT&nbsp;<b>${_esc(alias)}</b></span>`                     : ''}
+    ${ie||dn ? `<span><b>${_esc([ie,dn].filter(Boolean).join('·'))}</b></span>`   : ''}
+    ${loc    ? `<span>${_esc(loc)}</span>`                                         : ''}
+  </div>
+  <button class="nb-slate-exit">✕ Exit Slate</button>
+</div>
+<div class="nb-slate-bar nb-slate-bar-bottom" role="button" aria-label="Snap / CUT">
+  <span class="nb-slate-rolling-label">● CUT</span>
+</div>
+<div class="nb-slate-flash"></div>`;
+
+        document.body.appendChild(overlay);
+        const slBody = overlay.querySelector('.nb-slate-body');
+
+        // Build dynamic grid
+        const grid     = document.createElement('div');
+        grid.className = 'nb-slate-grid';
+        const valueEls = new Map(); // key → input or display element
+
+        for (const f of fields) {
+            const cell    = document.createElement('div');
+            cell.className    = 'nb-slate-cell';
+            cell.dataset.field = f.key;
+            cell.style.gridColumn = `span ${f.span}`;
+
+            const lbl = document.createElement('div');
+            lbl.className   = 'nb-slate-cell-label';
+            lbl.textContent = f.label;
+            cell.appendChild(lbl);
+
+            const valWrap    = document.createElement('div');
+            valWrap.className = 'nb-slate-cell-value';
+            const initVal    = initVals[f.key] ?? '';
+
+            if (READONLY.has(f.key)) {
+                const disp       = document.createElement('div');
+                disp.className   = 'nb-slate-display';
+                disp.textContent = initVal || '—';
+                valWrap.appendChild(disp);
+                valueEls.set(f.key, disp);
+            } else if (f.inc) {
+                const decBtn       = document.createElement('button');
+                decBtn.type        = 'button';
+                decBtn.className   = 'nb-slate-inc-btn';
+                decBtn.textContent = '−';
+                const inp          = document.createElement('input');
+                inp.type           = 'number';
+                inp.inputMode      = 'numeric';
+                inp.value          = initVal;
+                const incBtn       = document.createElement('button');
+                incBtn.type        = 'button';
+                incBtn.className   = 'nb-slate-inc-btn';
+                incBtn.textContent = '+';
+                decBtn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    inp.value = Math.max(1, (parseInt(inp.value, 10) || 1) - 1);
+                    _fitText(inp, cell);
+                });
+                incBtn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    inp.value = (parseInt(inp.value, 10) || 0) + 1;
+                    _fitText(inp, cell);
+                });
+                valWrap.appendChild(decBtn);
+                valWrap.appendChild(inp);
+                valWrap.appendChild(incBtn);
+                valueEls.set(f.key, inp);
+            } else {
+                const inp     = document.createElement('input');
+                inp.type      = 'text';
+                inp.value     = initVal;
+                if (f.key === 'camera') inp.maxLength = 3;
+                if (f.key === 'fps')    inp.maxLength = 6;
+                inp.addEventListener('input', () => _fitText(inp, cell));
+                valWrap.appendChild(inp);
+                valueEls.set(f.key, inp);
+            }
+            cell.appendChild(valWrap);
+            grid.appendChild(cell);
+        }
+
+        // Crew and status rows
+        const crewRow     = document.createElement('div');
+        crewRow.className = 'nb-slate-crew-row';
+        crewRow.innerHTML = `${director ? `<span>DIR&nbsp;<b>${_esc(director)}</b></span>` : ''}${dp ? `<span>DP&nbsp;<b>${_esc(dp)}</b></span>` : ''}${producer ? `<span>PROD&nbsp;<b>${_esc(producer)}</b></span>` : ''}`;
+        const statusRow     = document.createElement('div');
+        statusRow.className = 'nb-slate-status-row';
+        statusRow.innerHTML = `<button class="nb-slate-mos-btn">MOS</button><div class="nb-slate-time">--:--:--</div><div class="nb-slate-take-count">${initState.takeCount ? initState.takeCount + ' take' + (initState.takeCount !== 1 ? 's' : '') + ' recorded' : 'no takes yet'}</div><span class="nb-slate-rolling-pill">● REC</span>`;
+
+        slBody.appendChild(grid);
+        slBody.appendChild(crewRow);
+        slBody.appendChild(statusRow);
+
+        const mosBtn  = statusRow.querySelector('.nb-slate-mos-btn');
+        const timeEl  = statusRow.querySelector('.nb-slate-time');
+        const countEl = statusRow.querySelector('.nb-slate-take-count');
+        const topBar  = overlay.querySelector('.nb-slate-bar-top');
+        const botBar  = overlay.querySelector('.nb-slate-bar-bottom');
+        const flash   = overlay.querySelector('.nb-slate-flash');
+
+        // Initial fit + resize observer
+        const _fitAll = () => {
+            for (const f of fields) {
+                const el   = valueEls.get(f.key);
+                const cell = grid.querySelector(`[data-field="${f.key}"]`);
+                if (el && cell) _fitText(el, cell);
+            }
+        };
+        requestAnimationFrame(_fitAll);
+        const ro = new ResizeObserver(_fitAll);
+        ro.observe(grid);
+
+        let mosActive = false;
+        let takeCount = initState.takeCount;
+        let snapping  = false;
+        let rolling   = initState.rolling;
+
+        const _setRolling = val => {
+            rolling = val;
+            overlay.classList.toggle('nb-slate-rolling', val);
+        };
+        if (rolling) _setRolling(true);
+
+        // Live clock
+        const _tick = () => { timeEl.textContent = new Date().toTimeString().slice(0, 8); };
+        _tick();
+        const clockId = setInterval(_tick, 1000);
+
+        mosBtn.addEventListener('click', () => {
+            mosActive = !mosActive;
+            mosBtn.classList.toggle('nb-slate-mos-active', mosActive);
+        });
+
+        const getVal = key => {
+            const el = valueEls.get(key);
+            if (!el) return '';
+            return el.tagName === 'INPUT' ? el.value.trim() : el.textContent.trim();
+        };
+
+        const _snap = async () => {
+            if (snapping || rolling) return;
+            snapping = true;
+            const snap = {
+                take:     parseInt(getVal('take'), 10) || 1,
+                tape:     getVal('tape') || '',
+                camera:   getVal('camera') || getVal('cam') || 'A',
+                fps:      getVal('fps') || '24',
+                mos:      mosActive,
+                scene,
+                alias,
+                shotFile,
+            };
+            slBody.style.opacity = '0';
+            topBar.classList.add('nb-slate-snapping');
+            botBar.classList.add('nb-slate-snapping');
+            flash.classList.add('nb-slate-flashing');
+            setTimeout(() => {
+                topBar.classList.remove('nb-slate-snapping');
+                botBar.classList.remove('nb-slate-snapping');
+                flash.classList.remove('nb-slate-flashing');
+                slBody.style.opacity = '1';
+                snapping = false;
+            }, 320);
+            try {
+                const r       = await fetch(`/api/note?selector=${encodeURIComponent(note.selector)}`);
+                const data    = await r.json();
+                const updated = _slateOpenTake(data.annotation || '', snap);
+                const wr      = await fetch(`/api/note/annotate?selector=${encodeURIComponent(note.selector)}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: updated }),
+                });
+                if (!wr.ok) console.warn('Slate: snap write failed', wr.status, await wr.text());
+            } catch (err) { console.warn('Slate: snap write error', err); }
+            takeCount++;
+            countEl.textContent = takeCount + ' take' + (takeCount !== 1 ? 's' : '') + ' recorded';
+            _setRolling(true);
+        };
+
+        const _cut = async () => {
+            if (!rolling) return;
+            try {
+                const r       = await fetch(`/api/note?selector=${encodeURIComponent(note.selector)}`);
+                const data    = await r.json();
+                const updated = _slateCloseTake(data.annotation || '');
+                const wr      = await fetch(`/api/note/annotate?selector=${encodeURIComponent(note.selector)}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: updated }),
+                });
+                if (!wr.ok) console.warn('Slate: cut write failed', wr.status, await wr.text());
+            } catch (err) { console.warn('Slate: cut write error', err); }
+            // Advance take input for next take
+            const curTake = parseInt(getVal('take'), 10) || 1;
+            const takeInp = valueEls.get('take');
+            if (takeInp) {
+                takeInp.value = curTake + 1;
+                const takeCell = grid.querySelector('[data-field="take"]');
+                if (takeCell) _fitText(takeInp, takeCell);
+            }
+            mosActive = false;
+            mosBtn.classList.remove('nb-slate-mos-active');
+            _setRolling(false);
+        };
+
+        topBar.addEventListener('click', () => { if (!rolling) _snap(); });
+        botBar.addEventListener('click', () => { if (rolling) _cut(); else _snap(); });
+
+        const _close = () => {
+            clearInterval(clockId);
+            ro.disconnect();
+            overlay.remove();
+            document.removeEventListener('keydown', _esc_key);
+        };
+        overlay.querySelector('.nb-slate-exit').addEventListener('click', _close);
+        const _esc_key = e => { if (e.key === 'Escape') _close(); };
+        document.addEventListener('keydown', _esc_key);
+    }
+
+    function _renderShotHeader(note) {
+        const m     = note.meta || {};
+        const alias = m.alias != null ? String(m.alias) : '';
+        const scene = m.scene != null ? String(m.scene) : '';
+        const ie    = (m.int_ext   || '').charAt(0).toUpperCase();
+        const dn    = (m.day_night || '').charAt(0).toUpperCase();
+        const dnie  = (ie && dn) ? ie + dn : (ie || dn || '');
+        const loc   = m.loc        ? String(m.loc)        : '';
+        const day   = m.day  != null ? String(m.day)      : '';
+        const pages = m.page_count  ? String(m.page_count): '';
+
+        const shotId = scene && alias ? `SC ${_esc(scene)} · ${_esc(alias)}`
+                     : alias          ? _esc(alias)
+                     : scene          ? `SC ${_esc(scene)}`
+                     : _esc(note.title || '');
+
+        const dnieLabel = { ID: 'INT·DAY', ED: 'EXT·DAY', IN: 'INT·NIGHT', EN: 'EXT·NIGHT' };
+        const dniePill  = dnie
+            ? `<span class="nb-specialty-pill nb-cine-shot-pill-dnie nb-cine-strip-${dnie}">${dnieLabel[dnie] || dnie}</span>`
+            : '';
+        const locPill   = loc   ? `<span class="nb-specialty-pill">${_esc(loc)}</span>`      : '';
+        const dayPill   = day   ? `<span class="nb-specialty-pill">Day ${_esc(day)}</span>` : '';
+        const pagesPill = pages ? `<span class="nb-specialty-pill">${_esc(pages)}p</span>`  : '';
+
+        const takeCount = note.annotation
+            ? (note.annotation.match(/^\|\s*\d+\s*\|/gm) || []).length : 0;
+        const takesPill = takeCount > 0
+            ? `<button class="nb-specialty-pill nb-cine-takes-pill" data-action="view-takes" title="Scroll to take log">📋 ${takeCount} take${takeCount !== 1 ? 's' : ''}</button>`
+            : '';
+
+        return `<div class="nb-specialty-header nb-cine-shot-hdr" data-selector="${_esc(note.selector || '')}" data-dnie="${_esc(dnie)}">
+  <span class="nb-specialty-icon">🎬</span>
+  <span class="nb-specialty-label">${shotId}</span>
+  ${dniePill}${locPill}${dayPill}${pagesPill}${takesPill}
+  <span class="nb-specialty-right">
+    <button class="nb-specialty-action nb-cine-slate-btn" data-slate-sel="${_esc(note.selector || '')}">🎞 Slate</button>
+  </span>
+</div>`;
+    }
+
     function _renderShotCard(note) {
         const m = note.meta || {};
         const alias    = m.alias     ? String(m.alias)    : '';
@@ -3228,7 +3864,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         helpUrl:     '/plugins/nbweb-cine.md',
         fmKeys: ['scene', 'shot', 'loc', 'day_night', 'int_ext', 'cast', 'extras',
                  'vfx', 'sequence', 'script_day', 'page_count', 'shoot_day',
-                 'stripboard', 'breakdown', 'props', 'wardrobe', 'sfx'],
+                 'stripboard', 'breakdown', 'props', 'wardrobe', 'sfx',
+                 'director', 'dp', 'producer', 'fps'],
 
         // .nb-cine-card-fm is the togglable field block inside shot and scene cards.
         // Strip header always stays visible; body/annotation button always accessible.
@@ -3352,7 +3989,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 types:    ['shot'],
                 fullCard: true,
                 detect:   note => note.type === 'shot',
-                render:   note => _renderShotCard(note),
+                render:   note => _renderShotHeader(note) + _renderShotCard(note),
             },
             {
                 id:     'screenplay',
@@ -3441,16 +4078,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         ],
 
         listItemIcon: note => {
-            const p = note.selector || note.path || '';
-            if (/[:/]shots\//.test(p))     return '🎬';
-            if (/[:/]actors\//.test(p))    return '🧑';
-            if (/[:/]locations\//.test(p)) return '📍';
-            if (/[:/]script\//.test(p))    return '📜';
-            if (/[:/]resou/.test(p))          return '🎁';
-            if (/[:/]schedule\//.test(p))       return '📅';
-            if (note.type === 'day')           return '📅';
-            if (note.type === 'resource')      return '🎁';
-            return null;
+            const TYPE_ICONS = {
+                shot: '🎬', scene: '📜', slate: '🎬',
+                character: '🎭', actor: '🧑',
+                location: '📍', resource: '🎁', day: '📅',
+            };
+            return TYPE_ICONS[note.type] ?? null;
         },
 
         codeblockRenderers: [{
@@ -3516,7 +4149,33 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }],
     });
 
-    // ── Fountain / PDF export buttons ─────────────────────────────────────────
+    // ── Slate launch button delegation ────────────────────────────────────────
+    document.addEventListener('click', async e => {
+        const btn = e.target.closest('.nb-cine-slate-btn');
+        if (!btn) return;
+        e.stopPropagation();
+        const sel  = btn.dataset.slateSel;
+        const note = NbMain.activeNote();
+        if (note && sel && note.selector === sel) {
+            await _showSlate(note);
+        } else if (sel) {
+            try {
+                const r    = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`);
+                const data = await r.json();
+                if (data && !data.error) { if (!data.selector) data.selector = sel; await _showSlate(data); }
+            } catch (_) {}
+        }
+    }, true);
+
+    // ── Takes pill — scroll to annotation foot ────────────────────────────────
+    document.addEventListener('click', e => {
+        if (!e.target.closest('[data-action="view-takes"]')) return;
+        e.stopPropagation();
+        document.querySelector('.nb-annotation-foot')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, true);
+
+// ── Fountain / PDF export buttons ─────────────────────────────────────────
     document.addEventListener('click', e => {
         const fountain = e.target.closest('.nb-script-dl-fountain');
         const pdf      = e.target.closest('.nb-script-dl-pdf');
