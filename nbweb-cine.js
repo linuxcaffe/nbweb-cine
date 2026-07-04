@@ -623,8 +623,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     border-top: 3px solid #111; border-bottom: 3px solid #111;
     -webkit-tap-highlight-color: transparent;
 }
-.nb-slate-bar-top    { background: repeating-linear-gradient(-45deg, #000 0px, #000 54px, #fff 54px, #fff 108px); }
-.nb-slate-bar-bottom { background: repeating-linear-gradient( 45deg, #000 0px, #000 54px, #fff 54px, #fff 108px); }
+/* Default (idle/eval): green = system standing by */
+.nb-slate-bar-top    { background: #1e5c1e; cursor: default; }
+.nb-slate-bar-bottom { background: #1e5c1e; cursor: default; }
 .nb-slate-bar:active { filter: brightness(1.15); }
 @keyframes nb-slate-snap-top    { 0%{transform:translateY(0)} 35%{transform:translateY(350%)} 58%{transform:translateY(350%)} 100%{transform:translateY(0)} }
 @keyframes nb-slate-snap-bottom { 0%{transform:translateY(0)} 35%{transform:translateY(-350%)} 58%{transform:translateY(-350%)} 100%{transform:translateY(0)} }
@@ -637,108 +638,191 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 }
 .nb-slate-flash.nb-slate-flashing { animation: nb-slate-flash-anim 0.30s linear forwards; }
 
+/* ── Slate body: 7 equal rows; bars each equal to 1 body-row ────────────────── */
+/* flex ratio: bar(1) + body(7) + bar(1) = 9 units total                        */
+.nb-slate-bar  { flex: 1 1 0; min-height: 0; }
 .nb-slate-body {
-    flex: 1 1 auto; display: flex; flex-direction: column;
-    padding: 10px 18px; gap: 8px; overflow: hidden; justify-content: space-between;
+    flex: 7 7 0; min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(7, 1fr);
+    gap: 2px; padding: 2px; background: #111; overflow: hidden;
 }
-.nb-slate-prod {
-    font-size: clamp(0.85rem, 3vw, 1.35rem); font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    text-align: center; border-bottom: 2px solid #ccc; padding-bottom: 7px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.nb-slate-info-row {
-    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
-    font-size: clamp(0.72rem, 2.2vw, 1rem); color: #555;
-}
-.nb-slate-info-row b { color: #111; }
-.nb-slate-crew-row {
-    display: flex; gap: 24px; font-size: clamp(0.68rem, 2vw, 0.9rem); color: #888;
-    letter-spacing: 0.04em;
-}
-.nb-slate-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    gap: 3px; flex: 1 1 0; min-height: 0; align-content: stretch;
-}
+/* Cell: label bar on left edge, content fills the rest */
 .nb-slate-cell {
-    background: #f2f2f0; display: flex; flex-direction: column;
-    padding: 5px 8px 6px; overflow: hidden; min-height: 0;
+    background: #f0f0ee; display: flex; flex-direction: row;
+    overflow: hidden; min-height: 0; min-width: 0;
 }
 .nb-slate-cell-label {
-    font-size: 10px; letter-spacing: 0.18em; color: #999;
-    text-transform: uppercase; line-height: 1.2; flex-shrink: 0;
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    background: #111; color: #fff;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; flex-shrink: 0;
+    cursor: pointer; user-select: none; -webkit-user-select: none;
+    -webkit-tap-highlight-color: rgba(255,255,255,0.12);
+    transition: background 0.1s;
 }
-.nb-slate-cell-value {
-    flex: 1; display: flex; align-items: center; justify-content: center;
-    min-height: 0; overflow: hidden; gap: 4px;
+.nb-slate-cell-label:active { background: #333; }
+.nb-slate-cell-content {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    overflow: hidden; padding: 3px 6px; gap: 1px; min-width: 0;
 }
-.nb-slate-cell .nb-slate-display,
+.nb-slate-display,
 .nb-slate-cell input {
-    font-family: 'Courier New', Courier, monospace;
+    font-family: inherit;
     font-weight: 700; color: #111; text-align: center;
     background: transparent; border: none; outline: none;
     width: 100%; padding: 0; line-height: 1; min-width: 0;
 }
+.nb-slate-display { display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; }
 .nb-slate-cell input[type="number"]::-webkit-inner-spin-button,
 .nb-slate-cell input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
 .nb-slate-cell input[type="number"] { -moz-appearance: textfield; }
-.nb-slate-cell input:focus { background: rgba(0,0,0,0.04); }
-.nb-slate-cell .nb-slate-display { color: #333; }
-.nb-slate-inc-btn {
-    font-family: 'Courier New', Courier, monospace; font-weight: 700; font-size: 1.1rem;
-    background: none; border: none; color: #ccc; cursor: pointer;
-    padding: 0 2px; line-height: 1; flex: 0 0 auto;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none; -webkit-user-select: none;
+.nb-slate-cell input:focus { background: rgba(0,0,0,0.04); border-radius: 2px; }
+/* Explicit grid placement — 7-row body, 3-col body
+   Row 1    : PRODUCTION(1-2) | DATE(3)
+   Rows 2-3 : SCENE(1)  SHOT(2)  TAKE(3)   — each span 2 rows
+   Rows 4-5 : CTRL(1)   CAM(2)   ROLL(3)   — each span 2 rows
+   Row 6    : DIRECTOR(1-2)  | SOUND(3)     — SOUND spans rows 6-7
+   Row 7    : PRODUCER(1-2)  | SOUND cont.                           */
+.nb-sc-prod  { grid-row: 1;     grid-column: 1 / 3; }
+.nb-sc-date  { grid-row: 1;     grid-column: 3; }
+.nb-sc-scene { grid-row: 2 / 4; grid-column: 1; }
+.nb-sc-shot  { grid-row: 2 / 4; grid-column: 2; }
+.nb-sc-take  { grid-row: 2 / 4; grid-column: 3; }
+.nb-sc-ctrl  { grid-row: 4 / 6; grid-column: 1; background: #e0e0e0; }
+.nb-sc-cam   { grid-row: 4 / 6; grid-column: 2; }
+.nb-sc-roll  { grid-row: 4 / 6; grid-column: 3; }
+.nb-sc-dir   { grid-row: 6;     grid-column: 1 / 3; }
+.nb-sc-mos   { grid-row: 6 / 8; grid-column: 3; }
+.nb-sc-prod2 { grid-row: 7;     grid-column: 1 / 3; }
+/* DATE cell: tabular digits for stable live clock */
+.nb-slate-datetime {
+    font-weight: 700; color: #111; text-align: center; line-height: 1.1;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.nb-slate-inc-btn:active { color: #555; }
-.nb-slate-status-row {
-    display: flex; align-items: center; justify-content: space-between;
-    border-top: 1px solid #ddd; padding-top: 7px;
+/* Nudge buttons on incrementable cell edges (< and >) */
+.nb-slate-cell-nudge {
+    display: flex; align-items: center; justify-content: center;
+    width: 22px; flex-shrink: 0; background: transparent; border: none;
+    font-family: inherit; font-size: 18px; font-weight: 400;
+    color: rgba(0,0,0,0.2); cursor: pointer;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+    transition: color 0.08s, background 0.08s;
 }
+.nb-slate-cell-nudge:hover  { color: rgba(0,0,0,0.5); }
+.nb-slate-cell-nudge:active { color: #111; background: rgba(0,0,0,0.1); }
+/* CTRL context panel: 2×4 button grid */
+.nb-sc-ctrl .nb-slate-cell-content { padding: 4px; }
+.nb-slate-ctrl-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr);
+    gap: 3px; width: 100%; height: 100%;
+}
+.nb-slate-ctrl-btn {
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    background: #f0f0f0; border: 1px solid #c8c8c8; border-radius: 3px;
+    font-family: inherit; font-size: clamp(7px, 1.1vw, 10px); font-weight: 700;
+    color: #333; letter-spacing: 0.04em; text-transform: uppercase;
+    cursor: pointer; user-select: none; padding: 2px 1px; line-height: 1.2;
+    -webkit-tap-highlight-color: transparent; transition: background 0.08s;
+}
+.nb-slate-ctrl-btn:active { background: #d0d0d0; border-color: #aaa; }
+.nb-slate-ctrl-btn[data-info] {
+    background: transparent; border-color: rgba(0,0,0,0.1);
+    cursor: default; color: #777; font-size: clamp(6px, 0.9vw, 9px);
+}
+.nb-slate-ctrl-btn[data-empty] {
+    background: transparent; border: 1px dashed rgba(0,0,0,0.1);
+    pointer-events: none;
+}
+.nb-slate-ctrl-rec  { background: #a93226 !important; color: #fff !important; border-color: #8a1f14 !important; cursor: default !important; }
+.nb-slate-ctrl-exit { background: #ddd !important; }
+/* MOS: whole cell goes red when active */
+.nb-sc-mos.nb-slate-mos-active { background: #a93226; }
+.nb-sc-mos.nb-slate-mos-active .nb-slate-cell-label { background: rgba(0,0,0,0.25); }
+.nb-sc-mos.nb-slate-mos-active .nb-slate-mos-btn { background: transparent; color: #fff; border-color: rgba(255,255,255,0.4); }
+/* MOS button */
 .nb-slate-mos-btn {
-    font-family: inherit; font-size: clamp(0.8rem, 2.5vw, 1.05rem); font-weight: 700;
-    letter-spacing: 0.1em; background: #eee; color: #666;
-    border: 2px solid #bbb; border-radius: 6px; padding: 6px 18px; cursor: pointer;
-    transition: all 0.12s; -webkit-tap-highlight-color: transparent;
+    font-family: inherit; font-size: clamp(0.75rem,2.5vw,1.05rem); font-weight: 700;
+    letter-spacing: 0.1em; background: #e4e4e2; color: #666;
+    border: 2px solid #bbb; border-radius: 5px; padding: 5px 14px; cursor: pointer;
+    transition: all 0.1s; -webkit-tap-highlight-color: transparent;
 }
-.nb-slate-mos-btn.nb-slate-mos-active { background: #a93226; color: #fff; border-color: #a93226; }
-.nb-slate-time {
-    font-size: clamp(1rem, 3.5vw, 1.8rem); font-variant-numeric: tabular-nums; color: #333;
-}
-.nb-slate-take-count { font-size: clamp(0.65rem,1.8vw,0.85rem); color: #aaa; letter-spacing:0.04em; }
+/* Exit button */
 .nb-slate-exit {
-    align-self: flex-end;
-    font-size: 0.65rem; font-family: inherit; letter-spacing: 0.1em; text-transform: uppercase;
-    background: transparent; color: #bbb;
-    border: 1px solid #ddd; border-radius: 99px; padding: 3px 14px;
-    cursor: pointer; transition: color 0.15s, border-color 0.15s;
-    -webkit-tap-highlight-color: transparent;
+    font-size: 0.58rem; font-family: inherit; letter-spacing: 0.1em; text-transform: uppercase;
+    background: transparent; color: #bbb; border: 1px solid #ddd; border-radius: 99px;
+    padding: 2px 9px; cursor: pointer; margin-top: 3px; -webkit-tap-highlight-color: transparent;
 }
 .nb-slate-exit:hover { color: #555; border-color: #999; }
-/* Rolling state — bars transform; bottom bar becomes CUT target */
-.nb-slate-overlay.nb-slate-rolling .nb-slate-bar-top {
-    background: repeating-linear-gradient(-45deg, #7a0000 0px, #7a0000 54px, #aa1111 54px, #aa1111 108px);
+/* GO state — traditional B&W clapperboard, no labels, snap snap snap */
+.nb-slate-overlay.nb-slate-go .nb-slate-bar-top {
+    background: repeating-linear-gradient(-45deg, #000 0px, #000 54px, #fff 54px, #fff 108px);
+    cursor: pointer;
+}
+.nb-slate-overlay.nb-slate-go .nb-slate-bar-bottom {
+    background: repeating-linear-gradient(45deg, #000 0px, #000 54px, #fff 54px, #fff 108px);
     cursor: default;
 }
-.nb-slate-overlay.nb-slate-rolling .nb-slate-bar-bottom {
-    background: #a93226; cursor: pointer;
+/* Keep go-label elements hidden — no text on bars in go state */
+.nb-slate-go-label { display: none; }
+/* Rolling state — top bar: black timer strip; overlays cover rows 1-3 and 6-7+bottom */
+.nb-slate-overlay.nb-slate-rolling .nb-slate-bar-top    { background: #111; cursor: default; }
+.nb-slate-overlay.nb-slate-rolling .nb-slate-bar-bottom { background: #a93226; cursor: default; }
+.nb-slate-overlay.nb-slate-rolling .nb-sc-mos           { opacity: 0.4; pointer-events: none; }
+/* Duration timer in top bar (action → cut elapsed) */
+.nb-slate-duration {
+    display: none; position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: inherit; font-weight: 700; font-size: clamp(1rem, 3.5vw, 1.8rem);
+    color: #666; letter-spacing: 0.12em; font-variant-numeric: tabular-nums;
+    pointer-events: none;
 }
-.nb-slate-overlay.nb-slate-rolling .nb-slate-bar-bottom:active { filter: brightness(1.2); }
-.nb-slate-rolling-label {
-    display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    font-family: 'Courier New', Courier, monospace; font-weight: 700;
-    font-size: clamp(0.85rem, 2.8vw, 1.4rem); letter-spacing: 0.2em;
-    color: rgba(255,255,255,0.92); pointer-events: none; white-space: nowrap;
+.nb-slate-overlay.nb-slate-rolling .nb-slate-duration { display: block; }
+/* ROLLING! banner — covers body rows 1-3 (top: 1/9, height: 3/9 of overlay) */
+@keyframes nb-slate-rolling-pulse {
+    0%, 72%  { background: #a93226; }
+    80%      { background: #8a1a10; }
+    90%      { background: #c42a1a; }
+    100%     { background: #a93226; }
 }
-.nb-slate-overlay.nb-slate-rolling .nb-slate-rolling-label { display: block; }
-.nb-slate-overlay.nb-slate-rolling .nb-slate-mos-btn { opacity: 0.3; pointer-events: none; }
-.nb-slate-rolling-pill {
-    font-size: clamp(0.65rem, 1.8vw, 0.85rem); color: #a93226; letter-spacing: 0.08em;
-    font-weight: 700; display: none;
+.nb-slate-rolling-sign {
+    display: none; position: absolute; left: 0; right: 0;
+    top: calc(100% / 9); height: calc(100% / 3);
+    align-items: center; justify-content: center;
+    z-index: 6; pointer-events: none;
+    animation: nb-slate-rolling-pulse 2.5s ease-in-out infinite;
 }
-.nb-slate-overlay.nb-slate-rolling .nb-slate-rolling-pill { display: inline; }
-.nb-slate-overlay.nb-slate-rolling .nb-slate-take-count { display: none; }
+.nb-slate-rolling-sign span {
+    font-family: inherit; font-weight: 700; color: #fff;
+    font-size: clamp(2.5rem, 11vw, 7rem); letter-spacing: 0.18em;
+    text-shadow: 0 2px 24px rgba(0,0,0,0.4);
+}
+.nb-slate-overlay.nb-slate-rolling .nb-slate-rolling-sign { display: flex; }
+/* QUIET PLEASE banner — covers body rows 6-7 + bottom bar (top: 6/9, height: 3/9) */
+.nb-slate-quiet-sign {
+    display: none; position: absolute; left: 0; right: 0;
+    top: calc(100% * 2 / 3); height: calc(100% / 3);
+    align-items: center; justify-content: center;
+    background: #a93226; z-index: 6; pointer-events: none;
+}
+.nb-slate-quiet-sign span {
+    font-family: inherit; font-weight: 700; color: #fff;
+    font-size: clamp(1.5rem, 6vw, 4rem); letter-spacing: 0.22em;
+    text-shadow: 0 2px 16px rgba(0,0,0,0.3);
+}
+.nb-slate-overlay.nb-slate-rolling .nb-slate-quiet-sign { display: flex; }
+/* Keep rolling-label elements (no longer used for display, but don't break anything) */
+.nb-slate-rolling-label { display: none; }
+/* Ctrl button roles — colours communicate production state */
+.nb-slate-ctrl-roll   { background: #1e5c1e !important; color: #fff !important; border-color: #0f3a0f !important; }
+.nb-slate-ctrl-action { background: #2a7a2a !important; color: #fff !important; border-color: #1a5a1a !important; }
+.nb-slate-ctrl-cut    { background: #a93226 !important; color: #fff !important; border-color: #7a1e14 !important; letter-spacing: 0.12em !important; }
+.nb-slate-ctrl-good   { background: #2a7a2a !important; color: #fff !important; border-color: #1a5a1a !important; }
+.nb-slate-ctrl-ng     { background: #a93226 !important; color: #fff !important; border-color: #7a1e14 !important; }
+.nb-slate-ctrl-active { filter: brightness(1.3) !important; outline: 2px solid rgba(255,255,255,0.5) !important; }
 /* Shot specialty header — color-coded border by INT/EXT · DAY/NIGHT */
 .nb-cine-shot-hdr[data-dnie="ID"] { border-left-color: #a8a890; }
 .nb-cine-shot-hdr[data-dnie="ED"] { border-left-color: #c8a800; }
@@ -3341,14 +3425,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         return existing.replace(tlRx, '```timelog\n' + tlContent + '```');
     }
 
-    const DEFAULT_SLATE_FIELDS = [
-        { key: 'scene',  label: 'SCENE', span: 2, inc: false },
-        { key: 'alias',  label: 'SHOT',  span: 2, inc: false },
-        { key: 'take',   label: 'TAKE',  span: 2, inc: true  },
-        { key: 'tape',   label: 'TAPE',  span: 2, inc: false },
-        { key: 'camera', label: 'CAM',   span: 2, inc: false },
-        { key: 'fps',    label: 'FPS',   span: 2, inc: false },
-    ];
 
     // Auto-size inp font to fill cell. Uses a shared off-screen mirror span to measure.
     function _fitText(inp, cell) {
@@ -3357,15 +3433,17 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         let mirror = document._nbSlateMirror;
         if (!mirror) {
             mirror = document.createElement('span');
-            mirror.style.cssText = 'position:fixed;top:-9999px;left:-9999px;white-space:nowrap;' +
-                'font-family:"Courier New",Courier,monospace;font-weight:700;pointer-events:none;';
+            mirror.style.cssText = 'position:fixed;top:-9999px;left:-9999px;white-space:nowrap;pointer-events:none;';
             document.body.appendChild(mirror);
             document._nbSlateMirror = mirror;
         }
+        // Match the element's computed font so measurement is accurate
+        const cs = getComputedStyle(inp);
+        mirror.style.fontFamily = cs.fontFamily;
+        mirror.style.fontWeight = cs.fontWeight;
         mirror.textContent = text;
-        const label = cell.querySelector('.nb-slate-cell-label');
-        const maxW  = cell.clientWidth  - 20;
-        const maxH  = cell.clientHeight - (label ? label.offsetHeight + 8 : 8);
+        const maxW = cell.clientWidth  * 0.82;
+        const maxH = cell.clientHeight * 0.78;
         if (maxW <= 0 || maxH <= 0) return;
         let lo = 8, hi = 400;
         while (hi - lo > 1) {
@@ -3400,160 +3478,324 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         const slateCfg  = await _findSlateConfig(note);
         const initState = _slateReadState(note.annotation || '', slateCfg.meta || {});
-        const fields    = DEFAULT_SLATE_FIELDS;
 
-        // Static initial values by field key
-        const READONLY = new Set(['scene', 'alias']);
-        const initVals = {
-            scene:  scene,
-            alias:  alias,
-            take:   String(initState.nextTake),
-            tape:   initState.tape,
-            camera: initState.camera,
-            fps:    initState.fps,
-        };
+        const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+        const _d = new Date();
+        const dateStr = `${String(_d.getDate()).padStart(2,'0')} ${months[_d.getMonth()]} ${_d.getFullYear()}`;
+        const ieStr   = [ie, dn, loc].filter(Boolean).join('·') || '—';
+        const takeCount0 = initState.takeCount;
+        const takeTxt  = n => n ? `${n} take${n !== 1 ? 's' : ''} recorded` : 'no takes yet';
 
         const overlay = document.createElement('div');
         overlay.className = 'nb-slate-overlay';
         overlay.innerHTML = `
 <div class="nb-slate-bar nb-slate-bar-top" role="button" aria-label="Snap">
-  <span class="nb-slate-rolling-label">● ROLLING</span>
+  <span class="nb-slate-duration">0:00</span>
 </div>
 <div class="nb-slate-body">
-  <div class="nb-slate-prod">${_esc(production || 'Production')}</div>
-  <div class="nb-slate-info-row">
-    ${scene  ? `<span>SC&nbsp;<b>${_esc(scene)}</b></span>`                       : ''}
-    ${alias  ? `<span>SHOT&nbsp;<b>${_esc(alias)}</b></span>`                     : ''}
-    ${ie||dn ? `<span><b>${_esc([ie,dn].filter(Boolean).join('·'))}</b></span>`   : ''}
-    ${loc    ? `<span>${_esc(loc)}</span>`                                         : ''}
+  <div class="nb-slate-cell nb-sc-prod">
+    <div class="nb-slate-cell-label">PRODUCTION</div>
+    <div class="nb-slate-cell-content">
+      <div class="nb-slate-display">${_esc(production || 'Production')}</div>
+    </div>
   </div>
-  <button class="nb-slate-exit">✕ Exit Slate</button>
+  <div class="nb-slate-cell nb-sc-date">
+    <div class="nb-slate-cell-label">DATE</div>
+    <div class="nb-slate-cell-content">
+      <div class="nb-slate-datetime">${_esc(dateStr)} &mdash; <span class="nb-slate-time">--:--:--</span></div>
+    </div>
+  </div>
+  <div class="nb-slate-cell nb-sc-scene">
+    <div class="nb-slate-cell-label">SCENE</div>
+    <div class="nb-slate-cell-content">
+      <div class="nb-slate-display">${_esc(scene) || '&mdash;'}</div>
+    </div>
+  </div>
+  <div class="nb-slate-cell nb-sc-shot">
+    <div class="nb-slate-cell-label">SHOT</div>
+    <div class="nb-slate-cell-content">
+      <div class="nb-slate-display">${_esc(alias) || '&mdash;'}</div>
+    </div>
+  </div>
+  <div class="nb-slate-cell nb-sc-take">
+    <div class="nb-slate-cell-label">TAKE</div>
+    <button class="nb-slate-cell-nudge" data-nudge="take-dec" type="button">&lt;</button>
+    <div class="nb-slate-cell-content">
+      <input type="number" inputmode="numeric" value="${initState.nextTake}">
+    </div>
+    <button class="nb-slate-cell-nudge" data-nudge="take-inc" type="button">&gt;</button>
+  </div>
+  <div class="nb-slate-cell nb-sc-ctrl">
+    <div class="nb-slate-cell-label">CTRL</div>
+    <div class="nb-slate-cell-content">
+      <div class="nb-slate-ctrl-grid"></div>
+    </div>
+  </div>
+  <div class="nb-slate-cell nb-sc-cam">
+    <div class="nb-slate-cell-label">CAM</div>
+    <div class="nb-slate-cell-content">
+      <input type="text" maxlength="3" value="${_esc(initState.camera)}">
+    </div>
+  </div>
+  <div class="nb-slate-cell nb-sc-roll">
+    <div class="nb-slate-cell-label">ROLL</div>
+    <div class="nb-slate-cell-content">
+      <input type="text" value="${_esc(initState.tape)}">
+    </div>
+  </div>
+  <div class="nb-slate-cell nb-sc-dir">
+    <div class="nb-slate-cell-label">DIR</div>
+    <div class="nb-slate-cell-content">
+      <div class="nb-slate-display">${_esc(director) || '&mdash;'}</div>
+    </div>
+  </div>
+  <div class="nb-slate-cell nb-sc-mos">
+    <div class="nb-slate-cell-label">SOUND</div>
+    <div class="nb-slate-cell-content">
+      <button class="nb-slate-mos-btn" type="button">MOS</button>
+    </div>
+  </div>
+  <div class="nb-slate-cell nb-sc-prod2">
+    <div class="nb-slate-cell-label">PROD</div>
+    <div class="nb-slate-cell-content">
+      <div class="nb-slate-display">${_esc(producer) || '&mdash;'}</div>
+    </div>
+  </div>
 </div>
-<div class="nb-slate-bar nb-slate-bar-bottom" role="button" aria-label="Snap / CUT">
-  <span class="nb-slate-rolling-label">● CUT</span>
-</div>
-<div class="nb-slate-flash"></div>`;
+<div class="nb-slate-bar nb-slate-bar-bottom" role="button" aria-label="Snap"></div>
+<div class="nb-slate-flash"></div>
+<div class="nb-slate-rolling-sign"><span>ROLLING</span></div>
+<div class="nb-slate-quiet-sign"><span>QUIET PLEASE</span></div>`;
 
         document.body.appendChild(overlay);
-        const slBody = overlay.querySelector('.nb-slate-body');
 
-        // Build dynamic grid
-        const grid     = document.createElement('div');
-        grid.className = 'nb-slate-grid';
-        const valueEls = new Map(); // key → input or display element
+        // Apply slate font — font: in slate.md FM overrides; default is bold system sans-serif
+        const slateFont = slateCfg.meta?.font;
+        overlay.style.fontFamily = slateFont
+            ? `${slateFont}, 'Liberation Sans', Arial, sans-serif`
+            : "'Liberation Sans', Arial, Helvetica, sans-serif";
+        overlay.style.fontWeight = '700';
 
-        for (const f of fields) {
-            const cell    = document.createElement('div');
-            cell.className    = 'nb-slate-cell';
-            cell.dataset.field = f.key;
-            cell.style.gridColumn = `span ${f.span}`;
+        const slBody    = overlay.querySelector('.nb-slate-body');
+        const topBar    = overlay.querySelector('.nb-slate-bar-top');
+        const botBar    = overlay.querySelector('.nb-slate-bar-bottom');
+        const flash     = overlay.querySelector('.nb-slate-flash');
+        const mosBtn    = overlay.querySelector('.nb-slate-mos-btn');
+        const mosCell   = overlay.querySelector('.nb-sc-mos');
+        const timeEl    = overlay.querySelector('.nb-slate-time');
+        const takeCell  = overlay.querySelector('.nb-sc-take');
+        const camCell   = overlay.querySelector('.nb-sc-cam');
+        const rollCell  = overlay.querySelector('.nb-sc-roll');
+        const takeInp   = takeCell.querySelector('input');
+        const camInp    = camCell.querySelector('input');
+        const rollInp   = rollCell.querySelector('input');
+        const takeCon   = takeCell.querySelector('.nb-slate-cell-content');
+        const camCon    = camCell.querySelector('.nb-slate-cell-content');
+        const rollCon   = rollCell.querySelector('.nb-slate-cell-content');
+        // Static display elements
+        const _disp = (sel) => overlay.querySelector(sel + ' .nb-slate-display');
+        const _con  = (sel) => overlay.querySelector(sel + ' .nb-slate-cell-content');
+        const prodDisp  = _disp('.nb-sc-prod');  const prodCon  = _con('.nb-sc-prod');
+        const sceneDisp = _disp('.nb-sc-scene'); const sceneCon = _con('.nb-sc-scene');
+        const shotDisp  = _disp('.nb-sc-shot');  const shotCon  = _con('.nb-sc-shot');
+        const dirDisp   = _disp('.nb-sc-dir');   const dirCon   = _con('.nb-sc-dir');
+        const prod2Disp = _disp('.nb-sc-prod2'); const prod2Con = _con('.nb-sc-prod2');
+        const dateDisp  = overlay.querySelector('.nb-slate-datetime');
+        const dateCon   = _con('.nb-sc-date');
 
-            const lbl = document.createElement('div');
-            lbl.className   = 'nb-slate-cell-label';
-            lbl.textContent = f.label;
-            cell.appendChild(lbl);
+        const valueEls = new Map([['take', takeInp], ['camera', camInp], ['tape', rollInp]]);
+        const ctrlGrid = overlay.querySelector('.nb-slate-ctrl-grid');
 
-            const valWrap    = document.createElement('div');
-            valWrap.className = 'nb-slate-cell-value';
-            const initVal    = initVals[f.key] ?? '';
-
-            if (READONLY.has(f.key)) {
-                const disp       = document.createElement('div');
-                disp.className   = 'nb-slate-display';
-                disp.textContent = initVal || '—';
-                valWrap.appendChild(disp);
-                valueEls.set(f.key, disp);
-            } else if (f.inc) {
-                const decBtn       = document.createElement('button');
-                decBtn.type        = 'button';
-                decBtn.className   = 'nb-slate-inc-btn';
-                decBtn.textContent = '−';
-                const inp          = document.createElement('input');
-                inp.type           = 'number';
-                inp.inputMode      = 'numeric';
-                inp.value          = initVal;
-                const incBtn       = document.createElement('button');
-                incBtn.type        = 'button';
-                incBtn.className   = 'nb-slate-inc-btn';
-                incBtn.textContent = '+';
-                decBtn.addEventListener('click', e => {
-                    e.stopPropagation();
-                    inp.value = Math.max(1, (parseInt(inp.value, 10) || 1) - 1);
-                    _fitText(inp, cell);
-                });
-                incBtn.addEventListener('click', e => {
-                    e.stopPropagation();
-                    inp.value = (parseInt(inp.value, 10) || 0) + 1;
-                    _fitText(inp, cell);
-                });
-                valWrap.appendChild(decBtn);
-                valWrap.appendChild(inp);
-                valWrap.appendChild(incBtn);
-                valueEls.set(f.key, inp);
-            } else {
-                const inp     = document.createElement('input');
-                inp.type      = 'text';
-                inp.value     = initVal;
-                if (f.key === 'camera') inp.maxLength = 3;
-                if (f.key === 'fps')    inp.maxLength = 6;
-                inp.addEventListener('input', () => _fitText(inp, cell));
-                valWrap.appendChild(inp);
-                valueEls.set(f.key, inp);
+        // Context-driven ctrl panel — 2×4 grid with variable-span cells per production state
+        const _ctrlRender = (ctx) => {
+            const sp  = n => n > 1 ? ` style="grid-column:span ${n}"` : '';
+            const b   = (lbl, act, cls='', span=1) =>
+                `<button class="nb-slate-ctrl-btn${cls?' '+cls:''}" data-action="${act}"${sp(span)}>${lbl}</button>`;
+            const inf = (lbl, span=1) =>
+                `<button class="nb-slate-ctrl-btn" data-info${sp(span)}>${lbl}</button>`;
+            const mt  = (span=1) =>
+                `<button class="nb-slate-ctrl-btn" data-empty${sp(span)}></button>`;
+            const countTxt = takeCount ? `${takeCount} take${takeCount !== 1 ? 's' : ''}` : 'no takes';
+            let html;
+            switch (ctx) {
+                // ── IDLE: pre-production, nothing rolling ──────────────────────────────
+                case 'idle':
+                    html = [
+                        b('ROLL CAMERA', 'roll', 'nb-slate-ctrl-roll', 3),
+                        b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
+                        inf(countTxt, 2), b('VIEW', 'view'), mt(),
+                    ].join('');
+                    break;
+                // ── GO: camera rolling, slate next ─────────────────────────────────────
+                case 'go':
+                    html = [
+                        b('CAM A', 'cam-A'), b('CAM B', 'cam-B'),
+                        b('ACTION', 'action', 'nb-slate-ctrl-action', 2),
+                        inf('↑ tap to slate', 3), b('CANCEL', 'cancel'),
+                    ].join('');
+                    break;
+                // ── ACTION: director has called action, timers running ──────────────────
+                case 'action': {
+                    const gCls = 'nb-slate-ctrl-good' + (takeRating === 'good' ? ' nb-slate-ctrl-active' : '');
+                    const nCls = 'nb-slate-ctrl-ng'   + (takeRating === 'ng'   ? ' nb-slate-ctrl-active' : '');
+                    html = [
+                        b('CUT', 'cut', 'nb-slate-ctrl-cut', 2),
+                        b('GOOD', 'mark-good', gCls), b('NG', 'mark-ng', nCls),
+                        inf(countTxt + ' recorded', 2), b('NOTE', 'note'), mt(),
+                    ].join('');
+                    break;
+                }
+                // ── EVAL: post-cut, increment shot or take ─────────────────────────────
+                case 'eval': {
+                    const ratingTxt = takeRating === 'good' ? '✓ GOOD' : takeRating === 'ng' ? '✗ NG' : 'unrated';
+                    html = [
+                        b('NEXT SHOT', 'next-shot', '', 2), b('NEXT TAKE', 'next-take', '', 2),
+                        inf(ratingTxt, 2), b('NOTE', 'note'), b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
+                    ].join('');
+                    break;
+                }
+                // ── TAKE label-bar sub-context (idle only) ─────────────────────────────
+                case 'take':
+                    html = [
+                        b('&#8722;', 'take-dec'), b('RESET', 'take-reset'), b('+', 'take-inc'),
+                        b('BACK', 'home'),
+                        inf(countTxt, 2), mt(), b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
+                    ].join('');
+                    break;
+                // ── CAM label-bar sub-context (idle only) ──────────────────────────────
+                case 'cam':
+                    html = [
+                        b('CAM A', 'cam-A'), b('CAM B', 'cam-B'), b('CAM C', 'cam-C'),
+                        b('BACK', 'home'),
+                        mt(3), b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
+                    ].join('');
+                    break;
+                default:
+                    html = [
+                        b('VIEW', 'view'), mt(2), b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
+                        inf(countTxt, 2), mt(2),
+                    ].join('');
             }
-            cell.appendChild(valWrap);
-            grid.appendChild(cell);
-        }
+            ctrlGrid.innerHTML = html;
+            ctrlGrid.querySelectorAll('[data-action]').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    switch (btn.dataset.action) {
+                        case 'exit':       _close(); break;
+                        case 'home':       _ctrlRender('idle'); break;
+                        case 'roll':       _rollCamera(); break;
+                        case 'cancel':     _setGo(false); slateState = 'idle'; _ctrlRender('idle'); break;
+                        case 'action':     _action(); break;
+                        case 'cut':        _cut(); break;
+                        case 'next-take':  _nextTake(); break;
+                        case 'next-shot':  _nextShot(); break;
+                        case 'mark-good':  takeRating = takeRating === 'good' ? null : 'good'; _ctrlRender('action'); break;
+                        case 'mark-ng':    takeRating = takeRating === 'ng'   ? null : 'ng';   _ctrlRender('action'); break;
+                        case 'take-dec':
+                            takeInp.value = Math.max(1, (parseInt(takeInp.value, 10) || 1) - 1);
+                            _fitText(takeInp, takeCon); break;
+                        case 'take-inc':
+                            takeInp.value = (parseInt(takeInp.value, 10) || 0) + 1;
+                            _fitText(takeInp, takeCon); break;
+                        case 'take-reset':
+                            takeInp.value = 1; _fitText(takeInp, takeCon); break;
+                        case 'cam-A': case 'cam-B': case 'cam-C':
+                            camInp.value = btn.dataset.action.slice(4);
+                            _fitText(camInp, camCon);
+                            _ctrlRender(slateState === 'go' ? 'go' : 'idle'); break;
+                        case 'view':  break; // TODO: open shot note panel
+                        case 'note':  break; // TODO: comment entry
+                    }
+                });
+            });
+        };
 
-        // Crew and status rows
-        const crewRow     = document.createElement('div');
-        crewRow.className = 'nb-slate-crew-row';
-        crewRow.innerHTML = `${director ? `<span>DIR&nbsp;<b>${_esc(director)}</b></span>` : ''}${dp ? `<span>DP&nbsp;<b>${_esc(dp)}</b></span>` : ''}${producer ? `<span>PROD&nbsp;<b>${_esc(producer)}</b></span>` : ''}`;
-        const statusRow     = document.createElement('div');
-        statusRow.className = 'nb-slate-status-row';
-        statusRow.innerHTML = `<button class="nb-slate-mos-btn">MOS</button><div class="nb-slate-time">--:--:--</div><div class="nb-slate-take-count">${initState.takeCount ? initState.takeCount + ' take' + (initState.takeCount !== 1 ? 's' : '') + ' recorded' : 'no takes yet'}</div><span class="nb-slate-rolling-pill">● REC</span>`;
+        // Label bar taps → switch ctrl context (only in idle state)
+        takeCell.querySelector('.nb-slate-cell-label').addEventListener('click', e => {
+            e.stopPropagation();
+            if (slateState === 'idle') _ctrlRender('take');
+        });
+        camCell.querySelector('.nb-slate-cell-label').addEventListener('click', e => {
+            e.stopPropagation();
+            if (slateState === 'idle') _ctrlRender('cam');
+        });
+        rollCell.querySelector('.nb-slate-cell-label').addEventListener('click', e => {
+            e.stopPropagation();
+            if (slateState === 'idle') { rollInp.focus(); rollInp.select(); }
+        });
+        mosCell.querySelector('.nb-slate-cell-label').addEventListener('click', e => {
+            e.stopPropagation();
+            if (slateState === 'idle' || slateState === 'go') {
+                mosActive = !mosActive;
+                mosCell.classList.toggle('nb-slate-mos-active', mosActive);
+            }
+        });
+        overlay.querySelector('.nb-sc-ctrl .nb-slate-cell-label').addEventListener('click', e => {
+            e.stopPropagation();
+            if (slateState === 'idle') _ctrlRender('idle');
+        });
 
-        slBody.appendChild(grid);
-        slBody.appendChild(crewRow);
-        slBody.appendChild(statusRow);
+        // TAKE nudge buttons (< >) on cell edges
+        takeCell.querySelector('[data-nudge="take-dec"]').addEventListener('click', e => {
+            e.stopPropagation();
+            takeInp.value = Math.max(1, (parseInt(takeInp.value, 10) || 1) - 1);
+            _fitText(takeInp, takeCon);
+        });
+        takeCell.querySelector('[data-nudge="take-inc"]').addEventListener('click', e => {
+            e.stopPropagation();
+            takeInp.value = (parseInt(takeInp.value, 10) || 0) + 1;
+            _fitText(takeInp, takeCon);
+        });
 
-        const mosBtn  = statusRow.querySelector('.nb-slate-mos-btn');
-        const timeEl  = statusRow.querySelector('.nb-slate-time');
-        const countEl = statusRow.querySelector('.nb-slate-take-count');
-        const topBar  = overlay.querySelector('.nb-slate-bar-top');
-        const botBar  = overlay.querySelector('.nb-slate-bar-bottom');
-        const flash   = overlay.querySelector('.nb-slate-flash');
+        camInp.addEventListener('input',  () => _fitText(camInp,  camCon));
+        rollInp.addEventListener('input', () => _fitText(rollInp, rollCon));
 
-        // Initial fit + resize observer
         const _fitAll = () => {
-            for (const f of fields) {
-                const el   = valueEls.get(f.key);
-                const cell = grid.querySelector(`[data-field="${f.key}"]`);
-                if (el && cell) _fitText(el, cell);
-            }
+            _fitText(takeInp,   takeCon);
+            _fitText(camInp,    camCon);
+            _fitText(rollInp,   rollCon);
+            if (prodDisp)  _fitText(prodDisp,  prodCon);
+            if (sceneDisp) _fitText(sceneDisp, sceneCon);
+            if (shotDisp)  _fitText(shotDisp,  shotCon);
+            if (dirDisp)   _fitText(dirDisp,   dirCon);
+            if (prod2Disp) _fitText(prod2Disp, prod2Con);
+            if (dateDisp)  _fitText(dateDisp,  dateCon);
         };
         requestAnimationFrame(_fitAll);
+        window.addEventListener('resize', _fitAll);
         const ro = new ResizeObserver(_fitAll);
-        ro.observe(grid);
+        ro.observe(slBody);
 
-        let mosActive = false;
-        let takeCount = initState.takeCount;
-        let snapping  = false;
-        let rolling   = initState.rolling;
+        let mosActive       = false;
+        let takeCount       = initState.takeCount;
+        let takeRating      = null;   // null | 'good' | 'ng' — pre-markable before CUT
+        let snapping        = false;
+        let slateState      = initState.rolling ? 'action' : 'idle';
+        let actionStartTime = null;
 
-        const _setRolling = val => {
-            rolling = val;
-            overlay.classList.toggle('nb-slate-rolling', val);
+        const durationEl = overlay.querySelector('.nb-slate-duration');
+
+        const _setGo      = val => overlay.classList.toggle('nb-slate-go',      val);
+        const _setRolling = val => overlay.classList.toggle('nb-slate-rolling',  val);
+
+        if (slateState === 'action') _setRolling(true);
+        _ctrlRender(slateState);
+
+        // Live clock + rolling duration timer
+        const _tick = () => {
+            if (timeEl) timeEl.textContent = new Date().toTimeString().slice(0, 8);
+            if (durationEl && actionStartTime !== null) {
+                const s = Math.floor((Date.now() - actionStartTime) / 1000);
+                const m = Math.floor(s / 60);
+                durationEl.textContent = m + ':' + String(s % 60).padStart(2, '0');
+            }
         };
-        if (rolling) _setRolling(true);
-
-        // Live clock
-        const _tick = () => { timeEl.textContent = new Date().toTimeString().slice(0, 8); };
         _tick();
         const clockId = setInterval(_tick, 1000);
 
         mosBtn.addEventListener('click', () => {
             mosActive = !mosActive;
-            mosBtn.classList.toggle('nb-slate-mos-active', mosActive);
+            mosCell.classList.toggle('nb-slate-mos-active', mosActive);
         });
 
         const getVal = key => {
@@ -3562,19 +3804,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             return el.tagName === 'INPUT' ? el.value.trim() : el.textContent.trim();
         };
 
-        const _snap = async () => {
-            if (snapping || rolling) return;
+        // Visual clapper snap — animation only, repeatable, no data write
+        const _snapVisual = () => {
+            if (snapping) return;
             snapping = true;
-            const snap = {
-                take:     parseInt(getVal('take'), 10) || 1,
-                tape:     getVal('tape') || '',
-                camera:   getVal('camera') || getVal('cam') || 'A',
-                fps:      getVal('fps') || '24',
-                mos:      mosActive,
-                scene,
-                alias,
-                shotFile,
-            };
             slBody.style.opacity = '0';
             topBar.classList.add('nb-slate-snapping');
             botBar.classList.add('nb-slate-snapping');
@@ -3586,56 +3819,100 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 slBody.style.opacity = '1';
                 snapping = false;
             }, 320);
-            try {
-                const r       = await fetch(`/api/note?selector=${encodeURIComponent(note.selector)}`);
-                const data    = await r.json();
-                const updated = _slateOpenTake(data.annotation || '', snap);
-                const wr      = await fetch(`/api/note/annotate?selector=${encodeURIComponent(note.selector)}`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: updated }),
-                });
-                if (!wr.ok) console.warn('Slate: snap write failed', wr.status, await wr.text());
-            } catch (err) { console.warn('Slate: snap write error', err); }
-            takeCount++;
-            countEl.textContent = takeCount + ' take' + (takeCount !== 1 ? 's' : '') + ' recorded';
+        };
+
+        // ROLL CAMERA — camera rolling, pre-action; no data written yet
+        const _rollCamera = () => {
+            slateState = 'go';
+            _setGo(true);
+            _ctrlRender('go');
+        };
+
+        // ACTION — director calls action; i: entry written, timers start
+        const _action = async () => {
+            if (slateState !== 'go') return;
+            slateState = 'action';
+            takeRating = null;
+            actionStartTime = Date.now();
+            _setGo(false);
             _setRolling(true);
-        };
-
-        const _cut = async () => {
-            if (!rolling) return;
+            _ctrlRender('action');
+            const snap = {
+                take:   parseInt(getVal('take'), 10) || 1,
+                tape:   getVal('tape') || '',
+                camera: getVal('camera') || 'A',
+                fps:    initState.fps || '24',
+                mos:    mosActive,
+                scene, alias, shotFile,
+            };
             try {
-                const r       = await fetch(`/api/note?selector=${encodeURIComponent(note.selector)}`);
-                const data    = await r.json();
-                const updated = _slateCloseTake(data.annotation || '');
-                const wr      = await fetch(`/api/note/annotate?selector=${encodeURIComponent(note.selector)}`, {
+                const r  = await fetch(`/api/note?selector=${encodeURIComponent(note.selector)}`);
+                const d  = await r.json();
+                const up = _slateOpenTake(d.annotation || '', snap);
+                const wr = await fetch(`/api/note/annotate?selector=${encodeURIComponent(note.selector)}`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: updated }),
+                    body: JSON.stringify({ content: up }),
                 });
-                if (!wr.ok) console.warn('Slate: cut write failed', wr.status, await wr.text());
-            } catch (err) { console.warn('Slate: cut write error', err); }
-            // Advance take input for next take
-            const curTake = parseInt(getVal('take'), 10) || 1;
-            const takeInp = valueEls.get('take');
-            if (takeInp) {
-                takeInp.value = curTake + 1;
-                const takeCell = grid.querySelector('[data-field="take"]');
-                if (takeCell) _fitText(takeInp, takeCell);
-            }
-            mosActive = false;
-            mosBtn.classList.remove('nb-slate-mos-active');
-            _setRolling(false);
+                if (!wr.ok) console.warn('Slate: action write failed', wr.status);
+            } catch (err) { console.warn('Slate: action write error', err); }
         };
 
-        topBar.addEventListener('click', () => { if (!rolling) _snap(); });
-        botBar.addEventListener('click', () => { if (rolling) _cut(); else _snap(); });
+        // CUT — o: entry written, move to eval
+        const _cut = async () => {
+            if (slateState !== 'action') return;
+            try {
+                const r  = await fetch(`/api/note?selector=${encodeURIComponent(note.selector)}`);
+                const d  = await r.json();
+                const up = _slateCloseTake(d.annotation || '');
+                const wr = await fetch(`/api/note/annotate?selector=${encodeURIComponent(note.selector)}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: up }),
+                });
+                if (!wr.ok) console.warn('Slate: cut write failed', wr.status);
+            } catch (err) { console.warn('Slate: cut write error', err); }
+            takeCount++;
+            mosActive = false;
+            actionStartTime = null;
+            if (durationEl) durationEl.textContent = '0:00';
+            mosCell.classList.remove('nb-slate-mos-active');
+            _setRolling(false);
+            slateState = 'eval';
+            _ctrlRender('eval');
+        };
+
+        // NEXT TAKE — increment take#, back to idle
+        const _nextTake = () => {
+            takeInp.value = (parseInt(takeInp.value, 10) || 1) + 1;
+            _fitText(takeInp, takeCon);
+            takeRating = null;
+            slateState = 'idle';
+            _ctrlRender('idle');
+        };
+
+        // NEXT SHOT — advance to next in schedule (stub), reset take, back to idle
+        const _nextShot = () => {
+            // TODO: look up next shot in cine stripboard sequence
+            takeInp.value = 1;
+            _fitText(takeInp, takeCon);
+            takeRating = null;
+            slateState = 'idle';
+            _ctrlRender('idle');
+        };
+
+        topBar.addEventListener('click', () => {
+            if (slateState === 'go') _snapVisual();
+        });
+        botBar.addEventListener('click', () => {
+            if (slateState === 'go') _snapVisual();
+        });
 
         const _close = () => {
             clearInterval(clockId);
             ro.disconnect();
+            window.removeEventListener('resize', _fitAll);
             overlay.remove();
             document.removeEventListener('keydown', _esc_key);
         };
-        overlay.querySelector('.nb-slate-exit').addEventListener('click', _close);
         const _esc_key = e => { if (e.key === 'Escape') _close(); };
         document.addEventListener('keydown', _esc_key);
     }
