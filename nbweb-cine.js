@@ -682,12 +682,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-slate-cell input[type="number"] { -moz-appearance: textfield; }
 .nb-slate-cell input:focus { background: rgba(0,0,0,0.04); border-radius: 2px; }
 /* Explicit grid placement — 7-row body, 3-col body
-   Row 1    : PRODUCTION(1-2) | DATE(3)
+   Row 1    : PRODUCTION(1) | DAY(2) | DATE(3)
    Rows 2-3 : SCENE(1)  SHOT(2)  TAKE(3)   — each span 2 rows
    Rows 4-5 : CTRL(1)   CAM(2)   ROLL(3)   — each span 2 rows
    Row 6    : DIRECTOR(1-2)  | SOUND(3)     — SOUND spans rows 6-7
    Row 7    : PRODUCER(1-2)  | SOUND cont.                           */
-.nb-sc-prod  { grid-row: 1;     grid-column: 1 / 3; }
+.nb-sc-prod  { grid-row: 1;     grid-column: 1; }
+.nb-sc-day   { grid-row: 1;     grid-column: 2; }
 .nb-sc-date  { grid-row: 1;     grid-column: 3; }
 .nb-sc-scene { grid-row: 2 / 4; grid-column: 1; }
 .nb-sc-shot  { grid-row: 2 / 4; grid-column: 2; }
@@ -702,6 +703,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-slate-datetime {
     font-weight: 700; color: #111; text-align: center; line-height: 1.1;
     font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+/* Scene/Shot: 3-zone vertical split — big number top, small title bottom */
+.nb-sc-scene .nb-slate-cell-content,
+.nb-sc-shot  .nb-slate-cell-content {
+    flex-direction: column; padding: 1px 4px; gap: 0;
+}
+.nb-slate-cell-number {
+    flex: 2 1 0; display: flex; align-items: center; justify-content: center;
+    overflow: hidden; min-height: 0; width: 100%;
+}
+.nb-slate-cell-subtitle {
+    flex: 1 0 0; display: flex; align-items: flex-end; justify-content: center;
+    font-size: clamp(7px, 1.4vw, 11px); font-weight: 600; color: #666;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-align: center; min-height: 0; padding-bottom: 2px; width: 100%;
+    max-width: 100%; line-height: 1.1;
 }
 /* Nudge buttons on incrementable cell edges (< and >) */
 .nb-slate-cell-nudge {
@@ -3477,7 +3494,18 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         } catch (_) {}
 
         const slateCfg  = await _findSlateConfig(note);
-        const initState = _slateReadState(note.annotation || '', slateCfg.meta || {});
+        const slateM    = slateCfg.meta || {};
+        const initState = _slateReadState(note.annotation || '', slateM);
+
+        const shootDay   = slateM.shoot_day ?? slateM.day ?? '';
+        const _parseCams = raw => {
+            if (!raw) return [];
+            if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+            return String(raw).split(',').map(s => s.trim()).filter(Boolean);
+        };
+        const cameraList  = _parseCams(m.cameras || ef.cameras || slateM.cameras);
+        const shotTitle   = String(m.title        || ef.title        || '');
+        const sceneTitle  = String(m.scene_title  || ef.scene_title  || '');
 
         const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
         const _d = new Date();
@@ -3499,6 +3527,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
       <div class="nb-slate-display">${_esc(production || 'Production')}</div>
     </div>
   </div>
+  <div class="nb-slate-cell nb-sc-day">
+    <div class="nb-slate-cell-label">DAY</div>
+    <div class="nb-slate-cell-content">
+      <div class="nb-slate-display">${shootDay ? _esc(String(shootDay)) : '&mdash;'}</div>
+    </div>
+  </div>
   <div class="nb-slate-cell nb-sc-date">
     <div class="nb-slate-cell-label">DATE</div>
     <div class="nb-slate-cell-content">
@@ -3508,13 +3542,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
   <div class="nb-slate-cell nb-sc-scene">
     <div class="nb-slate-cell-label">SCENE</div>
     <div class="nb-slate-cell-content">
-      <div class="nb-slate-display">${_esc(scene) || '&mdash;'}</div>
+      <div class="nb-slate-cell-number">
+        <div class="nb-slate-display">${_esc(scene) || '&mdash;'}</div>
+      </div>
+      <div class="nb-slate-cell-subtitle" title="${_esc(sceneTitle)}">${_esc(sceneTitle)}</div>
     </div>
   </div>
   <div class="nb-slate-cell nb-sc-shot">
     <div class="nb-slate-cell-label">SHOT</div>
     <div class="nb-slate-cell-content">
-      <div class="nb-slate-display">${_esc(alias) || '&mdash;'}</div>
+      <div class="nb-slate-cell-number">
+        <div class="nb-slate-display">${_esc(alias) || '&mdash;'}</div>
+      </div>
+      <div class="nb-slate-cell-subtitle" title="${_esc(shotTitle)}">${_esc(shotTitle)}</div>
     </div>
   </div>
   <div class="nb-slate-cell nb-sc-take">
@@ -3533,9 +3573,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
   </div>
   <div class="nb-slate-cell nb-sc-cam">
     <div class="nb-slate-cell-label">CAM</div>
+    <button class="nb-slate-cell-nudge" data-nudge="cam-prev" type="button">&lt;</button>
     <div class="nb-slate-cell-content">
-      <input type="text" maxlength="3" value="${_esc(initState.camera)}">
+      <input type="text" maxlength="4" value="${_esc(initState.camera)}">
     </div>
+    <button class="nb-slate-cell-nudge" data-nudge="cam-next" type="button">&gt;</button>
   </div>
   <div class="nb-slate-cell nb-sc-roll">
     <div class="nb-slate-cell-label">ROLL</div>
@@ -3596,8 +3638,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const _disp = (sel) => overlay.querySelector(sel + ' .nb-slate-display');
         const _con  = (sel) => overlay.querySelector(sel + ' .nb-slate-cell-content');
         const prodDisp  = _disp('.nb-sc-prod');  const prodCon  = _con('.nb-sc-prod');
+        const dayDisp   = _disp('.nb-sc-day');   const dayCon   = _con('.nb-sc-day');
         const sceneDisp = _disp('.nb-sc-scene'); const sceneCon = _con('.nb-sc-scene');
         const shotDisp  = _disp('.nb-sc-shot');  const shotCon  = _con('.nb-sc-shot');
+        const sceneNumCon = overlay.querySelector('.nb-sc-scene .nb-slate-cell-number');
+        const shotNumCon  = overlay.querySelector('.nb-sc-shot  .nb-slate-cell-number');
         const dirDisp   = _disp('.nb-sc-dir');   const dirCon   = _con('.nb-sc-dir');
         const prod2Disp = _disp('.nb-sc-prod2'); const prod2Con = _con('.nb-sc-prod2');
         const dateDisp  = overlay.querySelector('.nb-slate-datetime');
@@ -3627,13 +3672,17 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     ].join('');
                     break;
                 // ── GO: camera rolling, slate next ─────────────────────────────────────
-                case 'go':
+                case 'go': {
+                    // Show first 2 cameras from list as quick-switch presets
+                    const cams = cameraList.length ? cameraList.slice(0, 2) : [];
+                    const camBtns = cams.map(c => b(`CAM ${c}`, `cam-${c}`));
+                    const actionSpan = 4 - cams.length;
                     html = [
-                        b('CAM A', 'cam-A'), b('CAM B', 'cam-B'),
-                        b('ACTION', 'action', 'nb-slate-ctrl-action', 2),
+                        ...camBtns, b('ACTION', 'action', 'nb-slate-ctrl-action', actionSpan),
                         inf('↑ tap to slate', 3), b('CANCEL', 'cancel'),
                     ].join('');
                     break;
+                }
                 // ── ACTION: director has called action, timers running ──────────────────
                 case 'action': {
                     const gCls = 'nb-slate-ctrl-good' + (takeRating === 'good' ? ' nb-slate-ctrl-active' : '');
@@ -3663,13 +3712,18 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     ].join('');
                     break;
                 // ── CAM label-bar sub-context (idle only) ──────────────────────────────
-                case 'cam':
+                case 'cam': {
+                    // Show up to 3 cameras from list, padded with empty if fewer
+                    const cams3 = cameraList.length
+                        ? cameraList.slice(0, 3).map(c => b(`CAM ${c}`, `cam-${c}`))
+                        : [b('CAM A', 'cam-A'), b('CAM B', 'cam-B'), b('CAM C', 'cam-C')];
+                    while (cams3.length < 3) cams3.push(mt());
                     html = [
-                        b('CAM A', 'cam-A'), b('CAM B', 'cam-B'), b('CAM C', 'cam-C'),
-                        b('BACK', 'home'),
+                        ...cams3, b('BACK', 'home'),
                         mt(3), b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
                     ].join('');
                     break;
+                }
                 default:
                     html = [
                         b('VIEW', 'view'), mt(2), b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
@@ -3680,7 +3734,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             ctrlGrid.querySelectorAll('[data-action]').forEach(btn => {
                 btn.addEventListener('click', e => {
                     e.stopPropagation();
-                    switch (btn.dataset.action) {
+                    const act = btn.dataset.action;
+                    // cam-* prefix: set camera to anything after 'cam-'
+                    if (act.startsWith('cam-')) {
+                        camInp.value = act.slice(4);
+                        _fitText(camInp, camCon);
+                        _ctrlRender(slateState === 'go' ? 'go' : 'idle');
+                        return;
+                    }
+                    switch (act) {
                         case 'exit':       _close(); break;
                         case 'home':       _ctrlRender('idle'); break;
                         case 'roll':       _rollCamera(); break;
@@ -3699,10 +3761,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                             _fitText(takeInp, takeCon); break;
                         case 'take-reset':
                             takeInp.value = 1; _fitText(takeInp, takeCon); break;
-                        case 'cam-A': case 'cam-B': case 'cam-C':
-                            camInp.value = btn.dataset.action.slice(4);
-                            _fitText(camInp, camCon);
-                            _ctrlRender(slateState === 'go' ? 'go' : 'idle'); break;
                         case 'view':  break; // TODO: open shot note panel
                         case 'note':  break; // TODO: comment entry
                     }
@@ -3750,13 +3808,31 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         camInp.addEventListener('input',  () => _fitText(camInp,  camCon));
         rollInp.addEventListener('input', () => _fitText(rollInp, rollCon));
 
+        // CAM nudge buttons — cycle through cameraList (< prev  next >)
+        const _camCycle = dir => {
+            if (!cameraList.length) return;
+            const cur = camInp.value.trim();
+            const idx = cameraList.indexOf(cur);
+            const next = idx < 0
+                ? (dir > 0 ? 0 : cameraList.length - 1)
+                : (idx + dir + cameraList.length) % cameraList.length;
+            camInp.value = cameraList[next];
+            _fitText(camInp, camCon);
+            if (slateState === 'go') _ctrlRender('go');
+        };
+        camCell.querySelector('[data-nudge="cam-prev"]')
+            ?.addEventListener('click', e => { e.stopPropagation(); _camCycle(-1); });
+        camCell.querySelector('[data-nudge="cam-next"]')
+            ?.addEventListener('click', e => { e.stopPropagation(); _camCycle(+1); });
+
         const _fitAll = () => {
             _fitText(takeInp,   takeCon);
             _fitText(camInp,    camCon);
             _fitText(rollInp,   rollCon);
             if (prodDisp)  _fitText(prodDisp,  prodCon);
-            if (sceneDisp) _fitText(sceneDisp, sceneCon);
-            if (shotDisp)  _fitText(shotDisp,  shotCon);
+            if (dayDisp)   _fitText(dayDisp,   dayCon);
+            if (sceneDisp) _fitText(sceneDisp, sceneNumCon || sceneCon);
+            if (shotDisp)  _fitText(shotDisp,  shotNumCon  || shotCon);
             if (dirDisp)   _fitText(dirDisp,   dirCon);
             if (prod2Disp) _fitText(prod2Disp, prod2Con);
             if (dateDisp)  _fitText(dateDisp,  dateCon);
