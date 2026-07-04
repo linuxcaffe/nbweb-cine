@@ -682,13 +682,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-slate-cell input[type="number"] { -moz-appearance: textfield; }
 .nb-slate-cell input:focus { background: rgba(0,0,0,0.04); border-radius: 2px; }
 /* Explicit grid placement — 7-row body, 3-col body
-   Row 1    : PRODUCTION(1) | DAY(2) | DATE(3)
+   Row 1    : PRODUCTION+DAY badge(1-2) | DATE(3)
    Rows 2-3 : SCENE(1)  SHOT(2)  TAKE(3)   — each span 2 rows
    Rows 4-5 : CTRL(1)   CAM(2)   ROLL(3)   — each span 2 rows
-   Row 6    : DIRECTOR(1-2)  | SOUND(3)     — SOUND spans rows 6-7
-   Row 7    : PRODUCER(1-2)  | SOUND cont.                           */
-.nb-sc-prod  { grid-row: 1;     grid-column: 1; }
-.nb-sc-day   { grid-row: 1;     grid-column: 2; }
+   Row 6    : DIRECTOR(1-2)     | SOUND(3)  — SOUND spans rows 6-7
+   Row 7    : DOP(1-2)          | SOUND cont.                       */
+.nb-sc-prod  { grid-row: 1;     grid-column: 1 / 3; }
 .nb-sc-date  { grid-row: 1;     grid-column: 3; }
 .nb-sc-scene { grid-row: 2 / 4; grid-column: 1; }
 .nb-sc-shot  { grid-row: 2 / 4; grid-column: 2; }
@@ -698,26 +697,36 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-sc-roll  { grid-row: 4 / 6; grid-column: 3; }
 .nb-sc-dir   { grid-row: 6;     grid-column: 1 / 3; }
 .nb-sc-mos   { grid-row: 6 / 8; grid-column: 3; }
-.nb-sc-prod2 { grid-row: 7;     grid-column: 1 / 3; }
+.nb-sc-dop   { grid-row: 7;     grid-column: 1 / 3; }
 /* DATE cell: tabular digits for stable live clock */
 .nb-slate-datetime {
     font-weight: 700; color: #111; text-align: center; line-height: 1.1;
     font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-/* Scene/Shot: 3-zone vertical split — big number top, small title bottom */
-.nb-sc-scene .nb-slate-cell-content,
-.nb-sc-shot  .nb-slate-cell-content {
-    flex-direction: column; padding: 1px 4px; gap: 0;
+/* PRODUCTION row: name left-fills, day badge fixed-width on right */
+.nb-sc-prod .nb-slate-cell-content { flex-direction: row; align-items: center; gap: 0; padding: 2px 6px; }
+.nb-sc-prod-name { flex: 1 1 0; display: flex; align-items: center; overflow: hidden; min-width: 0; }
+.nb-slate-day-badge {
+    flex: 0 0 64px; text-align: center; white-space: nowrap;
+    font-size: clamp(9px, 1.6vw, 13px); font-weight: 700; color: #555;
+    border-left: 1px solid rgba(0,0,0,0.18); padding: 0 6px; line-height: 1.1;
 }
+/* Left-align crew/production text fields */
+.nb-sc-prod .nb-slate-display,
+.nb-sc-dir  .nb-slate-display,
+.nb-sc-dop  .nb-slate-display { text-align: left; justify-content: flex-start; }
+/* Scene/Shot: 3-zone vertical split — big number top 2/3, small title bottom 1/3 */
+.nb-sc-scene .nb-slate-cell-content,
+.nb-sc-shot  .nb-slate-cell-content { flex-direction: column; padding: 1px 4px; gap: 0; }
 .nb-slate-cell-number {
     flex: 2 1 0; display: flex; align-items: center; justify-content: center;
     overflow: hidden; min-height: 0; width: 100%;
 }
 .nb-slate-cell-subtitle {
     flex: 1 0 0; display: flex; align-items: flex-end; justify-content: center;
-    font-size: clamp(7px, 1.4vw, 11px); font-weight: 600; color: #666;
+    font-size: clamp(10px, 2.2vw, 16px); font-weight: 600; color: #555;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    text-align: center; min-height: 0; padding-bottom: 2px; width: 100%;
+    text-align: center; min-height: 0; padding-bottom: 3px; width: 100%;
     max-width: 100%; line-height: 1.1;
 }
 /* Nudge buttons on incrementable cell edges (< and >) */
@@ -3482,10 +3491,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const ie    = (m.int_ext   || '').toUpperCase();
         const dn    = (m.day_night || '').toUpperCase();
         const loc   = m.loc ? String(m.loc) : '';
-        // Crew from config chain — set in folder dotfile or .nb-cine.json
-        const director = String(m.director || ef.director || '');
-        const dp       = String(m.dp       || ef.dp       || '');
-        const producer = String(m.producer || ef.producer || '');
+        // Crew — shot FM > effective_fm > slate.md FM (loaded below)
+        // slateM not yet available here; overridden after slateCfg load
         // Production title from notebook config
         let production = '';
         try {
@@ -3496,6 +3503,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const slateCfg  = await _findSlateConfig(note);
         const slateM    = slateCfg.meta || {};
         const initState = _slateReadState(note.annotation || '', slateM);
+
+        // Crew cascade: shot FM > effective_fm > slate.md FM
+        const director = String(m.director || ef.director || slateM.director || '');
+        const dop      = String(m.dop || ef.dop || slateM.dop || m.dp || ef.dp || slateM.dp || '');
 
         const shootDay   = slateM.shoot_day ?? slateM.day ?? '';
         const _parseCams = raw => {
@@ -3524,13 +3535,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
   <div class="nb-slate-cell nb-sc-prod">
     <div class="nb-slate-cell-label">PRODUCTION</div>
     <div class="nb-slate-cell-content">
-      <div class="nb-slate-display">${_esc(production || 'Production')}</div>
-    </div>
-  </div>
-  <div class="nb-slate-cell nb-sc-day">
-    <div class="nb-slate-cell-label">DAY</div>
-    <div class="nb-slate-cell-content">
-      <div class="nb-slate-display">${shootDay ? _esc(String(shootDay)) : '&mdash;'}</div>
+      <div class="nb-sc-prod-name">
+        <div class="nb-slate-display">${_esc(production || 'Production')}</div>
+      </div>
+      ${shootDay ? `<div class="nb-slate-day-badge">Day&nbsp;${_esc(String(shootDay))}</div>` : ''}
     </div>
   </div>
   <div class="nb-slate-cell nb-sc-date">
@@ -3597,10 +3605,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
       <button class="nb-slate-mos-btn" type="button">MOS</button>
     </div>
   </div>
-  <div class="nb-slate-cell nb-sc-prod2">
-    <div class="nb-slate-cell-label">PROD</div>
+  <div class="nb-slate-cell nb-sc-dop">
+    <div class="nb-slate-cell-label">DOP</div>
     <div class="nb-slate-cell-content">
-      <div class="nb-slate-display">${_esc(producer) || '&mdash;'}</div>
+      <div class="nb-slate-display">${_esc(dop) || '&mdash;'}</div>
     </div>
   </div>
 </div>
@@ -3637,16 +3645,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // Static display elements
         const _disp = (sel) => overlay.querySelector(sel + ' .nb-slate-display');
         const _con  = (sel) => overlay.querySelector(sel + ' .nb-slate-cell-content');
-        const prodDisp  = _disp('.nb-sc-prod');  const prodCon  = _con('.nb-sc-prod');
-        const dayDisp   = _disp('.nb-sc-day');   const dayCon   = _con('.nb-sc-day');
-        const sceneDisp = _disp('.nb-sc-scene'); const sceneCon = _con('.nb-sc-scene');
-        const shotDisp  = _disp('.nb-sc-shot');  const shotCon  = _con('.nb-sc-shot');
+        const prodDisp   = _disp('.nb-sc-prod');  const prodNameEl = overlay.querySelector('.nb-sc-prod-name');
+        const sceneDisp  = _disp('.nb-sc-scene'); const sceneCon   = _con('.nb-sc-scene');
+        const shotDisp   = _disp('.nb-sc-shot');  const shotCon    = _con('.nb-sc-shot');
         const sceneNumCon = overlay.querySelector('.nb-sc-scene .nb-slate-cell-number');
         const shotNumCon  = overlay.querySelector('.nb-sc-shot  .nb-slate-cell-number');
-        const dirDisp   = _disp('.nb-sc-dir');   const dirCon   = _con('.nb-sc-dir');
-        const prod2Disp = _disp('.nb-sc-prod2'); const prod2Con = _con('.nb-sc-prod2');
-        const dateDisp  = overlay.querySelector('.nb-slate-datetime');
-        const dateCon   = _con('.nb-sc-date');
+        const dirDisp    = _disp('.nb-sc-dir');   const dirCon     = _con('.nb-sc-dir');
+        const dopDisp    = _disp('.nb-sc-dop');   const dopCon     = _con('.nb-sc-dop');
+        const dateDisp   = overlay.querySelector('.nb-slate-datetime');
+        const dateCon    = _con('.nb-sc-date');
 
         const valueEls = new Map([['take', takeInp], ['camera', camInp], ['tape', rollInp]]);
         const ctrlGrid = overlay.querySelector('.nb-slate-ctrl-grid');
@@ -3829,12 +3836,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             _fitText(takeInp,   takeCon);
             _fitText(camInp,    camCon);
             _fitText(rollInp,   rollCon);
-            if (prodDisp)  _fitText(prodDisp,  prodCon);
-            if (dayDisp)   _fitText(dayDisp,   dayCon);
+            if (prodDisp)  _fitText(prodDisp,  prodNameEl);
             if (sceneDisp) _fitText(sceneDisp, sceneNumCon || sceneCon);
             if (shotDisp)  _fitText(shotDisp,  shotNumCon  || shotCon);
             if (dirDisp)   _fitText(dirDisp,   dirCon);
-            if (prod2Disp) _fitText(prod2Disp, prod2Con);
+            if (dopDisp)   _fitText(dopDisp,   dopCon);
             if (dateDisp)  _fitText(dateDisp,  dateCon);
         };
         requestAnimationFrame(_fitAll);
