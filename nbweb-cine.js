@@ -723,9 +723,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-sc-dir  .nb-slate-display,
 .nb-sc-dop  .nb-slate-display {
     text-align: left; justify-content: flex-start;
-    font-size: clamp(13px, 2.8vw, 22px);
+    font-size: clamp(16px, 5vh, 44px);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Strip nearly all vertical padding from single-row crew cells */
+.nb-sc-dir .nb-slate-cell-content,
+.nb-sc-dop .nb-slate-cell-content { padding: 0 6px; }
+/* Take cell: tighter padding so _fitText gets more height to work with */
+.nb-sc-take .nb-slate-cell-content { padding: 1px 4px; }
 /* Scene/Shot: 3-zone vertical split — big number top 2/3, title bottom 1/3 */
 .nb-sc-scene .nb-slate-cell-content,
 .nb-sc-shot  .nb-slate-cell-content { flex-direction: column; padding: 1px 4px; gap: 0; }
@@ -3492,8 +3497,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         mirror.style.fontFamily = cs.fontFamily;
         mirror.style.fontWeight = cs.fontWeight;
         mirror.textContent = text;
-        const maxW = cell.clientWidth  * 0.82;
-        const maxH = cell.clientHeight * 0.78;
+        const maxW = cell.clientWidth  * 0.90;
+        const maxH = cell.clientHeight * 0.88;
         if (maxW <= 0 || maxH <= 0) return;
         let lo = 8, hi = 400;
         while (hi - lo > 1) {
@@ -3574,21 +3579,25 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
   </div>
   <div class="nb-slate-cell nb-sc-scene">
     <div class="nb-slate-cell-label">SCENE</div>
+    <button class="nb-slate-cell-nudge" data-nudge="shot-prev" type="button">&lt;</button>
     <div class="nb-slate-cell-content">
       <div class="nb-slate-cell-number">
         <div class="nb-slate-display">${_esc(scene) || '&mdash;'}</div>
       </div>
       <div class="nb-slate-cell-subtitle" title="${_esc(sceneTitle)}">${_esc(sceneTitle)}</div>
     </div>
+    <button class="nb-slate-cell-nudge" data-nudge="shot-next" type="button">&gt;</button>
   </div>
   <div class="nb-slate-cell nb-sc-shot">
     <div class="nb-slate-cell-label">SHOT</div>
+    <button class="nb-slate-cell-nudge" data-nudge="shot-prev" type="button">&lt;</button>
     <div class="nb-slate-cell-content">
       <div class="nb-slate-cell-number">
         <div class="nb-slate-display">${_esc(alias) || '&mdash;'}</div>
       </div>
       <div class="nb-slate-cell-subtitle" title="${_esc(shotTitle)}">${_esc(shotTitle)}</div>
     </div>
+    <button class="nb-slate-cell-nudge" data-nudge="shot-next" type="button">&gt;</button>
   </div>
   <div class="nb-slate-cell nb-sc-take">
     <div class="nb-slate-cell-label">TAKE</div>
@@ -3857,6 +3866,21 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         camCell.querySelector('[data-nudge="cam-next"]')
             ?.addEventListener('click', e => { e.stopPropagation(); _camCycle(+1); });
 
+        // Shot sequence nudge buttons on SCENE and SHOT cells
+        // Both cells share the same shot-prev/shot-next semantics (navigate shoot-day sequence)
+        overlay.querySelectorAll('[data-nudge="shot-next"]').forEach(btn =>
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                if (slateState === 'idle' || slateState === 'eval') _nextShot();
+            })
+        );
+        overlay.querySelectorAll('[data-nudge="shot-prev"]').forEach(btn =>
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                if (slateState === 'idle' || slateState === 'eval') _prevShot();
+            })
+        );
+
         const _fitAll = () => {
             _fitText(takeInp,   takeCon);
             _fitText(camInp,    camCon);
@@ -3992,14 +4016,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             _ctrlRender('idle');
         };
 
-        // NEXT SHOT — advance to next in schedule (stub), reset take, back to idle
+        // NEXT / PREV SHOT — navigate shoot-day sequence (TODO: stripboard lookup)
         const _nextShot = () => {
-            // TODO: look up next shot in cine stripboard sequence
             takeInp.value = 1;
             _fitText(takeInp, takeCon);
             takeRating = null;
             slateState = 'idle';
             _ctrlRender('idle');
+        };
+        const _prevShot = () => {
+            // TODO: navigate to previous shot in shoot-day sequence
         };
 
         topBar.addEventListener('click', () => {
