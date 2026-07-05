@@ -623,7 +623,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     border-top: 3px solid #111; border-bottom: 3px solid #111;
     -webkit-tap-highlight-color: transparent;
 }
-/* Default (idle/eval): green = system standing by */
+/* Default (standby): green = system standing by */
 .nb-slate-bar-top    { background: #1e5c1e; cursor: default; }
 .nb-slate-bar-bottom { background: #1e5c1e; cursor: default; }
 .nb-slate-bar:active { filter: brightness(1.15); }
@@ -872,6 +872,44 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-shot-pill-dnie { font-weight: 700; font-size: 0.78em; letter-spacing: 0.04em; }
 .nb-cine-takes-pill { cursor: pointer; border: 1px solid var(--border); background: var(--bg3, var(--bg2)); color: var(--text-muted); padding: 1px 7px; border-radius: 10px; font-size: 0.9em; }
 .nb-cine-takes-pill:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+/* Ctrl panel mode — flex column replaces the button grid */
+.nb-slate-ctrl-grid.nb-slate-ctrl-panel-mode { display: flex; flex-direction: column; gap: 0; }
+.nb-slate-panel-hdr {
+    display: flex; align-items: center; gap: 3px;
+    padding: 2px 3px; flex-shrink: 0;
+    border-bottom: 1px solid rgba(0,0,0,0.15);
+}
+.nb-slate-panel-title {
+    flex: 1; text-align: center;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.12em; color: #555; text-transform: uppercase;
+}
+.nb-slate-panel-back { flex: 0 0 auto; padding: 0 4px; font-size: 13px; min-width: 1.8em; line-height: 1; }
+.nb-slate-panel-body { flex: 1; overflow-y: auto; overflow-x: hidden; font-size: 10px; color: #333; min-height: 0; }
+.nb-slate-panel-item {
+    padding: 2px 5px; border-bottom: 1px solid rgba(0,0,0,0.08);
+    display: flex; align-items: baseline; gap: 4px; min-height: 1.8em;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.nb-slate-panel-item:active { background: rgba(0,0,0,0.1); }
+.nb-slate-panel-code { font-weight: 700; min-width: 3ch; flex-shrink: 0; white-space: nowrap; }
+.nb-slate-panel-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Dark mode (toggled by ☾ button) */
+.nb-slate-overlay.nb-slate-dark { background: #111; color: #eee; }
+.nb-slate-overlay.nb-slate-dark .nb-slate-cell { background: #1e1e1c; }
+.nb-slate-overlay.nb-slate-dark .nb-slate-display,
+.nb-slate-overlay.nb-slate-dark .nb-slate-cell input { color: #eee; }
+.nb-slate-overlay.nb-slate-dark .nb-sc-ctrl { background: #2a2a28; }
+.nb-slate-overlay.nb-slate-dark .nb-slate-cell-label { background: #333; }
+.nb-slate-overlay.nb-slate-dark .nb-slate-day-sep { background: #333; }
+.nb-slate-overlay.nb-slate-dark .nb-slate-body { background: #333; }
+.nb-slate-overlay.nb-slate-dark .nb-slate-ctrl-btn { background: #2e2e2c; border-color: #555; color: #ddd; }
+.nb-slate-overlay.nb-slate-dark .nb-slate-ctrl-btn:active { background: #444; }
+.nb-slate-overlay.nb-slate-dark .nb-slate-ctrl-btn[data-empty] { border-color: rgba(255,255,255,0.08); background: transparent; }
+.nb-slate-overlay.nb-slate-dark .nb-slate-panel-title { color: #aaa; }
+.nb-slate-overlay.nb-slate-dark .nb-slate-panel-body { color: #ccc; }
+.nb-slate-overlay.nb-slate-dark .nb-slate-panel-hdr { border-color: rgba(255,255,255,0.1); }
+.nb-slate-overlay.nb-slate-dark .nb-slate-panel-item { border-color: rgba(255,255,255,0.06); }
+.nb-slate-overlay.nb-slate-dark .nb-slate-panel-item:active { background: rgba(255,255,255,0.1); }
 `;
 
     if (!document.getElementById('nb-cine-styles')) {
@@ -3691,146 +3729,218 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const valueEls = new Map([['take', takeInp], ['camera', camInp], ['tape', rollInp]]);
         const ctrlGrid = overlay.querySelector('.nb-slate-ctrl-grid');
 
-        // Context-driven ctrl panel — 2×4 grid with variable-span cells per production state
+        // Context-driven ctrl panel — 3-state (standby/go/action) + label-bar panels
         const _ctrlRender = (ctx) => {
-            const sp  = n => n > 1 ? ` style="grid-column:span ${n}"` : '';
-            const b   = (lbl, act, cls='', span=1) =>
-                `<button class="nb-slate-ctrl-btn${cls?' '+cls:''}" data-action="${act}"${sp(span)}>${lbl}</button>`;
-            const inf = (lbl, span=1) =>
-                `<button class="nb-slate-ctrl-btn" data-info${sp(span)}>${lbl}</button>`;
-            const mt  = (span=1) =>
-                `<button class="nb-slate-ctrl-btn" data-empty${sp(span)}></button>`;
-            const countTxt = takeCount ? `${takeCount} take${takeCount !== 1 ? 's' : ''}` : 'no takes';
+            if (ctx.startsWith('panel:')) { _loadPanel(ctx.slice(6)); return; }
+            ctrlGrid.classList.remove('nb-slate-ctrl-panel-mode');
+            const b   = (lbl, act, cls='', style='') =>
+                `<button class="nb-slate-ctrl-btn${cls?' '+cls:''}" data-action="${act}"${style?` style="${style}"`:''}>${lbl}</button>`;
+            const big = (lbl, act, cls='') =>
+                b(lbl, act, cls, 'grid-column:span 2;grid-row:span 2');
+            const mt  = () =>
+                `<button class="nb-slate-ctrl-btn" data-empty></button>`;
             let html;
             switch (ctx) {
-                // ── IDLE: pre-production, nothing rolling ──────────────────────────────
-                case 'idle':
+                // ── STANDBY: ready, nothing rolling ───────────────────────────────────
+                case 'standby':
                     html = [
-                        b('ROLL CAMERA', 'roll', 'nb-slate-ctrl-roll', 3),
+                        big('ROLL CAMERA', 'roll', 'nb-slate-ctrl-roll'),
+                        b('☾', 'dark-mode', 'nb-slate-ctrl-exit'),
                         b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
-                        inf(countTxt, 2), b('VIEW', 'view'), mt(),
+                        b('SLATE', 'open-slate'),
+                        b('NOTES', 'notes'),
                     ].join('');
                     break;
-                // ── GO: camera rolling, slate next ─────────────────────────────────────
-                case 'go': {
-                    // Show first 2 cameras from list as quick-switch presets
-                    const cams = cameraList.length ? cameraList.slice(0, 2) : [];
-                    const camBtns = cams.map(c => b(`CAM ${c}`, `cam-${c}`));
-                    const actionSpan = 4 - cams.length;
+                // ── GO: camera rolling, slate and wait for ACTION ─────────────────────
+                case 'go':
                     html = [
-                        ...camBtns, b('ACTION', 'action', 'nb-slate-ctrl-action', actionSpan),
-                        inf('↑ tap to slate', 3), b('CANCEL', 'cancel'),
+                        big('ACTION', 'action', 'nb-slate-ctrl-action'),
+                        b('☾', 'dark-mode', 'nb-slate-ctrl-exit'),
+                        b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
+                        b('SLATE', 'open-slate'),
+                        b('NOTES', 'notes'),
                     ].join('');
                     break;
-                }
-                // ── ACTION: director has called action, timers running ──────────────────
-                case 'action': {
-                    const gCls = 'nb-slate-ctrl-good' + (takeRating === 'good' ? ' nb-slate-ctrl-active' : '');
-                    const nCls = 'nb-slate-ctrl-ng'   + (takeRating === 'ng'   ? ' nb-slate-ctrl-active' : '');
+                // ── ACTION: rolling; CUT is the only active control ───────────────────
+                case 'action':
                     html = [
-                        b('CUT', 'cut', 'nb-slate-ctrl-cut', 2),
-                        b('GOOD', 'mark-good', gCls), b('NG', 'mark-ng', nCls),
-                        inf(countTxt + ' recorded', 2), b('NOTE', 'note'), mt(),
+                        big('CUT', 'cut', 'nb-slate-ctrl-cut'),
+                        mt(), mt(), mt(), mt(),
                     ].join('');
                     break;
-                }
-                // ── EVAL: post-cut, increment shot or take ─────────────────────────────
-                case 'eval': {
-                    const ratingTxt = takeRating === 'good' ? '✓ GOOD' : takeRating === 'ng' ? '✗ NG' : 'unrated';
-                    html = [
-                        b('NEXT SHOT', 'next-shot', '', 2), b('NEXT TAKE', 'next-take', '', 2),
-                        inf(ratingTxt, 2), b('NOTE', 'note'), b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
-                    ].join('');
-                    break;
-                }
-                // ── TAKE label-bar sub-context (idle only) ─────────────────────────────
-                case 'take':
-                    html = [
-                        b('&#8722;', 'take-dec'), b('RESET', 'take-reset'), b('+', 'take-inc'),
-                        b('BACK', 'home'),
-                        inf(countTxt, 2), mt(), b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
-                    ].join('');
-                    break;
-                // ── CAM label-bar sub-context (idle only) ──────────────────────────────
-                case 'cam': {
-                    // Show up to 3 cameras from list, padded with empty if fewer
-                    const cams3 = cameraList.length
-                        ? cameraList.slice(0, 3).map(c => b(`CAM ${c}`, `cam-${c}`))
-                        : [b('CAM A', 'cam-A'), b('CAM B', 'cam-B'), b('CAM C', 'cam-C')];
-                    while (cams3.length < 3) cams3.push(mt());
-                    html = [
-                        ...cams3, b('BACK', 'home'),
-                        mt(3), b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
-                    ].join('');
-                    break;
-                }
                 default:
-                    html = [
-                        b('VIEW', 'view'), mt(2), b('EXIT', 'exit', 'nb-slate-ctrl-exit'),
-                        inf(countTxt, 2), mt(2),
-                    ].join('');
+                    html = big('EXIT', 'exit', 'nb-slate-ctrl-exit');
             }
             ctrlGrid.innerHTML = html;
             ctrlGrid.querySelectorAll('[data-action]').forEach(btn => {
                 btn.addEventListener('click', e => {
                     e.stopPropagation();
-                    const act = btn.dataset.action;
-                    // cam-* prefix: set camera to anything after 'cam-'
-                    if (act.startsWith('cam-')) {
-                        camInp.value = act.slice(4);
-                        _fitText(camInp, camCon);
-                        _ctrlRender(slateState === 'go' ? 'go' : 'idle');
-                        return;
-                    }
-                    switch (act) {
-                        case 'exit':       _close(); break;
-                        case 'home':       _ctrlRender('idle'); break;
-                        case 'roll':       _rollCamera(); break;
-                        case 'cancel':     _setGo(false); slateState = 'idle'; _ctrlRender('idle'); break;
-                        case 'action':     _action(); break;
-                        case 'cut':        _cut(); break;
-                        case 'next-take':  _nextTake(); break;
-                        case 'next-shot':  _nextShot(); break;
-                        case 'mark-good':  takeRating = takeRating === 'good' ? null : 'good'; _ctrlRender('action'); break;
-                        case 'mark-ng':    takeRating = takeRating === 'ng'   ? null : 'ng';   _ctrlRender('action'); break;
-                        case 'take-dec':
-                            takeInp.value = Math.max(1, (parseInt(takeInp.value, 10) || 1) - 1);
-                            _fitText(takeInp, takeCon); break;
-                        case 'take-inc':
-                            takeInp.value = (parseInt(takeInp.value, 10) || 0) + 1;
-                            _fitText(takeInp, takeCon); break;
-                        case 'take-reset':
-                            takeInp.value = 1; _fitText(takeInp, takeCon); break;
-                        case 'view':  break; // TODO: open shot note panel
-                        case 'note':  break; // TODO: comment entry
+                    switch (btn.dataset.action) {
+                        case 'exit':
+                            if (slateState === 'go') _setGo(false);
+                            _close(); break;
+                        case 'roll':      _rollCamera(); break;
+                        case 'action':    _action(); break;
+                        case 'cut':       _cut(); break;
+                        case 'dark-mode': overlay.classList.toggle('nb-slate-dark'); break;
+                        case 'open-slate':
+                            if (slateCfg.selector) { NbMain.openNote(slateCfg.selector); _close(); }
+                            break;
+                        case 'notes': break; // TODO: post-take note entry
                     }
                 });
             });
         };
 
-        // Label bar taps → switch ctrl context (only in idle state)
-        takeCell.querySelector('.nb-slate-cell-label').addEventListener('click', e => {
-            e.stopPropagation();
-            if (slateState === 'idle') _ctrlRender('take');
-        });
-        camCell.querySelector('.nb-slate-cell-label').addEventListener('click', e => {
-            e.stopPropagation();
-            if (slateState === 'idle') _ctrlRender('cam');
-        });
-        rollCell.querySelector('.nb-slate-cell-label').addEventListener('click', e => {
-            e.stopPropagation();
-            if (slateState === 'idle') { rollInp.focus(); rollInp.select(); }
-        });
-        mosCell.querySelector('.nb-slate-cell-label').addEventListener('click', e => {
-            e.stopPropagation();
-            if (slateState === 'idle' || slateState === 'go') {
-                mosActive = !mosActive;
-                mosCell.classList.toggle('nb-slate-mos-active', mosActive);
+        // Panel loader — replaces ctrl grid with a scrollable context list
+        const _loadPanel = async (name) => {
+            ctrlGrid.classList.add('nb-slate-ctrl-panel-mode');
+            ctrlGrid.innerHTML =
+                `<div class="nb-slate-panel-hdr">` +
+                `<button class="nb-slate-ctrl-btn nb-slate-panel-back" data-action="home">←</button>` +
+                `<span class="nb-slate-panel-title">${_esc(name.toUpperCase())}</span>` +
+                `</div>` +
+                `<div class="nb-slate-panel-body"><span style="padding:4px;opacity:0.5">…</span></div>`;
+            ctrlGrid.querySelector('[data-action="home"]').addEventListener('click', e => {
+                e.stopPropagation(); _ctrlRender('standby');
+            });
+            const body = ctrlGrid.querySelector('.nb-slate-panel-body');
+            try {
+                switch (name) {
+                    case 'scene': await _panelScene(body); break;
+                    case 'shot':  await _panelShot(body); break;
+                    case 'day':   await _panelDay(body); break;
+                    case 'roll':  await _panelRoll(body); break;
+                    case 'cam':   _panelCam(body); break;
+                    case 'take':  await _panelTake(body); break;
+                    default:      body.innerHTML = _panelItem('—', name + ' — coming soon'); break;
+                }
+            } catch (err) {
+                body.innerHTML = '<div style="padding:4px;color:#a93226;font-size:10px">Panel error</div>';
+                console.warn('Slate panel:', name, err);
             }
-        });
+        };
+
+        // Panel helpers
+        const _panelItem = (code, label, sel) =>
+            `<div class="nb-slate-panel-item"${sel ? ` data-selector="${_esc(sel)}"` : ' style="cursor:default"'}>` +
+            `<span class="nb-slate-panel-code">${_esc(String(code))}</span>` +
+            `<span class="nb-slate-panel-name">${_esc(String(label))}</span></div>`;
+        const _wireItems = (el) =>
+            el.querySelectorAll('[data-selector]').forEach(item =>
+                item.addEventListener('click', e => {
+                    e.stopPropagation(); NbMain.openNote(item.dataset.selector); _close();
+                })
+            );
+
+        const _panelScene = async (body) => {
+            const data = await _fetchData(notebook);
+            const dayStr = String(shootDay ?? '');
+            const shots = (data.shots || []).filter(s =>
+                dayStr && (String(s.day ?? '') === dayStr || String(s.shoot_day ?? '') === dayStr)
+            );
+            const sceneSet = new Set(shots.map(s => String(s.scene ?? '')).filter(Boolean));
+            const scenes = (data.scenes || []).filter(s => sceneSet.has(String(s.alias ?? '')));
+            if (!scenes.length) { body.innerHTML = _panelItem('—', 'No scenes for this day'); return; }
+            body.innerHTML = scenes.map(s => _panelItem(s.alias, s.synopsis || s.title || s.alias, s.selector)).join('');
+            _wireItems(body);
+        };
+
+        const _panelShot = async (body) => {
+            const data = await _fetchData(notebook);
+            const dayStr = String(shootDay ?? '');
+            const shots = (data.shots || []).filter(s =>
+                s.type !== 'lunch' && s.type !== 'move' &&
+                (!dayStr || String(s.day ?? '') === dayStr || String(s.shoot_day ?? '') === dayStr)
+            );
+            if (!shots.length) { body.innerHTML = _panelItem('—', 'No shots scheduled'); return; }
+            body.innerHTML = shots.map(s => {
+                const id = s.scene && s.alias ? `${s.scene}.${s.alias}` : (s.alias || '?');
+                return _panelItem(id, s.title || _descFirst(s.desc) || '', s.selector);
+            }).join('');
+            _wireItems(body);
+        };
+
+        const _panelTake = async (body) => {
+            body.innerHTML = _panelItem('—', 'Take history — coming soon');
+        };
+
+        const _panelDay = async (body) => {
+            if (shootDay === '' || shootDay == null) {
+                body.innerHTML = _panelItem('—', 'No shoot day in slate.md'); return;
+            }
+            const sel = `${notebook}:shots/day_${shootDay}.md`;
+            body.innerHTML = _panelItem(`DAY ${shootDay}`, `Open day_${shootDay}.md`, sel);
+            _wireItems(body);
+        };
+
+        const _panelRoll = async (body) => {
+            try {
+                const r   = await fetch(`/api/note?selector=${encodeURIComponent(note.selector)}`);
+                const d   = await r.json();
+                const ann = d.annotation || '';
+                const tapes = [...new Set(
+                    [...ann.matchAll(/^i\s[^\n]*tape:([^,\s\n]+)/gm)].map(m => m[1])
+                )];
+                if (!tapes.length) { body.innerHTML = _panelItem('—', 'No rolls recorded this shot'); return; }
+                body.innerHTML = tapes.map(t => _panelItem('🎞', t)).join('');
+            } catch (_) { body.innerHTML = _panelItem('—', 'Could not load roll data'); }
+        };
+
+        const _panelCam = (body) => {
+            if (!cameraList.length) {
+                body.innerHTML = _panelItem('—', 'Add cameras: to slate.md'); return;
+            }
+            body.innerHTML = cameraList.map(c =>
+                `<div class="nb-slate-panel-item nb-slate-panel-cam-pick" data-cam="${_esc(c)}">` +
+                `<span class="nb-slate-panel-code">CAM</span>` +
+                `<span class="nb-slate-panel-name">${_esc(c)}${camInp.value === c ? ' ✓' : ''}</span></div>`
+            ).join('');
+            body.querySelectorAll('[data-cam]').forEach(el =>
+                el.addEventListener('click', e => {
+                    e.stopPropagation();
+                    camInp.value = el.dataset.cam;
+                    _fitText(camInp, camCon);
+                    _ctrlRender('standby');
+                })
+            );
+        };
+
+        // Label bars → context panels in standby state
+        const _labelTap = (cellSel, panel) => {
+            const lbl = overlay.querySelector(`${cellSel} .nb-slate-cell-label`);
+            if (lbl) lbl.addEventListener('click', e => {
+                e.stopPropagation();
+                if (slateState === 'standby') _ctrlRender('panel:' + panel);
+            });
+        };
+        _labelTap('.nb-sc-prod',  'prod');
+        _labelTap('.nb-sc-date',  'date');
+        _labelTap('.nb-sc-scene', 'scene');
+        _labelTap('.nb-sc-shot',  'shot');
+        _labelTap('.nb-sc-take',  'take');
+        _labelTap('.nb-sc-cam',   'cam');
+        _labelTap('.nb-sc-roll',  'roll');
+        _labelTap('.nb-sc-mos',   'sound');
+        _labelTap('.nb-sc-dir',   'dir');
+        _labelTap('.nb-sc-dop',   'dop');
         overlay.querySelector('.nb-sc-ctrl .nb-slate-cell-label').addEventListener('click', e => {
             e.stopPropagation();
-            if (slateState === 'idle') _ctrlRender('idle');
+            if (slateState === 'standby') _ctrlRender('standby');
+        });
+        // DAY separator inside PROD cell also opens day panel
+        const daySep = overlay.querySelector('.nb-slate-day-sep');
+        if (daySep) {
+            daySep.style.cursor = 'pointer';
+            daySep.addEventListener('click', e => {
+                e.stopPropagation();
+                if (slateState === 'standby') _ctrlRender('panel:day');
+            });
+        }
+        // MOS button toggles sound-off flag
+        mosBtn.addEventListener('click', () => {
+            mosActive = !mosActive;
+            mosCell.classList.toggle('nb-slate-mos-active', mosActive);
         });
 
         // TAKE nudge buttons (< >) on cell edges
@@ -3870,13 +3980,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         overlay.querySelectorAll('[data-nudge="shot-next"]').forEach(btn =>
             btn.addEventListener('click', e => {
                 e.stopPropagation();
-                if (slateState === 'idle' || slateState === 'eval') _nextShot();
+                if (slateState === 'standby') _nextShot();
             })
         );
         overlay.querySelectorAll('[data-nudge="shot-prev"]').forEach(btn =>
             btn.addEventListener('click', e => {
                 e.stopPropagation();
-                if (slateState === 'idle' || slateState === 'eval') _prevShot();
+                if (slateState === 'standby') _prevShot();
             })
         );
 
@@ -3898,9 +4008,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         let mosActive       = false;
         let takeCount       = initState.takeCount;
-        let takeRating      = null;   // null | 'good' | 'ng' — pre-markable before CUT
         let snapping        = false;
-        let slateState      = initState.rolling ? 'action' : 'idle';
+        let slateState      = initState.rolling ? 'action' : 'standby';
         let actionStartTime = null;
 
         const durationEl = overlay.querySelector('.nb-slate-duration');
@@ -3922,11 +4031,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         };
         _tick();
         const clockId = setInterval(_tick, 1000);
-
-        mosBtn.addEventListener('click', () => {
-            mosActive = !mosActive;
-            mosCell.classList.toggle('nb-slate-mos-active', mosActive);
-        });
 
         const getVal = key => {
             const el = valueEls.get(key);
@@ -3962,7 +4066,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const _action = async () => {
             if (slateState !== 'go') return;
             slateState = 'action';
-            takeRating = null;
             actionStartTime = Date.now();
             _setGo(false);
             _setRolling(true);
@@ -3987,7 +4090,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             } catch (err) { console.warn('Slate: action write error', err); }
         };
 
-        // CUT — o: entry written, move to eval
+        // CUT — o: entry written, take# auto-incremented, back to standby
         const _cut = async () => {
             if (slateState !== 'action') return;
             try {
@@ -4001,31 +4104,23 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 if (!wr.ok) console.warn('Slate: cut write failed', wr.status);
             } catch (err) { console.warn('Slate: cut write error', err); }
             takeCount++;
+            takeInp.value = (parseInt(takeInp.value, 10) || 1) + 1;
+            _fitText(takeInp, takeCon);
             mosActive = false;
             actionStartTime = null;
             if (durationEl) durationEl.textContent = '0:00';
             mosCell.classList.remove('nb-slate-mos-active');
             _setRolling(false);
-            slateState = 'eval';
-            _ctrlRender('eval');
+            slateState = 'standby';
+            _ctrlRender('standby');
         };
 
-        // NEXT TAKE — increment take#, back to idle
-        const _nextTake = () => {
-            takeInp.value = (parseInt(takeInp.value, 10) || 1) + 1;
-            _fitText(takeInp, takeCon);
-            takeRating = null;
-            slateState = 'idle';
-            _ctrlRender('idle');
-        };
-
-        // NEXT / PREV SHOT — navigate shoot-day sequence (TODO: stripboard lookup)
+        // Shot nudge — reset take to 1, back to standby (TODO: advance stripboard position)
         const _nextShot = () => {
             takeInp.value = 1;
             _fitText(takeInp, takeCon);
-            takeRating = null;
-            slateState = 'idle';
-            _ctrlRender('idle');
+            slateState = 'standby';
+            _ctrlRender('standby');
         };
         const _prevShot = () => {
             // TODO: navigate to previous shot in shoot-day sequence
