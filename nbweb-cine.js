@@ -3590,6 +3590,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const dateStr = `${String(_d.getDate()).padStart(2,'0')} ${months[_d.getMonth()]} ${_d.getFullYear()}`;
         const ieStr   = [ie, dn, loc].filter(Boolean).join('·') || '—';
         const takeCount0 = initState.takeCount;
+        const minTake    = initState.nextTake;   // floor — can never go below recorded max+1
         const takeTxt  = n => n ? `${n} take${n !== 1 ? 's' : ''} recorded` : 'no takes yet';
 
         const overlay = document.createElement('div');
@@ -3946,7 +3947,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // TAKE nudge buttons (< >) on cell edges
         takeCell.querySelector('[data-nudge="take-dec"]').addEventListener('click', e => {
             e.stopPropagation();
-            takeInp.value = Math.max(1, (parseInt(takeInp.value, 10) || 1) - 1);
+            takeInp.value = Math.max(minTake, (parseInt(takeInp.value, 10) || minTake) - 1);
             _fitText(takeInp, takeCon);
         });
         takeCell.querySelector('[data-nudge="take-inc"]').addEventListener('click', e => {
@@ -3955,6 +3956,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             _fitText(takeInp, takeCon);
         });
 
+        takeInp.addEventListener('change', () => {
+            const v = parseInt(takeInp.value, 10);
+            if (isNaN(v) || v < minTake) { takeInp.value = minTake; }
+            _fitText(takeInp, takeCon);
+        });
         camInp.addEventListener('input',  () => _fitText(camInp,  camCon));
         rollInp.addEventListener('input', () => _fitText(rollInp, rollCon));
 
