@@ -4011,6 +4011,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         let snapping        = false;
         let slateState      = initState.rolling ? 'action' : 'standby';
         let actionStartTime = null;
+        let shootSeq        = null;   // lazy: ordered shots for this shoot_day
+        let seqIdx          = -1;
 
         const durationEl = overlay.querySelector('.nb-slate-duration');
 
@@ -4115,16 +4117,56 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             _ctrlRender('standby');
         };
 
-        // Shot nudge — reset take to 1, back to standby (TODO: advance stripboard position)
-        const _nextShot = () => {
-            takeInp.value = 1;
-            _fitText(takeInp, takeCon);
-            slateState = 'standby';
-            _ctrlRender('standby');
+        // Shot sequence navigation — follows shoot_day stripboard order
+        const _loadSeq = async () => {
+            if (shootSeq) return;
+            const data = await _fetchData(notebook);
+            const dayStr = String(shootDay ?? '');
+            shootSeq = dayStr
+                ? (data.shots || []).filter(s =>
+                    String(s.day ?? '') === dayStr || String(s.shoot_day ?? '') === dayStr)
+                : (data.shots || []);
+            seqIdx = shootSeq.findIndex(s => s.selector === note.selector);
         };
-        const _prevShot = () => {
-            // TODO: navigate to previous shot in shoot-day sequence
+
+        const _showBreakStrip = (strip) => {
+            const label = strip.type === 'lunch' ? 'LUNCH' : (strip.type === 'move' ? 'MOVE' : strip.type.toUpperCase());
+            const bg    = strip.type === 'lunch' ? '#e8d5b0' : '#ffd090';
+            const shotCell = overlay.querySelector('.nb-sc-shot');
+            if (shotCell) shotCell.style.background = bg;
+            if (sceneDisp) { sceneDisp.textContent = ''; _fitText(sceneDisp, sceneNumCon || sceneCon); }
+            if (shotDisp)  { shotDisp.textContent  = label; _fitText(shotDisp, shotNumCon || shotCon); }
+            const shotSub = overlay.querySelector('.nb-sc-shot .nb-slate-cell-subtitle');
+            if (shotSub) shotSub.textContent = _descFirst(strip.desc) || '';
         };
+
+        const _navigateToShot = async (shot) => {
+            try {
+                const r = await fetch(`/api/note?selector=${encodeURIComponent(shot.selector)}`);
+                const d = await r.json();
+                if (!d || d.error) return;
+                if (!d.selector) d.selector = shot.selector;
+                _close();
+                await _showSlate(d);
+            } catch (err) { console.warn('Slate: navigate error', err); }
+        };
+
+        const _stepSeq = async (dir) => {
+            await _loadSeq();
+            if (!shootSeq || !shootSeq.length) return;
+            const next = seqIdx + dir;
+            if (next < 0 || next >= shootSeq.length) return;
+            seqIdx = next;
+            const strip = shootSeq[seqIdx];
+            if (strip.type === 'lunch' || strip.type === 'move') {
+                _showBreakStrip(strip);
+            } else {
+                await _navigateToShot(strip);
+            }
+        };
+
+        const _nextShot = () => _stepSeq(+1);
+        const _prevShot = () => _stepSeq(-1);
 
         topBar.addEventListener('click', () => {
             if (slateState === 'go') _snapVisual();
