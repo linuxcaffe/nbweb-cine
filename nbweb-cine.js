@@ -718,12 +718,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     flex: 0 0 52px; display: flex; align-items: center; justify-content: center;
     font-size: clamp(16px, 3.5vw, 28px); font-weight: 700; color: #111; text-align: center;
 }
-/* Crew/text cells: CSS-sized, left-aligned, ellipsis — no _fitText */
+/* Crew/text cells: left-aligned; font-size set by _fitText at runtime */
 .nb-sc-prod .nb-slate-display,
 .nb-sc-dir  .nb-slate-display,
 .nb-sc-dop  .nb-slate-display {
     text-align: left; justify-content: flex-start;
-    font-size: clamp(16px, 5vh, 44px);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* Strip nearly all vertical padding from single-row crew cells */
@@ -3497,8 +3496,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         mirror.style.fontFamily = cs.fontFamily;
         mirror.style.fontWeight = cs.fontWeight;
         mirror.textContent = text;
-        const maxW = cell.clientWidth  * 0.90;
-        const maxH = cell.clientHeight * 0.88;
+        const maxW = cell.clientWidth  - 12;
+        const maxH = cell.clientHeight - 12;
         if (maxW <= 0 || maxH <= 0) return;
         let lo = 8, hi = 400;
         while (hi - lo > 1) {
@@ -3885,8 +3884,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             _fitText(takeInp,   takeCon);
             _fitText(camInp,    camCon);
             _fitText(rollInp,   rollCon);
+            if (prodDisp)  _fitText(prodDisp,  prodNameEl);
             if (sceneDisp) _fitText(sceneDisp, sceneNumCon || sceneCon);
             if (shotDisp)  _fitText(shotDisp,  shotNumCon  || shotCon);
+            if (dirDisp)   _fitText(dirDisp,   dirCon);
+            if (dopDisp)   _fitText(dopDisp,   dopCon);
+            if (dateDisp)  _fitText(dateDisp,  dateCon);
         };
         requestAnimationFrame(_fitAll);
         window.addEventListener('resize', _fitAll);
