@@ -910,6 +910,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-slate-overlay.nb-slate-dark .nb-slate-panel-hdr { border-color: rgba(255,255,255,0.1); }
 .nb-slate-overlay.nb-slate-dark .nb-slate-panel-item { border-color: rgba(255,255,255,0.06); }
 .nb-slate-overlay.nb-slate-dark .nb-slate-panel-item:active { background: rgba(255,255,255,0.1); }
+
+/* org chart (pipeline) — SVG org chart, same technique as core cfg:org */
+.nb-cine-org-svg  { display: block; }
+.nb-cine-org-edge { stroke: var(--border, #444); stroke-width: 1.5; }
+.nb-cine-org-rect { fill: var(--bg2, #1e2228); stroke: var(--border, #444); stroke-width: 1.5; transition: filter 0.1s; }
+.nb-cine-org-node[style*="pointer"]:hover .nb-cine-org-rect { filter: brightness(1.18); }
+.nb-cine-org-node.nb-cine-org-inert .nb-cine-org-rect { stroke-dasharray: 4 3; }
+.nb-cine-org-label { font-size: 11px; fill: var(--text, #eee); font-family: var(--font-sans, system-ui); dominant-baseline: auto; }
+.nb-cine-org-node.nb-cine-org-inert .nb-cine-org-label { fill: var(--text-muted, #aaa); }
+.nb-cine-org-node.nb-cine-org-milestone .nb-cine-org-rect { stroke: var(--text-muted, #aaa); }
 `;
 
     if (!document.getElementById('nb-cine-styles')) {
@@ -2637,6 +2647,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const { field, format, filter, codes } = _parseQuery(el.dataset.query || '');
         const _project = (field === 'storyline-board' || field === 'storyline-story' || field === 'storyline-script') ? (el.dataset.project || '') : '';
 
+        if (field === 'org') {
+            // Pipeline org chart — its own data source (.cine-phases.md headings),
+            // unrelated to _fetchData's shot/scene/location bundle, so skip it entirely.
+            await _buildCineOrg(el, notebook);
+            return;
+        }
+
         let data;
         try {
             data = await _fetchData(notebook, _project);
@@ -2816,6 +2833,345 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 NbMain.openNote(btn.dataset.selector);
             })
         );
+    }
+
+    // ── Org chart (pipeline) ─────────────────────────────────────────────────
+    // Tree source = recursive markdown headings in .cine-phases.md, not a
+    // filesystem walk (unlike core `cfg org`, which this reuses the *technique*
+    // of, not the code — see claude:nbweb-cine_navigation_org_chart_design_2026-08-01.md).
+    // A heading is always a node. Wikilinked -> clickable, points at a real
+    // note. Plain text -> inert, "planned but not written yet". A heading owns
+    // its content up to (not including) the next heading of the same or
+    // shallower level; within that owned content the FIRST blockquote line is
+    // a status query, the FIRST list-item line is a phase code (only
+    // meaningful on a phase-root heading, captured generically here).
+
+    const _CINE_WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/;
+
+    function _parseCinePhases(body) {
+        const lines = (body || '').split('\n');
+        const root = { level: 0, label: '', wikiTarget: null, milestone: false, query: null, code: null, children: [] };
+        const stack = [root];
+
+        for (const raw of lines) {
+            const hm = /^(#{1,6})\s+(.*)$/.exec(raw);
+            if (hm) {
+                const level = hm[1].length;
+                const text  = hm[2].trim();
+                const wm = _CINE_WIKILINK_RE.exec(text);
+                const node = {
+                    level,
+                    label:      wm ? (wm[2] || wm[1]).trim() : text,
+                    wikiTarget: wm ? wm[1].trim() : null,
+                    milestone:  /🚩/.test(text),
+                    query:      null,
+                    code:       null,
+                    children:   [],
+                };
+                while (stack.length > 1 && stack[stack.length - 1].level >= level) stack.pop();
+                stack[stack.length - 1].children.push(node);
+                stack.push(node);
+                continue;
+            }
+            const owner = stack[stack.length - 1];
+            if (owner === root) continue;
+            const trimmed = raw.trim();
+            if (owner.query === null && trimmed.startsWith('>')) {
+                owner.query = trimmed.slice(1).trim();
+            } else if (owner.level === 2 && owner.code === null && /^-\s+/.test(trimmed)) {
+                owner.code = trimmed.replace(/^-\s+/, '').trim();
+            }
+        }
+        return root;
+    }
+
+    // ── Status-query matcher ─────────────────────────────────────────────────
+    // Ported from _front_matches (app.py) -- the same grammar the `fm`
+    // codeblock uses: "field:value" (eq, case-insensitive), "field:" (exists),
+    // "field:\"\"" (empty/absent). Comma-separated conditions are ANDed.
+    function _matchesQuery(meta, query) {
+        let conditions = 0;
+        for (const part of (query || '').split(',')) {
+            const ci = part.indexOf(':');
+            if (ci < 0) continue;
+            const field  = part.slice(0, ci).trim();
+            const rawVal = part.slice(ci + 1).trim();
+            if (!field) continue;
+            conditions++;
+            if (rawVal === '') {
+                if (!(field in meta)) return false;
+            } else if (rawVal === '""' || rawVal === "''") {
+                const v = meta[field];
+                if (v != null && String(v).trim()) return false;
+            } else {
+                const v = meta[field];
+                if (v == null) return false;
+                if (String(v).toLowerCase() !== rawVal.toLowerCase()) return false;
+            }
+        }
+        return conditions > 0;
+    }
+
+    function _findNodeByCode(node, code) {
+        if (node.code === code) return node;
+        for (const c of (node.children || [])) {
+            const found = _findNodeByCode(c, code);
+            if (found) return found;
+        }
+        return null;
+    }
+
+    async function _buildCineOrg(el, notebook) {
+        el.innerHTML = '<span class="nb-spin">⟳</span>';
+
+        let body;
+        try {
+            const r = await fetch(`/api/note?selector=${encodeURIComponent(notebook + ':.cine-phases.md')}`);
+            const d = await r.json();
+            if (d.error) throw new Error(d.error);
+            body = d.body || '';
+        } catch (e) {
+            el.innerHTML = `<span class="nb-cine-error">⚠ .cine-phases.md not found — ${_esc(e.message)}</span>`;
+            return;
+        }
+
+        const root = _parseCinePhases(body);
+
+        // Resolve every wikilinked node's target to a real selector, in parallel.
+        const withLinks = [];
+        (function collect(node) {
+            if (node.wikiTarget) withLinks.push(node);
+            (node.children || []).forEach(collect);
+        })(root);
+        await Promise.all(withLinks.map(async node => {
+            node.selector = await NbMain.resolveWikilinkSelector(node.wikiTarget);
+        }));
+
+        // Evaluate each node's status query against its resolved note's frontmatter.
+        await Promise.all(withLinks.filter(n => n.query).map(async node => {
+            try {
+                const r = await fetch(`/api/note?selector=${encodeURIComponent(node.selector)}`);
+                const d = await r.json();
+                node.status = !d.error && _matchesQuery(d.meta || {}, node.query);
+            } catch { node.status = false; }
+        }));
+
+        // Phase scoping: the hosting note's own `phase:` frontmatter, self-declared,
+        // no inheritance. A local override (el.dataset) lets the "up" button show
+        // the full map without touching the note's actual frontmatter.
+        const forceFull = el.dataset.cineOrgForceFull === '1';
+        const phase = forceFull ? null : (NbMain.activeNote()?.meta?.phase || null);
+        let displayRoot = root.children[0] || root;
+        let scoped = false;
+        if (phase) {
+            const match = _findNodeByCode(root, phase);
+            if (match) { displayRoot = match; scoped = true; }
+        }
+
+        _cineOrgRender(el, displayRoot, {
+            scoped, notebook,
+            onUp: () => { el.dataset.cineOrgForceFull = '1'; _buildCineOrg(el, notebook); },
+        });
+    }
+
+    // ── Org chart — SVG renderer ─────────────────────────────────────────────
+    // Same technique as core `cfg org` (auto-layout tree, curved SVG edges,
+    // tint overlay, click-to-navigate, pan/zoom) -- reimplemented here rather
+    // than shared, since cine stays a self-contained plugin.
+    function _cineOrgRender(el, tree, opts = {}) {
+        const { scoped, notebook, onUp } = opts;
+        el.innerHTML = '';
+
+        const hdr = document.createElement('div');
+        hdr.className = 'nb-cine-header';
+        hdr.innerHTML = '<span class="nb-cine-title">🗺️ Pipeline</span>';
+        if (scoped) {
+            const upBtn = document.createElement('button');
+            upBtn.className = 'nb-tw-btn'; upBtn.title = 'Show full map'; upBtn.textContent = '↑';
+            upBtn.addEventListener('click', () => onUp());
+            hdr.appendChild(upBtn);
+        }
+        const refBtn = document.createElement('button');
+        refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
+        refBtn.addEventListener('click', () => _buildCineOrg(el, notebook));
+        hdr.appendChild(refBtn);
+        el.appendChild(hdr);
+
+        if (!tree) {
+            el.insertAdjacentHTML('beforeend', '<div class="nb-cine-empty">No pipeline data found</div>');
+            return;
+        }
+
+        const NW = 128, NH = 26, GX = 44, GY = 4, PAD = 14, PAD_BOT = 24;
+        const STATUS_TINT = '#22c55e';
+
+        function _measure(node) {
+            if (!node.children?.length) { node._h = NH; return; }
+            node.children.forEach(_measure);
+            const total = node.children.reduce((s, c) => s + c._h, 0) + GY * (node.children.length - 1);
+            node._h = Math.max(NH, total);
+        }
+        function _place(node, x, cy) {
+            node._x = x; node._y = cy - NH / 2;
+            if (!node.children?.length) return;
+            let top = cy - node._h / 2;
+            for (const c of node.children) { _place(c, x + NW + GX, top + c._h / 2); top += c._h + GY; }
+        }
+        const _maxX = node => Math.max(node._x + NW, ...(node.children || []).map(_maxX));
+        const _maxY = node => Math.max(node._y + NH, ...(node.children || []).map(_maxY));
+
+        _measure(tree);
+        _place(tree, PAD, PAD + tree._h / 2);
+        const svgW = _maxX(tree) + PAD;
+        const svgH = _maxY(tree) + PAD_BOT;
+
+        const NS  = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(NS, 'svg');
+        svg.className = 'nb-cine-org-svg';
+
+        function _drawEdges(node) {
+            for (const c of (node.children || [])) {
+                const edge = document.createElementNS(NS, 'path');
+                const x1 = node._x + NW, y1 = node._y + NH / 2;
+                const x2 = c._x,         y2 = c._y  + NH / 2;
+                const mx = (x1 + x2) / 2;
+                edge.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+                edge.setAttribute('fill', 'none');
+                edge.setAttribute('class', 'nb-cine-org-edge');
+                svg.appendChild(edge);
+                _drawEdges(c);
+            }
+        }
+
+        function _drawNode(node) {
+            const g = document.createElementNS(NS, 'g');
+            g.setAttribute('transform', `translate(${node._x},${node._y})`);
+            const cls = ['nb-cine-org-node'];
+            if (!node.wikiTarget) cls.push('nb-cine-org-inert');
+            if (node.milestone)   cls.push('nb-cine-org-milestone');
+            g.setAttribute('class', cls.join(' '));
+
+            const tip = document.createElementNS(NS, 'title');
+            tip.textContent = node.label + (node.query ? `\n${node.query}` : '');
+            g.appendChild(tip);
+
+            const rect = document.createElementNS(NS, 'rect');
+            rect.setAttribute('width', NW); rect.setAttribute('height', NH); rect.setAttribute('rx', 5);
+            rect.setAttribute('class', 'nb-cine-org-rect');
+            g.appendChild(rect);
+
+            // Status tint -- two states, no cascading/inheritance: query-defined-
+            // and-passing gets a tint, everything else (no query yet, or query
+            // failing) stays neutral. Matches cfg org's own inline-fill technique.
+            if (node.status === true) {
+                const tint = document.createElementNS(NS, 'rect');
+                tint.setAttribute('width', NW); tint.setAttribute('height', NH); tint.setAttribute('rx', 5);
+                tint.setAttribute('fill', STATUS_TINT);
+                tint.setAttribute('fill-opacity', '0.30');
+                tint.setAttribute('pointer-events', 'none');
+                g.appendChild(tint);
+            }
+
+            const label = document.createElementNS(NS, 'text');
+            label.setAttribute('x', NW / 2); label.setAttribute('y', NH / 2 + 4);
+            label.setAttribute('text-anchor', 'middle');
+            label.setAttribute('class', 'nb-cine-org-label');
+            const maxCh = 16;
+            const raw = (node.milestone ? '🚩 ' : '') + node.label;
+            label.textContent = raw.length > maxCh ? raw.slice(0, maxCh - 1) + '…' : raw;
+            g.appendChild(label);
+
+            if (node.selector) {
+                g.style.cursor = 'pointer';
+                g.addEventListener('click', () => NbMain.openNote(node.selector));
+            }
+
+            svg.appendChild(g);
+            for (const c of (node.children || [])) _drawNode(c);
+        }
+
+        _drawEdges(tree);
+        _drawNode(tree);
+
+        // Viewport group — all drawn content goes in here for zoom/pan
+        const vp = document.createElementNS(NS, 'g');
+        vp.setAttribute('class', 'nb-org-vp');
+        while (svg.firstChild) vp.appendChild(svg.firstChild);
+        svg.appendChild(vp);
+        svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%');
+
+        let _z = 1, _tx = 0, _ty = 0, _drag = null, _keysActive = false;
+        function _applyVP() { vp.setAttribute('transform', `translate(${_tx.toFixed(1)},${_ty.toFixed(1)}) scale(${_z.toFixed(4)})`); }
+        function _fitAll() {
+            const cw = svgCon.clientWidth || svgW, ch = svgCon.clientHeight || Math.min(svgH, 480);
+            const pad = 20;
+            const fullFit = Math.min((cw - pad*2) / svgW, (ch - pad*2) / svgH, 2);
+            const minZ = Math.max(12 / NH, 0.05);
+            _z = Math.max(fullFit, minZ);
+            if (_z > fullFit) { _tx = pad - tree._x * _z; _ty = ch * 0.4 - (tree._y + NH / 2) * _z; }
+            else { _tx = Math.max(pad, (cw - svgW * _z) / 2); _ty = Math.max(pad, (ch - svgH * _z) / 2); }
+            _applyVP();
+        }
+        function _zoomAt(mx, my, factor) {
+            _z = Math.max(0.05, Math.min(_z * factor, 8));
+            _tx = mx - (mx - _tx) * factor; _ty = my - (my - _ty) * factor;
+            _applyVP();
+        }
+
+        const svgCon = document.createElement('div');
+        svgCon.className = 'nb-org-svg-con';
+        svgCon.style.cssText = `overflow:hidden;position:relative;width:100%;height:${Math.min(svgH + 8, 520)}px;cursor:grab;touch-action:none`;
+        svgCon.appendChild(svg);
+
+        svgCon.addEventListener('wheel', e => {
+            if (!e.ctrlKey) return;
+            e.preventDefault();
+            const r = svgCon.getBoundingClientRect();
+            _zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 1/1.12);
+        }, { passive: false });
+
+        svgCon.addEventListener('mousedown', e => {
+            if (e.button !== 0) return;
+            _drag = { x: e.clientX - _tx, y: e.clientY - _ty };
+            svgCon.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+        const _onCineOrgMove = e => { if (_drag) { _tx = e.clientX - _drag.x; _ty = e.clientY - _drag.y; _applyVP(); } };
+        const _onCineOrgUp   = () => { if (_drag) { _drag = null; svgCon.style.cursor = 'grab'; } };
+        window.addEventListener('mousemove', _onCineOrgMove);
+        window.addEventListener('mouseup',   _onCineOrgUp);
+
+        let _pinchDist = null;
+        svgCon.addEventListener('touchstart', e => {
+            if (e.touches.length === 2)
+                _pinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        }, { passive: true });
+        svgCon.addEventListener('touchmove', e => {
+            if (e.touches.length !== 2 || !_pinchDist) return;
+            e.preventDefault();
+            const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            const r = svgCon.getBoundingClientRect();
+            _zoomAt((e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left,
+                    (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top, d / _pinchDist);
+            _pinchDist = d;
+        }, { passive: false });
+        svgCon.addEventListener('touchend', () => { _pinchDist = null; });
+
+        svgCon.addEventListener('mouseenter', () => { _keysActive = true; });
+        svgCon.addEventListener('mouseleave', () => { _keysActive = false; });
+        window.addEventListener('keydown', e => {
+            if (!_keysActive) return;
+            const ae = document.activeElement;
+            if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+            const cw = svgCon.clientWidth, ch = svgCon.clientHeight;
+            if      (e.key === 'f' || e.key === 'F') { e.preventDefault(); _fitAll(); }
+            else if (e.key === '+' || e.key === '=') { e.preventDefault(); _zoomAt(cw/2, ch/2, 1.2); }
+            else if (e.key === '-')                   { e.preventDefault(); _zoomAt(cw/2, ch/2, 1/1.2); }
+            else if (e.key === '0')                   { e.preventDefault(); _z=1; _tx=0; _ty=0; _applyVP(); }
+        });
+
+        el.appendChild(svgCon);
+        requestAnimationFrame(_fitAll);
     }
 
     function _buildStripboard(el, data, filter, notebook) {
