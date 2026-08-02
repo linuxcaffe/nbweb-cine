@@ -2913,15 +2913,35 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             return;
         }
 
-        const root = _parseCinePhases(body);
+        // Cache-first: Takeout/.tools/gen-cine-org.py pre-resolves every
+        // wikilink + phase color and writes .cine-phases-cache.json (own
+        // notebook data, not tracked with the plugin code). If it's present
+        // and its recorded source length still matches this fetch, use its
+        // tree directly -- already has `.selector`/`.phaseColor` baked in, no
+        // resolution needed at all. UTF-8 byte length, not body.length -- JS
+        // string length counts UTF-16 code units (two per emoji; this file's
+        // milestone headings have several) while the generator (Python)
+        // counts code points, so plain .length would never match.
+        let root = null;
+        try {
+            const cr = await fetch(`/api/file?selector=${encodeURIComponent(notebook + ':.cine-phases-cache.json')}`);
+            if (cr.ok) {
+                const cache = await cr.json();
+                const liveLen = new TextEncoder().encode(body).length;
+                if (cache.sourceLength === liveLen) root = cache.tree;
+            }
+        } catch { /* no cache, or unreadable -- fall through to live parse */ }
 
-        // Wikilink resolution is lazy from here on -- neither the initial render
-        // nor phase scoping needs a node's real selector (scoping matches on
-        // `.code`, parsed straight from the file, no network involved). Resolving
-        // all ~60 nodes eagerly up front was a real, needless bottleneck; a click
-        // resolves its own target on demand instead. (Status-query fetching was
-        // here too at one point -- removed; that mechanism was only ever
-        // designed, never actually built.)
+        if (!root) root = _parseCinePhases(body);
+
+        // Wikilink resolution is lazy from here on when there's no cache --
+        // neither the initial render nor phase scoping needs a node's real
+        // selector (scoping matches on `.code`, parsed straight from the
+        // file, no network involved). Resolving all ~60 nodes eagerly up
+        // front was a real, needless bottleneck; a click resolves its own
+        // target on demand instead. (Status-query fetching was here too at
+        // one point -- removed; that mechanism was only ever designed, never
+        // actually built.)
 
 
         // Phase scoping: the hosting note's own `phase:` frontmatter, self-declared,
@@ -3095,10 +3115,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             g.appendChild(label);
 
             if (node.wikiTarget) {
-                // Resolved lazily, on click, not pre-fetched for every node up front.
+                // Already resolved if this came from the cache; otherwise resolved
+                // lazily on click rather than pre-fetched for every node up front.
                 g.style.cursor = 'pointer';
                 g.addEventListener('click', async () => {
-                    const sel = await NbMain.resolveWikilinkSelector(node.wikiTarget);
+                    const sel = node.selector || await NbMain.resolveWikilinkSelector(node.wikiTarget);
                     NbMain.openNote(sel);
                 });
             }
@@ -3120,7 +3141,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         (async () => {
             const phaseNodes = scoped ? [tree] : (tree.children || []);
             for (const phase of phaseNodes) {
-                if (!phase.wikiTarget) continue;
+                if (!phase.wikiTarget || phase.phaseColor) continue;  // already colored (cache hit) or nothing to look up
                 try {
                     const sel = await NbMain.resolveWikilinkSelector(phase.wikiTarget);
                     const r   = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`);
