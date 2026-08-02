@@ -2919,9 +2919,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // nor phase scoping needs a node's real selector (scoping matches on
         // `.code`, parsed straight from the file, no network involved). Resolving
         // all ~60 nodes eagerly up front was a real, needless bottleneck; a click
-        // resolves its own target on demand, and only the handful of nodes that
-        // actually carry a status query get resolved (in the background, after
-        // the chart has already painted -- see _cineOrgRender).
+        // resolves its own target on demand instead. (Status-query fetching was
+        // here too at one point -- removed; that mechanism was only ever
+        // designed, never actually built.)
+
 
         // Phase scoping: the hosting note's own `phase:` frontmatter, self-declared,
         // no inheritance. A local override (el.dataset) lets the "up" button show
@@ -3077,8 +3078,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const rect = document.createElementNS(NS, 'rect');
             rect.setAttribute('width', NW); rect.setAttribute('height', NH); rect.setAttribute('rx', 5);
             rect.setAttribute('class', 'nb-cine-org-rect');
+            // Phase color as outline, not fill (fill's reserved for progress/status
+            // later) -- milestones keep their own distinct (CSS class) treatment,
+            // an inline attribute here would win over it on specificity.
+            if (node.phaseColor && !node.milestone) rect.setAttribute('stroke', node.phaseColor);
             g.appendChild(rect);
-            node._g = g;  // so the background status pass below can patch in a tint later
+            node._g = g;
 
             const label = document.createElementNS(NS, 'text');
             label.setAttribute('x', NW / 2); label.setAttribute('y', NH / 2 + 4);
@@ -3104,6 +3109,34 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         _drawEdges(tree, 1);
         _drawNode(tree, 1);
+
+        // Phase color -- outline color, not fill (fill's reserved for progress/
+        // status later) -- read from each phase's own note (`color:`, already
+        // used by the storylines board's own lanes), applied in the background
+        // after the chart has already painted, one phase at a time. NOT
+        // Promise.all/concurrent: even 6 concurrent chains stalled the bare dev
+        // server the exact same way the original ~60-wide eager resolution did
+        // (see the earlier commit) -- this is the same fix, just serialized.
+        (async () => {
+            const phaseNodes = scoped ? [tree] : (tree.children || []);
+            for (const phase of phaseNodes) {
+                if (!phase.wikiTarget) continue;
+                try {
+                    const sel = await NbMain.resolveWikilinkSelector(phase.wikiTarget);
+                    const r   = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`);
+                    const d   = await r.json();
+                    const color = d.meta?.color;
+                    if (!color) continue;
+                    (function applyColor(node) {
+                        if (!node.milestone && node._g) {
+                            const rect = node._g.querySelector('.nb-cine-org-rect');
+                            if (rect) rect.setAttribute('stroke', color);
+                        }
+                        (node.children || []).forEach(applyColor);
+                    })(phase);
+                } catch { /* leave uncolored */ }
+            }
+        })();
 
         // Status tint is not implemented yet -- completion queries are parsed
         // (see _parseCinePhases' `.query` field, reserved for this) but nothing
