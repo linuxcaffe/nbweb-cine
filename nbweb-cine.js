@@ -2650,7 +2650,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         if (field === 'org') {
             // Pipeline org chart — its own data source (.cine-phases.md headings),
             // unrelated to _fetchData's shot/scene/location bundle, so skip it entirely.
-            await _buildCineOrg(el, notebook);
+            // Use the notebook of the note actually displaying this block, not the list
+            // panel's notebook (NbNav.notebook) -- same footgun _resolveWikilinkSelector
+            // already documents: they diverge on a direct/deep-linked open.
+            const activeSel = NbMain.activeSelector() || '';
+            const activeNb  = activeSel.includes(':') ? activeSel.split(':')[0] : notebook;
+            await _buildCineOrg(el, activeNb);
             return;
         }
 
@@ -2885,33 +2890,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         return root;
     }
 
-    // ── Status-query matcher ─────────────────────────────────────────────────
-    // Ported from _front_matches (app.py) -- the same grammar the `fm`
-    // codeblock uses: "field:value" (eq, case-insensitive), "field:" (exists),
-    // "field:\"\"" (empty/absent). Comma-separated conditions are ANDed.
-    function _matchesQuery(meta, query) {
-        let conditions = 0;
-        for (const part of (query || '').split(',')) {
-            const ci = part.indexOf(':');
-            if (ci < 0) continue;
-            const field  = part.slice(0, ci).trim();
-            const rawVal = part.slice(ci + 1).trim();
-            if (!field) continue;
-            conditions++;
-            if (rawVal === '') {
-                if (!(field in meta)) return false;
-            } else if (rawVal === '""' || rawVal === "''") {
-                const v = meta[field];
-                if (v != null && String(v).trim()) return false;
-            } else {
-                const v = meta[field];
-                if (v == null) return false;
-                if (String(v).toLowerCase() !== rawVal.toLowerCase()) return false;
-            }
-        }
-        return conditions > 0;
-    }
-
     function _findNodeByCode(node, code) {
         if (node.code === code) return node;
         for (const c of (node.children || [])) {
@@ -2937,24 +2915,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         const root = _parseCinePhases(body);
 
-        // Resolve every wikilinked node's target to a real selector, in parallel.
-        const withLinks = [];
-        (function collect(node) {
-            if (node.wikiTarget) withLinks.push(node);
-            (node.children || []).forEach(collect);
-        })(root);
-        await Promise.all(withLinks.map(async node => {
-            node.selector = await NbMain.resolveWikilinkSelector(node.wikiTarget);
-        }));
-
-        // Evaluate each node's status query against its resolved note's frontmatter.
-        await Promise.all(withLinks.filter(n => n.query).map(async node => {
-            try {
-                const r = await fetch(`/api/note?selector=${encodeURIComponent(node.selector)}`);
-                const d = await r.json();
-                node.status = !d.error && _matchesQuery(d.meta || {}, node.query);
-            } catch { node.status = false; }
-        }));
+        // Wikilink resolution is lazy from here on -- neither the initial render
+        // nor phase scoping needs a node's real selector (scoping matches on
+        // `.code`, parsed straight from the file, no network involved). Resolving
+        // all ~60 nodes eagerly up front was a real, needless bottleneck; a click
+        // resolves its own target on demand, and only the handful of nodes that
+        // actually carry a status query get resolved (in the background, after
+        // the chart has already painted -- see _cineOrgRender).
 
         // Phase scoping: the hosting note's own `phase:` frontmatter, self-declared,
         // no inheritance. A local override (el.dataset) lets the "up" button show
@@ -3002,48 +2969,100 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             return;
         }
 
-        const NW = 128, NH = 26, GX = 44, GY = 4, PAD = 14, PAD_BOT = 24;
-        const STATUS_TINT = '#22c55e';
+        const NW = 128, NH = 26, PAD = 14, PAD_BOT = 24;
 
-        function _measure(node) {
-            if (!node.children?.length) { node._h = NH; return; }
-            node.children.forEach(_measure);
-            const total = node.children.reduce((s, c) => s + c._h, 0) + GY * (node.children.length - 1);
-            node._h = Math.max(NH, total);
-        }
-        function _place(node, x, cy) {
-            node._x = x; node._y = cy - NH / 2;
-            if (!node.children?.length) return;
-            let top = cy - node._h / 2;
-            for (const c of node.children) { _place(c, x + NW + GX, top + c._h / 2); top += c._h + GY; }
-        }
-        const _maxX = node => Math.max(node._x + NW, ...(node.children || []).map(_maxX));
-        const _maxY = node => Math.max(node._y + NH, ...(node.children || []).map(_maxY));
+        // Two layouts, not one -- they solve different shapes of tree:
+        //   - Full map (unscoped): `tree`'s children (the 6 phases) are wide
+        //     and shallow -- a plain node-link tree would make each phase's
+        //     ~10-13 children fan out sideways (too wide) or share one global
+        //     vertical stack (too tall, what this used to do). Instead: phases
+        //     become column headers, each with its own direct children as a
+        //     flat top-down list. Capped at exactly 3 levels (root/phase/step)
+        //     -- a 4th-level heading (real in the data, see the "for science"
+        //     test heading) simply doesn't fit a column header's list and is
+        //     not drawn here.
+        //   - Scoped (one phase): already just one phase's own subtree, not
+        //     wide enough to need columns, and depth *does* matter here (a
+        //     step's own sub-heading, e.g. "Print treatment" under "Write
+        //     Treatment", should still show) -- so this keeps the original
+        //     node-link tree layout, unbounded depth.
+        const drawDepthCap = scoped ? Infinity : 3;  // 1=root, 2=phase, 3=step
 
-        _measure(tree);
-        _place(tree, PAD, PAD + tree._h / 2);
-        const svgW = _maxX(tree) + PAD;
-        const svgH = _maxY(tree) + PAD_BOT;
+        if (scoped) {
+            const GX = 44, GY = 4;
+            const _measure = node => {
+                if (!node.children?.length) { node._h = NH; return; }
+                node.children.forEach(_measure);
+                const total = node.children.reduce((s, c) => s + c._h, 0) + GY * (node.children.length - 1);
+                node._h = Math.max(NH, total);
+            };
+            const _place = (node, x, cy) => {
+                node._x = x; node._y = cy - NH / 2;
+                if (!node.children?.length) return;
+                let top = cy - node._h / 2;
+                for (const c of node.children) { _place(c, x + NW + GX, top + c._h / 2); top += c._h + GY; }
+            };
+            _measure(tree);
+            _place(tree, PAD, PAD + tree._h / 2);
+        } else {
+            const COL_GAP = 30, GY = 6, HEADER_GAP = 24;
+            const ROOT_Y = PAD, HDR_Y = PAD + NH + HEADER_GAP, KIDS_Y = HDR_Y + NH + HEADER_GAP;
+            const columns = tree.children || [];
+            let colX = PAD;
+            columns.forEach(col => {
+                col._x = colX; col._y = HDR_Y;
+                (col.children || []).forEach((step, i) => {
+                    step._x = colX; step._y = KIDS_Y + i * (NH + GY);
+                });
+                colX += NW + COL_GAP;
+            });
+            const totalW = colX - COL_GAP - PAD;
+            tree._x = PAD + totalW / 2 - NW / 2;
+            tree._y = ROOT_Y;
+        }
+
+        function _maxX(node, depth) {
+            let m = node._x + NW;
+            if (depth < drawDepthCap) for (const c of (node.children || [])) m = Math.max(m, _maxX(c, depth + 1));
+            return m;
+        }
+        function _maxY(node, depth) {
+            let m = node._y + NH;
+            if (depth < drawDepthCap) for (const c of (node.children || [])) m = Math.max(m, _maxY(c, depth + 1));
+            return m;
+        }
+        const svgW = _maxX(tree, 1) + PAD;
+        const svgH = _maxY(tree, 1) + PAD_BOT;
 
         const NS  = 'http://www.w3.org/2000/svg';
         const svg = document.createElementNS(NS, 'svg');
-        svg.className = 'nb-cine-org-svg';
+        svg.setAttribute('class', 'nb-cine-org-svg');
 
-        function _drawEdges(node) {
+        function _drawEdges(node, depth) {
+            if (depth >= drawDepthCap) return;
             for (const c of (node.children || [])) {
                 const edge = document.createElementNS(NS, 'path');
-                const x1 = node._x + NW, y1 = node._y + NH / 2;
-                const x2 = c._x,         y2 = c._y  + NH / 2;
-                const mx = (x1 + x2) / 2;
-                edge.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+                let d;
+                if (scoped) {
+                    const x1 = node._x + NW, y1 = node._y + NH / 2;
+                    const x2 = c._x,         y2 = c._y  + NH / 2;
+                    const mx = (x1 + x2) / 2;
+                    d = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+                } else {
+                    const x1 = node._x + NW / 2, y1 = node._y + NH;
+                    const x2 = c._x + NW / 2,    y2 = c._y;
+                    const my = (y1 + y2) / 2;
+                    d = `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`;
+                }
+                edge.setAttribute('d', d);
                 edge.setAttribute('fill', 'none');
                 edge.setAttribute('class', 'nb-cine-org-edge');
                 svg.appendChild(edge);
-                _drawEdges(c);
+                _drawEdges(c, depth + 1);
             }
         }
 
-        function _drawNode(node) {
+        function _drawNode(node, depth) {
             const g = document.createElementNS(NS, 'g');
             g.setAttribute('transform', `translate(${node._x},${node._y})`);
             const cls = ['nb-cine-org-node'];
@@ -3059,18 +3078,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             rect.setAttribute('width', NW); rect.setAttribute('height', NH); rect.setAttribute('rx', 5);
             rect.setAttribute('class', 'nb-cine-org-rect');
             g.appendChild(rect);
-
-            // Status tint -- two states, no cascading/inheritance: query-defined-
-            // and-passing gets a tint, everything else (no query yet, or query
-            // failing) stays neutral. Matches cfg org's own inline-fill technique.
-            if (node.status === true) {
-                const tint = document.createElementNS(NS, 'rect');
-                tint.setAttribute('width', NW); tint.setAttribute('height', NH); tint.setAttribute('rx', 5);
-                tint.setAttribute('fill', STATUS_TINT);
-                tint.setAttribute('fill-opacity', '0.30');
-                tint.setAttribute('pointer-events', 'none');
-                g.appendChild(tint);
-            }
+            node._g = g;  // so the background status pass below can patch in a tint later
 
             const label = document.createElementNS(NS, 'text');
             label.setAttribute('x', NW / 2); label.setAttribute('y', NH / 2 + 4);
@@ -3081,17 +3089,25 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             label.textContent = raw.length > maxCh ? raw.slice(0, maxCh - 1) + '…' : raw;
             g.appendChild(label);
 
-            if (node.selector) {
+            if (node.wikiTarget) {
+                // Resolved lazily, on click, not pre-fetched for every node up front.
                 g.style.cursor = 'pointer';
-                g.addEventListener('click', () => NbMain.openNote(node.selector));
+                g.addEventListener('click', async () => {
+                    const sel = await NbMain.resolveWikilinkSelector(node.wikiTarget);
+                    NbMain.openNote(sel);
+                });
             }
 
             svg.appendChild(g);
-            for (const c of (node.children || [])) _drawNode(c);
+            if (depth < drawDepthCap) for (const c of (node.children || [])) _drawNode(c, depth + 1);
         }
 
-        _drawEdges(tree);
-        _drawNode(tree);
+        _drawEdges(tree, 1);
+        _drawNode(tree, 1);
+
+        // Status tint is not implemented yet -- completion queries are parsed
+        // (see _parseCinePhases' `.query` field, reserved for this) but nothing
+        // evaluates them. Plain pills; wikilinks resolve only on click.
 
         // Viewport group — all drawn content goes in here for zoom/pan
         const vp = document.createElementNS(NS, 'g');
