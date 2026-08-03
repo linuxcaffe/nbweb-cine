@@ -3045,6 +3045,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         _cineOrgRender(el, displayRoot, {
             scoped, notebook, tagColorMap, orgSource, tagColorLegend,
+            // A phase's real structural parent is always this same synthetic
+            // top-level node (level 1, one above every phase) -- the "mother
+            // ship" `cfg org` floats above its own root, same technique.
+            motherShip: scoped ? (root.children[0] || null) : null,
             onUp: () => { el.dataset.cineOrgForceFull = '1'; _buildCineOrg(el, notebook, orgSource); },
         });
     }
@@ -3054,7 +3058,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // tint overlay, click-to-navigate, pan/zoom) -- reimplemented here rather
     // than shared, since cine stays a self-contained plugin.
     function _cineOrgRender(el, tree, opts = {}) {
-        const { scoped, notebook, onUp, tagColorMap, orgSource, tagColorLegend } = opts;
+        const { scoped, notebook, onUp, tagColorMap, orgSource, tagColorLegend, motherShip } = opts;
         el.innerHTML = '';
 
         const hdr = document.createElement('div');
@@ -3112,6 +3116,25 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             };
             _measure(tree);
             _place(tree, PAD, PAD + tree._h / 2);
+
+            // Mother-ship node -- same technique as `cfg org`'s own floating
+            // global-config node: detached from the drawn tree, positioned just
+            // above the scoped root, sharing its X. If there isn't enough
+            // headroom (a short subtree centers its root close to PAD), shift
+            // the whole tree down instead of letting the mother ship go
+            // negative -- same fallback `cfg org` uses.
+            if (motherShip) {
+                motherShip._x = PAD;
+                motherShip._y = tree._y - NH - 12;
+                if (motherShip._y < PAD) {
+                    const dy = PAD - motherShip._y;
+                    (function _shiftY(node) {
+                        node._y += dy;
+                        (node.children || []).forEach(_shiftY);
+                    })(tree);
+                    motherShip._y = PAD;
+                }
+            }
         } else {
             const COL_GAP = 30, GY = 6, HEADER_GAP = 24;
             const ROOT_Y = PAD, HDR_Y = PAD + NH + HEADER_GAP, KIDS_Y = HDR_Y + NH + HEADER_GAP;
@@ -3283,6 +3306,25 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             svg.appendChild(g);
             if (depth < drawDepthCap) for (const c of (node.children || [])) _drawNode(c, depth + 1);
+        }
+
+        // Mother-ship node: drawn above the scoped tree with a short straight
+        // drop edge, same as cfg org's floating global node. Children hidden
+        // (saved/restored) while drawing it standalone -- its real child IS
+        // the scoped phase itself, already drawn separately below.
+        if (motherShip) {
+            const vx  = motherShip._x + NW / 2;
+            const vy1 = motherShip._y + NH;
+            const vy2 = tree._y;
+            const vEdge = document.createElementNS(NS, 'path');
+            vEdge.setAttribute('d', `M${vx},${vy1} L${vx},${vy2}`);
+            vEdge.setAttribute('fill', 'none');
+            vEdge.setAttribute('class', 'nb-cine-org-edge');
+            svg.appendChild(vEdge);
+            const savedChildren = motherShip.children;
+            motherShip.children = [];
+            _drawNode(motherShip, 1);
+            motherShip.children = savedChildren;
         }
 
         _drawEdges(tree, 1);
