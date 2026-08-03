@@ -2967,6 +2967,23 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         return null;
     }
 
+    // Manual regen, folded into the header's own "↻ Refresh" rather than a
+    // separate button -- covers the case the new auto-regen-on-save hook
+    // doesn't (app.py's api_edit_note): a source edited via `nb edit`/direct
+    // file write, or the generator script itself changed since the cache was
+    // last built. Best-effort -- a failed/missing regen just means the
+    // following re-render falls back to live per-node resolution, same as
+    // an always-stale cache would; never blocks or errors the refresh itself.
+    async function _regenOrgSource(notebook, orgSource) {
+        try {
+            await fetch('/api/regen', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notebook, script: '.tools/gen-org.py', args: [orgSource] }),
+            });
+        } catch { /* best-effort */ }
+    }
+
     async function _buildCineOrg(el, notebook, orgSource = 'cine') {
         el.innerHTML = '<span class="nb-spin">⟳</span>';
 
@@ -3106,7 +3123,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // `nb-collapse-zone` class on any child) and the "?" help button for free.
         const { hdr, meta, acts } = NbWeb.buildBarHeader(el, {
             lang: 'cine', cls: 'cine-org', collapseZone: true,
-            onRefresh: () => _buildCineOrg(el, notebook, orgSource),
+            onRefresh: async () => { await _regenOrgSource(notebook, orgSource); _buildCineOrg(el, notebook, orgSource); },
             onHelp: _cineOrgHelpPopover,
         });
         meta.innerHTML = 'Org Chart - <a href="#" class="nb-cine-org-source-link"></a>';
