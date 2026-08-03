@@ -921,6 +921,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-org-node.nb-cine-org-inert .nb-cine-org-label { fill: var(--text-muted, #aaa); }
 .nb-cine-org-node.nb-cine-org-milestone .nb-cine-org-rect { stroke: var(--text-muted, #aaa); }
 .nb-cine-org-tagstripe { stroke: none; pointer-events: none; }
+.nb-cine-org-legend {
+    position: absolute; left: 6px; bottom: 6px; z-index: 1;
+    background: var(--bg2, #1e2228); border: 1px solid var(--border, #444);
+    border-radius: 4px; padding: 4px 7px; font-size: 10px; line-height: 1.6;
+    max-width: 160px; pointer-events: none;
+}
+.nb-cine-org-legend-row { display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nb-cine-org-legend-swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; flex: none; }
 `;
 
     if (!document.getElementById('nb-cine-styles')) {
@@ -1040,8 +1048,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     function _resolveTagColors(item, tagColorMap) {
         const merged = { ...(tagColorMap || {}), ..._parseTagColor(item.meta?.tag_color) };
         if (!Object.keys(merged).length) return [];
-        const tags = _extractTags(item.meta?.tags, item.body_preview);
-        return NbMain.matchTagColors(merged, tags);
+        const tags   = _extractTags(item.meta?.tags, item.body_preview);
+        const colors = NbMain.matchTagColors(merged, tags);
+        // matchTagColors' own contract is deliberately just colors (generic,
+        // shared with the core note list) -- re-deriving which tag produced
+        // each one here, a small re-lookup, is what lets the org chart's
+        // tag_color_legend show "tagname -> swatch" without widening that
+        // shared function's return shape for one caller's need.
+        return colors.map(color => ({ tag: tags.find(t => merged[t] === color), color }));
     }
 
     // ── Data cache ────────────────────────────────────────────────────────────
@@ -2959,12 +2973,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const sourceFile = `.${orgSource}-org.md`;
         const cacheFile   = `.${orgSource}-org-cache.json`;
 
-        let body;
+        let body, tagColorLegend = false;
         try {
             const r = await fetch(`/api/note?selector=${encodeURIComponent(notebook + ':' + sourceFile)}`);
             const d = await r.json();
             if (d.error) throw new Error(d.error);
             body = d.body || '';
+            tagColorLegend = d.meta?.tag_color_legend === true;
         } catch (e) {
             el.innerHTML = `<span class="nb-cine-error">⚠ ${_esc(sourceFile)} not found — ${_esc(e.message)}</span>`;
             return;
@@ -3029,7 +3044,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }
 
         _cineOrgRender(el, displayRoot, {
-            scoped, notebook, tagColorMap, orgSource,
+            scoped, notebook, tagColorMap, orgSource, tagColorLegend,
             onUp: () => { el.dataset.cineOrgForceFull = '1'; _buildCineOrg(el, notebook, orgSource); },
         });
     }
@@ -3039,7 +3054,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // tint overlay, click-to-navigate, pan/zoom) -- reimplemented here rather
     // than shared, since cine stays a self-contained plugin.
     function _cineOrgRender(el, tree, opts = {}) {
-        const { scoped, notebook, onUp, tagColorMap, orgSource } = opts;
+        const { scoped, notebook, onUp, tagColorMap, orgSource, tagColorLegend } = opts;
         el.innerHTML = '';
 
         const hdr = document.createElement('div');
@@ -3162,14 +3177,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // Plain rects, not clipped to the parent's rounded corners (rx=5) --
         // a minor cosmetic overlap at the very top/bottom-left pixel, not
         // worth a clip-path for a first pass.
-        function _drawTagStripe(g, colors) {
+        function _drawTagStripe(g, pairs) {
             g.querySelectorAll('.nb-cine-org-tagstripe').forEach(n => n.remove());
             const stripeW = 3;
             // A hard-left-edge stripe visually fuses with the node's own border
             // stroke (phase color or default) -- offset by one stripe-width's
             // worth of empty space first so the real colors start a hair in
             // from the edge instead of sitting flush against it.
-            colors.forEach((color, i) => {
+            pairs.forEach(({ color }, i) => {
                 const s = document.createElementNS(NS, 'rect');
                 s.setAttribute('x', (i + 1) * stripeW);
                 s.setAttribute('y', 0);
@@ -3179,6 +3194,41 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 s.style.fill = color;
                 g.appendChild(s);
             });
+        }
+
+        // tag_color_legend: true (org-source frontmatter) -- a compact legend of
+        // whatever tags actually resolved to a color *in this rendered tree*, not
+        // the full notebook tag_color: map (a phase-scoped view showing every
+        // configured tag, most unused here, would just be clutter). Rebuilt
+        // (not just appended to) each call, since the live-fetch tag-resolution
+        // pass discovers more nodes after the first paint and needs to refresh it.
+        function _collectTagLegend(node, into) {
+            for (const p of (node.tagColors || [])) {
+                if (p && p.tag && !into.has(p.tag)) into.set(p.tag, p.color);
+            }
+            for (const c of (node.children || [])) _collectTagLegend(c, into);
+        }
+        function _renderTagLegend(container, rootNode) {
+            const legend = new Map();
+            _collectTagLegend(rootNode, legend);
+            let box = container.querySelector('.nb-cine-org-legend');
+            if (!legend.size) { if (box) box.remove(); return; }
+            if (!box) {
+                box = document.createElement('div');
+                box.className = 'nb-cine-org-legend';
+                container.appendChild(box);
+            }
+            box.innerHTML = '';
+            for (const [tag, color] of legend) {
+                const row = document.createElement('div');
+                row.className = 'nb-cine-org-legend-row';
+                const sw = document.createElement('span');
+                sw.className = 'nb-cine-org-legend-swatch';
+                sw.style.background = color;
+                row.appendChild(sw);
+                row.appendChild(document.createTextNode(tag));
+                box.appendChild(row);
+            }
         }
 
         function _drawNode(node, depth) {
@@ -3285,9 +3335,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                             const sel = node.selector || await NbMain.resolveWikilinkSelector(node.wikiTarget);
                             const r   = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`);
                             const d   = await r.json();
-                            const colors = _resolveTagColors({ meta: d.meta, body_preview: d.body }, tagColorMap);
-                            node.tagColors = colors;
-                            if (colors.length && node._g) _drawTagStripe(node._g, colors);
+                            const pairs = _resolveTagColors({ meta: d.meta, body_preview: d.body }, tagColorMap);
+                            node.tagColors = pairs;
+                            if (pairs.length && node._g) _drawTagStripe(node._g, pairs);
                         } catch { node.tagColors = []; }
                     }
                     // Don't bother resolving nodes past drawDepthCap -- the full-map
@@ -3295,6 +3345,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     if (depth < drawDepthCap) for (const c of (node.children || [])) await walk(c, depth + 1);
                 }
                 await walk(tree, 1);
+                // Refresh the legend now that live resolution may have found tags
+                // the initial cache-hit-only pass didn't know about.
+                if (tagColorLegend) _renderTagLegend(svgCon, tree);
             })();
         }
 
@@ -3331,6 +3384,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         svgCon.className = 'nb-org-svg-con';
         svgCon.style.cssText = `overflow:hidden;position:relative;width:100%;height:${Math.min(svgH + 8, 520)}px;cursor:grab;touch-action:none`;
         svgCon.appendChild(svg);
+        if (tagColorLegend) _renderTagLegend(svgCon, tree);
 
         svgCon.addEventListener('wheel', e => {
             if (!e.ctrlKey) return;
