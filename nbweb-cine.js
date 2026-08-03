@@ -2881,9 +2881,23 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     const _CINE_WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/;
 
+    // Per-heading content grammar (2026-08-03 formalization):
+    //   "> FIELD: value"  -- structured field (CODE, QUERY today). First
+    //     occurrence per field wins. Machine-only -- never shown anywhere.
+    //   bare text / paragraphs -- accumulated, in order, into `caption`,
+    //     which becomes the node's tooltip. Markdown syntax may appear but
+    //     isn't rendered (native SVG <title>, plain text only) -- accepted
+    //     for now, no styled-tooltip build yet.
+    //   "- list item" -- comment. Ignored entirely: not stored, not shown
+    //     anywhere, author-only scratch space when reading the raw file.
+    //   A malformed "> ..." (unrecognized field name, or no colon at all)
+    //     falls through into `caption` instead of being silently dropped --
+    //     a typo becomes visible in the tooltip, not a silent no-op.
+    const _ORG_FIELD_RE = /^(CODE|QUERY):\s*(.*)$/;
+
     function _parseOrgSource(body) {
         const lines = (body || '').split('\n');
-        const root = { level: 0, label: '', wikiTarget: null, milestone: false, query: null, code: null, children: [] };
+        const root = { level: 0, label: '', wikiTarget: null, milestone: false, query: null, code: null, caption: '', children: [] };
         const stack = [root];
 
         for (const raw of lines) {
@@ -2899,6 +2913,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     milestone:  /🚩/.test(text),
                     query:      null,
                     code:       null,
+                    caption:    '',
                     children:   [],
                 };
                 while (stack.length > 1 && stack[stack.length - 1].level >= level) stack.pop();
@@ -2909,11 +2924,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const owner = stack[stack.length - 1];
             if (owner === root) continue;
             const trimmed = raw.trim();
-            if (owner.query === null && trimmed.startsWith('>')) {
-                owner.query = trimmed.slice(1).trim();
-            } else if (owner.level === 2 && owner.code === null && /^-\s+/.test(trimmed)) {
-                owner.code = trimmed.replace(/^-\s+/, '').trim();
+            if (!trimmed) continue;                    // blank line -- no caption noise
+            if (/^-\s+/.test(trimmed)) continue;        // comment -- never stored
+
+            if (trimmed.startsWith('>')) {
+                const rest = trimmed.slice(1).trim();
+                const fm = _ORG_FIELD_RE.exec(rest);
+                if (fm) {
+                    const [, field, value] = fm;
+                    if (field === 'CODE'  && owner.code  === null) owner.code  = value.trim();
+                    if (field === 'QUERY' && owner.query === null) owner.query = value.trim();
+                    continue;
+                }
+                owner.caption += (owner.caption ? '\n' : '') + rest;
+                continue;
             }
+            owner.caption += (owner.caption ? '\n' : '') + trimmed;
         }
         return root;
     }
@@ -3164,7 +3190,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             g.setAttribute('class', cls.join(' '));
 
             const tip = document.createElementNS(NS, 'title');
-            tip.textContent = node.label + (node.query ? `\n${node.query}` : '');
+            tip.textContent = node.label + (node.caption ? `\n${node.caption}` : '');
             g.appendChild(tip);
 
             const rect = document.createElementNS(NS, 'rect');
