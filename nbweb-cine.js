@@ -3099,9 +3099,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             rect.setAttribute('width', NW); rect.setAttribute('height', NH); rect.setAttribute('rx', 5);
             rect.setAttribute('class', 'nb-cine-org-rect');
             // Phase color as outline, not fill (fill's reserved for progress/status
-            // later) -- milestones keep their own distinct (CSS class) treatment,
-            // an inline attribute here would win over it on specificity.
-            if (node.phaseColor && !node.milestone) rect.setAttribute('stroke', node.phaseColor);
+            // later). Set via inline style, not a `stroke` attribute -- an SVG
+            // presentation attribute always loses to a stylesheet rule (the
+            // `.nb-cine-org-rect` CSS above sets `stroke` too), regardless of
+            // selector specificity; only an inline style (or !important) can win.
+            // Milestones still get their own look from the CSS class alone, since
+            // this only ever fires for non-milestone nodes.
+            if (node.phaseColor && !node.milestone) rect.style.stroke = node.phaseColor;
             g.appendChild(rect);
             node._g = g;
 
@@ -3151,7 +3155,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     (function applyColor(node) {
                         if (!node.milestone && node._g) {
                             const rect = node._g.querySelector('.nb-cine-org-rect');
-                            if (rect) rect.setAttribute('stroke', color);
+                            if (rect) rect.style.stroke = color;  // inline style -- see _drawNode's note on why
                         }
                         (node.children || []).forEach(applyColor);
                     })(phase);
