@@ -2973,13 +2973,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const sourceFile = `.${orgSource}-org.md`;
         const cacheFile   = `.${orgSource}-org-cache.json`;
 
-        let body, tagColorLegend = false;
+        let body, tagColorLegend = false, orgSourceTitle = sourceFile;
+        const orgSourceSelector = notebook + ':' + sourceFile;
         try {
-            const r = await fetch(`/api/note?selector=${encodeURIComponent(notebook + ':' + sourceFile)}`);
+            const r = await fetch(`/api/note?selector=${encodeURIComponent(orgSourceSelector)}`);
             const d = await r.json();
             if (d.error) throw new Error(d.error);
             body = d.body || '';
             tagColorLegend = d.meta?.tag_color_legend === true;
+            orgSourceTitle = d.meta?.title || sourceFile;
         } catch (e) {
             el.innerHTML = `<span class="nb-cine-error">⚠ ${_esc(sourceFile)} not found — ${_esc(e.message)}</span>`;
             return;
@@ -3045,6 +3047,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         _cineOrgRender(el, displayRoot, {
             scoped, notebook, tagColorMap, orgSource, tagColorLegend,
+            orgSourceTitle, orgSourceSelector,
             // A phase's real structural parent is always this same synthetic
             // top-level node (level 1, one above every phase) -- the "mother
             // ship" `cfg org` floats above its own root, same technique.
@@ -3053,28 +3056,74 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         });
     }
 
+    // Help popover -- same look/behavior as _configHelpPopover (cfg org's own),
+    // just cine-specific content. Toggles off on a second click or a click away.
+    function _cineOrgHelpPopover(trigger) {
+        if (trigger._helpPop) { trigger._helpPop.remove(); trigger._helpPop = null; return; }
+        const pop = document.createElement('div');
+        pop.className = 'nb-config-help-pop';
+        pop.innerHTML =
+            `<strong>Org Chart</strong> — navigates a production's whole pipeline as a tree, by ` +
+            `concept (phase → step) rather than by file/folder.<br><br>` +
+            '<code>```cine\norg &lt;name&gt;\n```</code> &nbsp;— renders <code>.&lt;name&gt;-org.md</code> ' +
+            '(bare <code>org</code> defaults to <code>cine</code>)<br><br>' +
+            `Full map: 6 phase columns. Add <code>phase: &lt;code&gt;</code> to a note's own ` +
+            `frontmatter to scope its chart to just that phase (a floating node above links back ` +
+            `to the full map).<br><br>` +
+            `Left-edge stripe(s) = this node's own <code>tags:</code>/<code>tag_color:</code>. ` +
+            `<code>tag_color_legend: true</code> on the org-source note shows the key.<br><br>` +
+            `<a href="#" onclick="NbMain.openNote('claude:nbweb-cine_navigation_org_chart_design_2026-08-01.md');return false">Full design notes →</a>`;
+        const rect = trigger.getBoundingClientRect();
+        pop.style.cssText =
+            `position:fixed;z-index:9000;top:${rect.bottom+4}px;right:${window.innerWidth-rect.right}px;` +
+            `background:var(--bg2);border:1px solid var(--border);border-radius:6px;` +
+            `padding:10px 14px;box-shadow:0 4px 20px rgba(0,0,0,.5);max-width:320px;font-size:0.82em;line-height:1.6`;
+        document.body.appendChild(pop);
+        trigger._helpPop = pop;
+        trigger.classList.add('nb-hl-btn-active');
+        const away = e => {
+            if (!pop.contains(e.target) && e.target !== trigger) {
+                pop.remove(); trigger._helpPop = null;
+                trigger.classList.remove('nb-hl-btn-active');
+                document.removeEventListener('click', away, true);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', away, true), 0);
+    }
+
     // ── Org chart — SVG renderer ─────────────────────────────────────────────
     // Same technique as core `cfg org` (auto-layout tree, curved SVG edges,
     // tint overlay, click-to-navigate, pan/zoom) -- reimplemented here rather
     // than shared, since cine stays a self-contained plugin.
     function _cineOrgRender(el, tree, opts = {}) {
-        const { scoped, notebook, onUp, tagColorMap, orgSource, tagColorLegend, motherShip } = opts;
+        const { scoped, notebook, onUp, tagColorMap, orgSource, tagColorLegend, motherShip,
+                orgSourceTitle, orgSourceSelector } = opts;
         el.innerHTML = '';
 
-        const hdr = document.createElement('div');
-        hdr.className = 'nb-cine-header';
-        hdr.innerHTML = '<span class="nb-cine-title">🗺️ Pipeline</span>';
+        // Shared barblock header convention -- same factory every core codeblock
+        // (cfg, nb, git, fm, ...) already uses, instead of this block's own
+        // hand-rolled header markup. Gets collapse-toggle (header click, or the
+        // `nb-collapse-zone` class on any child) and the "?" help button for free.
+        const { hdr, meta, acts } = NbWeb.buildBarHeader(el, {
+            lang: 'cine', cls: 'cine-org', collapseZone: true,
+            onRefresh: () => _buildCineOrg(el, notebook, orgSource),
+            onHelp: _cineOrgHelpPopover,
+        });
+        meta.innerHTML = 'Org Chart - <a href="#" class="nb-cine-org-source-link"></a>';
+        const sourceLink = meta.querySelector('a');
+        sourceLink.textContent = orgSourceTitle || orgSource;
+        sourceLink.addEventListener('click', e => {
+            e.preventDefault(); e.stopPropagation();
+            NbMain.openNote(orgSourceSelector);
+        });
         if (scoped) {
             const upBtn = document.createElement('button');
             upBtn.className = 'nb-tw-btn'; upBtn.title = 'Show full map'; upBtn.textContent = '↑';
-            upBtn.addEventListener('click', () => onUp());
-            hdr.appendChild(upBtn);
+            upBtn.addEventListener('click', e => { e.stopPropagation(); onUp(); });
+            acts.insertBefore(upBtn, acts.firstChild);  // leftmost of the actions group; help/refresh keep their usual relative order to the right of it
         }
-        const refBtn = document.createElement('button');
-        refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
-        refBtn.addEventListener('click', () => _buildCineOrg(el, notebook, orgSource));
-        hdr.appendChild(refBtn);
         el.appendChild(hdr);
+        NbWeb.initCollapseToggle(el);
 
         if (!tree) {
             el.insertAdjacentHTML('beforeend', '<div class="nb-cine-empty">No pipeline data found</div>');
