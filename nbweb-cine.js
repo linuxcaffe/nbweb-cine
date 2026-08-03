@@ -3330,68 +3330,50 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         _drawEdges(tree, 1);
         _drawNode(tree, 1);
 
-        // Phase color -- outline color, not fill (fill's reserved for progress/
-        // status later) -- read from each phase's own note (`color:`, already
-        // used by the storylines board's own lanes), applied in the background
-        // after the chart has already painted, one phase at a time. NOT
-        // Promise.all/concurrent: even 6 concurrent chains stalled the bare dev
-        // server the exact same way the original ~60-wide eager resolution did
-        // (see the earlier commit) -- this is the same fix, just serialized.
+        // Phase color (outline) + tag-color stripe(s): ONE serialized walk, not
+        // two independent ones. This used to be two separate background async
+        // passes (phase-color-only, fetching just the 6 phase roots; tag-color,
+        // fetching every node) -- they ran concurrently with each other, which
+        // silently reintroduced the exact "concurrent fetches choke the bare
+        // dev server" problem this codebase already hit and fixed once (see the
+        // git history this comment used to cite for the phase-color pass alone)
+        // the moment a second simultaneous stream got added for tag stripes.
+        // Confirmed live: two concurrent streams on an already-stale cache
+        // produced a ~30s stall before any of ~60 queued fetches completed.
+        // Unified: one fetch per node (not two for phase-root notes, which
+        // used to be fetched once by each pass), phase color threaded down
+        // through the recursion as it's discovered/already-known rather than
+        // requiring its own separate top-down propagation pass.
         (async () => {
-            const phaseNodes = scoped ? [tree] : (tree.children || []);
-            for (const phase of phaseNodes) {
-                if (!phase.wikiTarget || phase.phaseColor) continue;  // already colored (cache hit) or nothing to look up
-                try {
-                    const sel = await NbMain.resolveWikilinkSelector(phase.wikiTarget);
-                    const r   = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`);
-                    const d   = await r.json();
-                    const color = d.meta?.color;
-                    if (!color) continue;
-                    (function applyColor(node) {
-                        if (!node.milestone && node._g) {
+            async function walk(node, depth, phaseColor) {
+                let effective = phaseColor;
+                if (node.wikiTarget && !node.milestone && !node.tagColors) {
+                    try {
+                        const sel = node.selector || await NbMain.resolveWikilinkSelector(node.wikiTarget);
+                        const r   = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`);
+                        const d   = await r.json();
+                        if (node.level === 2 && d.meta?.color) effective = d.meta.color;
+                        node.phaseColor = effective || null;
+                        if (effective && node._g) {
                             const rect = node._g.querySelector('.nb-cine-org-rect');
-                            if (rect) rect.style.stroke = color;  // inline style -- see _drawNode's note on why
+                            if (rect) rect.style.stroke = effective;  // inline style -- see _drawNode's note on why
                         }
-                        (node.children || []).forEach(applyColor);
-                    })(phase);
-                } catch { /* leave uncolored */ }
-            }
-        })();
-
-        // Tag-color stripe(s) -- unlike phase color, this is genuinely a
-        // per-node property (each note has its own tags), not something that
-        // propagates down from a phase root -- so this walks every node with
-        // a wikiTarget, not just the 6 phase roots. Same one-at-a-time
-        // discipline as the phase-color pass above (this dev server chokes on
-        // concurrent fetches); a node whose tagColors already came from the
-        // cache is skipped, same guard shape as the phase-color loop's cache
-        // check. Phase-root notes get fetched again here even though the
-        // phase-color pass above already fetched them once -- a known, minor,
-        // accepted duplication rather than entangling two independent
-        // concerns for a first pass.
-        if (tagColorMap && Object.keys(tagColorMap).length) {
-            (async () => {
-                async function walk(node, depth) {
-                    if (node.wikiTarget && !node.milestone && !node.tagColors) {
-                        try {
-                            const sel = node.selector || await NbMain.resolveWikilinkSelector(node.wikiTarget);
-                            const r   = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`);
-                            const d   = await r.json();
-                            const pairs = _resolveTagColors({ meta: d.meta, body_preview: d.body }, tagColorMap);
-                            node.tagColors = pairs;
-                            if (pairs.length && node._g) _drawTagStripe(node._g, pairs);
-                        } catch { node.tagColors = []; }
-                    }
-                    // Don't bother resolving nodes past drawDepthCap -- the full-map
-                    // view never draws them, same bound _drawNode itself uses.
-                    if (depth < drawDepthCap) for (const c of (node.children || [])) await walk(c, depth + 1);
+                        const pairs = _resolveTagColors({ meta: d.meta, body_preview: d.body }, tagColorMap);
+                        node.tagColors = pairs;
+                        if (pairs.length && node._g) _drawTagStripe(node._g, pairs);
+                    } catch { node.tagColors = node.tagColors || []; }
+                } else if (node.phaseColor) {
+                    effective = node.phaseColor;  // cache already resolved this node's own color
                 }
-                await walk(tree, 1);
-                // Refresh the legend now that live resolution may have found tags
-                // the initial cache-hit-only pass didn't know about.
-                if (tagColorLegend) _renderTagLegend(svgCon, tree);
-            })();
-        }
+                // Don't bother resolving nodes past drawDepthCap -- the full-map
+                // view never draws them, same bound _drawNode itself uses.
+                if (depth < drawDepthCap) for (const c of (node.children || [])) await walk(c, depth + 1, effective);
+            }
+            await walk(tree, 1, null);
+            // Refresh the legend now that live resolution may have found tags
+            // the initial cache-hit-only pass didn't know about.
+            if (tagColorLegend) _renderTagLegend(svgCon, tree);
+        })();
 
         // Status tint is not implemented yet -- completion queries are parsed
         // (see _parseOrgSource's `.query` field, reserved for this) but nothing
