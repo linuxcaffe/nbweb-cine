@@ -3410,7 +3410,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // used to be fetched once by each pass), phase color threaded down
         // through the recursion as it's discovered/already-known rather than
         // requiring its own separate top-down propagation pass.
+        // Pill-tracked separately from the outer render()'s own add/tick pair --
+        // this background walk keeps running well after render() has already
+        // returned (un-awaited by design), so without its own add/tick here the
+        // toolbar counter would show "done" while nodes are still visibly
+        // colorizing one at a time behind it.
+        NbWeb.statusPill?.add(1);
         (async () => {
+          try {
             async function walk(node, depth, phaseColor) {
                 let effective = phaseColor;
                 if (node.wikiTarget && !node.milestone && !node.tagColors) {
@@ -3439,6 +3446,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             // Refresh the legend now that live resolution may have found tags
             // the initial cache-hit-only pass didn't know about.
             if (tagColorLegend) _renderTagLegend(svgCon, tree);
+          } finally {
+            NbWeb.statusPill?.tick();
+          }
         })();
 
         // Status tint is not implemented yet -- completion queries are parsed
@@ -5351,8 +5361,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             lang: 'cine',
             html: text => `<div class="nb-cine-block" data-query="${_esc(text.trim())}"><span class="nb-spin">⟳</span></div>`,
             render: async container => {
-                for (const el of container.querySelectorAll('.nb-cine-block')) {
-                    await _loadCineBlock(el);
+                const blocks = [...container.querySelectorAll('.nb-cine-block')];
+                NbWeb.statusPill?.add(blocks.length);
+                for (const el of blocks) {
+                    try {
+                        await _loadCineBlock(el);
+                    } finally {
+                        NbWeb.statusPill?.tick();
+                    }
                 }
                 // Enrich shot-cue tooltips with desc from cached board data
                 const cues = [...container.querySelectorAll('.nb-cine-shot-cue[data-selector]')];
