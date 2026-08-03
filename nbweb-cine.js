@@ -920,6 +920,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-org-label { font-size: 11px; fill: var(--text, #eee); font-family: var(--font-sans, system-ui); dominant-baseline: auto; }
 .nb-cine-org-node.nb-cine-org-inert .nb-cine-org-label { fill: var(--text-muted, #aaa); }
 .nb-cine-org-node.nb-cine-org-milestone .nb-cine-org-rect { stroke: var(--text-muted, #aaa); }
+.nb-cine-org-tagstripe { stroke: none; pointer-events: none; }
 `;
 
     if (!document.getElementById('nb-cine-styles')) {
@@ -956,12 +957,17 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         // "field.format: code, code" — colon on lhs means code list
         const colonIdx = lhs.indexOf(':');
-        let fieldPart, codes = [];
+        let fieldPart, codes = [], arg = '';
         if (colonIdx >= 0) {
             fieldPart = lhs.slice(0, colonIdx).trim();
             codes = lhs.slice(colonIdx + 1).split(',').map(s => s.trim()).filter(Boolean);
         } else {
-            fieldPart = lhs.split(/\s+/)[0] || '';
+            // No colon: first whitespace token is the field, anything after is a
+            // single positional arg -- e.g. "org cine" -> field "org", arg "cine".
+            // Previously the trailing token was silently dropped here.
+            const parts = lhs.split(/\s+/).filter(Boolean);
+            fieldPart = parts[0] || '';
+            arg = parts.slice(1).join(' ');
         }
 
         const dotIdx = fieldPart.indexOf('.');
@@ -980,7 +986,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             if (v !== '') { const n = Number(v); filter[k] = isNaN(n) ? v : n; }
         }
 
-        return { field, format, filter, codes };
+        return { field, format, filter, codes, arg };
     }
 
     // ── Tag-color helpers ─────────────────────────────────────────────────────
@@ -1015,8 +1021,27 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const merged = { ...(config?.tag_colors || {}), ..._parseTagColor(item.meta?.tag_color) };
         if (!Object.keys(merged).length) return null;
         const tags = _extractTags(item.meta?.tags, item.body_preview);
-        for (const tag of tags) { if (merged[tag]) return merged[tag]; }
-        return null;
+        return NbMain.matchTagColor(merged, tags);
+    }
+
+    // All matching tag colors, not just the first -- for the cine org chart's
+    // left-edge stripe, where a note with N tagged colors shows N thin stripes
+    // packed together rather than picking one winner. `tagColorMap` here is the
+    // real notebook-level {tagname: color} dict (top-level `tag_color:` in
+    // .<notebook>.md) -- deliberately NOT the `config.tag_colors` lookup
+    // `_resolveTagColor` above uses, since that reads from the `cine:`-scoped
+    // config block where no notebook actually puts this map; the real one lives
+    // one level up, outside `cine:` entirely. The merge (notebook map + this
+    // note's own override) stays cine-specific plumbing; the actual
+    // tag-to-color matching delegates to nb-web core's own
+    // `matchTagColors` (main.js) -- the same array-returning sibling of the
+    // core `matchTagColor` the general note list already uses, extracted so
+    // this isn't a duplicate, cine-only implementation of the same mechanism.
+    function _resolveTagColors(item, tagColorMap) {
+        const merged = { ...(tagColorMap || {}), ..._parseTagColor(item.meta?.tag_color) };
+        if (!Object.keys(merged).length) return [];
+        const tags = _extractTags(item.meta?.tags, item.body_preview);
+        return NbMain.matchTagColors(merged, tags);
     }
 
     // ── Data cache ────────────────────────────────────────────────────────────
@@ -2644,18 +2669,21 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             return;
         }
 
-        const { field, format, filter, codes } = _parseQuery(el.dataset.query || '');
+        const { field, format, filter, codes, arg } = _parseQuery(el.dataset.query || '');
         const _project = (field === 'storyline-board' || field === 'storyline-story' || field === 'storyline-script') ? (el.dataset.project || '') : '';
 
         if (field === 'org') {
-            // Pipeline org chart — its own data source (.cine-phases.md headings),
-            // unrelated to _fetchData's shot/scene/location bundle, so skip it entirely.
-            // Use the notebook of the note actually displaying this block, not the list
-            // panel's notebook (NbNav.notebook) -- same footgun _resolveWikilinkSelector
-            // already documents: they diverge on a direct/deep-linked open.
+            // Pipeline org chart — its own data source (a `.{name}-org.md` heading
+            // tree), unrelated to _fetchData's shot/scene/location bundle, so skip
+            // it entirely. `org <name>` names which `.{name}-org.md` file to use
+            // (e.g. "org cine" -> .cine-org.md) -- defaults to "cine" so a bare
+            // `org` (no arg) keeps working. Use the notebook of the note actually
+            // displaying this block, not the list panel's notebook (NbNav.notebook)
+            // -- same footgun _resolveWikilinkSelector already documents: they
+            // diverge on a direct/deep-linked open.
             const activeSel = NbMain.activeSelector() || '';
             const activeNb  = activeSel.includes(':') ? activeSel.split(':')[0] : notebook;
-            await _buildCineOrg(el, activeNb);
+            await _buildCineOrg(el, activeNb, arg || 'cine');
             return;
         }
 
@@ -2853,7 +2881,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     const _CINE_WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/;
 
-    function _parseCinePhases(body) {
+    function _parseOrgSource(body) {
         const lines = (body || '').split('\n');
         const root = { level: 0, label: '', wikiTarget: null, milestone: false, query: null, code: null, children: [] };
         const stack = [root];
@@ -2899,22 +2927,25 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         return null;
     }
 
-    async function _buildCineOrg(el, notebook) {
+    async function _buildCineOrg(el, notebook, orgSource = 'cine') {
         el.innerHTML = '<span class="nb-spin">⟳</span>';
+
+        const sourceFile = `.${orgSource}-org.md`;
+        const cacheFile   = `.${orgSource}-org-cache.json`;
 
         let body;
         try {
-            const r = await fetch(`/api/note?selector=${encodeURIComponent(notebook + ':.cine-phases.md')}`);
+            const r = await fetch(`/api/note?selector=${encodeURIComponent(notebook + ':' + sourceFile)}`);
             const d = await r.json();
             if (d.error) throw new Error(d.error);
             body = d.body || '';
         } catch (e) {
-            el.innerHTML = `<span class="nb-cine-error">⚠ .cine-phases.md not found — ${_esc(e.message)}</span>`;
+            el.innerHTML = `<span class="nb-cine-error">⚠ ${_esc(sourceFile)} not found — ${_esc(e.message)}</span>`;
             return;
         }
 
-        // Cache-first: Takeout/.tools/gen-cine-org.py pre-resolves every
-        // wikilink + phase color and writes .cine-phases-cache.json (own
+        // Cache-first: Takeout/.tools/gen-org.py <name> pre-resolves every
+        // wikilink + phase color and writes .{name}-org-cache.json (own
         // notebook data, not tracked with the plugin code). If it's present
         // and its recorded source length still matches this fetch, use its
         // tree directly -- already has `.selector`/`.phaseColor` baked in, no
@@ -2924,7 +2955,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // counts code points, so plain .length would never match.
         let root = null;
         try {
-            const cr = await fetch(`/api/file?selector=${encodeURIComponent(notebook + ':.cine-phases-cache.json')}`);
+            const cr = await fetch(`/api/file?selector=${encodeURIComponent(notebook + ':' + cacheFile)}`);
             if (cr.ok) {
                 const cache = await cr.json();
                 const liveLen = new TextEncoder().encode(body).length;
@@ -2932,7 +2963,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             }
         } catch { /* no cache, or unreadable -- fall through to live parse */ }
 
-        if (!root) root = _parseCinePhases(body);
+        if (!root) root = _parseOrgSource(body);
+
+        // Notebook-level tag_color: map ({tagname: color}) -- top-level key in
+        // .<notebook>.md, not the `cine:`-scoped config block (that's what
+        // _resolveTagColor's `config.tag_colors` reads, and no notebook
+        // actually puts this map there). Fetched once per render, not per
+        // node. A string value (a different, unrelated single-color fallback
+        // feature elsewhere in nb-web) doesn't apply here -- only a real dict
+        // does.
+        let tagColorMap = {};
+        try {
+            const ncr = await fetch(`/api/nb/notebook-config?notebook=${encodeURIComponent(notebook)}`);
+            const nc  = await ncr.json();
+            const tc  = nc.meta?.tag_color;
+            if (tc && typeof tc === 'object' && !Array.isArray(tc)) tagColorMap = tc;
+        } catch { /* no config -- tag stripes just won't resolve live (cache may still have them) */ }
 
         // Wikilink resolution is lazy from here on when there's no cache --
         // neither the initial render nor phase scoping needs a node's real
@@ -2957,8 +3003,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }
 
         _cineOrgRender(el, displayRoot, {
-            scoped, notebook,
-            onUp: () => { el.dataset.cineOrgForceFull = '1'; _buildCineOrg(el, notebook); },
+            scoped, notebook, tagColorMap, orgSource,
+            onUp: () => { el.dataset.cineOrgForceFull = '1'; _buildCineOrg(el, notebook, orgSource); },
         });
     }
 
@@ -2967,7 +3013,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // tint overlay, click-to-navigate, pan/zoom) -- reimplemented here rather
     // than shared, since cine stays a self-contained plugin.
     function _cineOrgRender(el, tree, opts = {}) {
-        const { scoped, notebook, onUp } = opts;
+        const { scoped, notebook, onUp, tagColorMap, orgSource } = opts;
         el.innerHTML = '';
 
         const hdr = document.createElement('div');
@@ -2981,7 +3027,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }
         const refBtn = document.createElement('button');
         refBtn.className = 'nb-tw-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
-        refBtn.addEventListener('click', () => _buildCineOrg(el, notebook));
+        refBtn.addEventListener('click', () => _buildCineOrg(el, notebook, orgSource));
         hdr.appendChild(refBtn);
         el.appendChild(hdr);
 
@@ -3083,6 +3129,32 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             }
         }
 
+        // Left-edge stripe(s) -- one thin rect per resolved tag color, packed
+        // tight against the node's left edge, in tag order (dedup'd). Separate
+        // visual channel from phase-color (stroke): "a left-edge strip=
+        // arbitrary per-note tag_color:" per the org chart's own design note.
+        // Plain rects, not clipped to the parent's rounded corners (rx=5) --
+        // a minor cosmetic overlap at the very top/bottom-left pixel, not
+        // worth a clip-path for a first pass.
+        function _drawTagStripe(g, colors) {
+            g.querySelectorAll('.nb-cine-org-tagstripe').forEach(n => n.remove());
+            const stripeW = 3;
+            // A hard-left-edge stripe visually fuses with the node's own border
+            // stroke (phase color or default) -- offset by one stripe-width's
+            // worth of empty space first so the real colors start a hair in
+            // from the edge instead of sitting flush against it.
+            colors.forEach((color, i) => {
+                const s = document.createElementNS(NS, 'rect');
+                s.setAttribute('x', (i + 1) * stripeW);
+                s.setAttribute('y', 0);
+                s.setAttribute('width', stripeW);
+                s.setAttribute('height', NH);
+                s.setAttribute('class', 'nb-cine-org-tagstripe');
+                s.style.fill = color;
+                g.appendChild(s);
+            });
+        }
+
         function _drawNode(node, depth) {
             const g = document.createElementNS(NS, 'g');
             g.setAttribute('transform', `translate(${node._x},${node._y})`);
@@ -3108,6 +3180,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             if (node.phaseColor && !node.milestone) rect.style.stroke = node.phaseColor;
             g.appendChild(rect);
             node._g = g;
+
+            // Cache-hit case: gen-cine-org.py already resolved this node's tag
+            // stripe colors offline. Live/no-cache case is filled in later by
+            // the background pass below _drawNode's own call site.
+            if (node.tagColors?.length && !node.milestone) _drawTagStripe(g, node.tagColors);
 
             const label = document.createElementNS(NS, 'text');
             label.setAttribute('x', NW / 2); label.setAttribute('y', NH / 2 + 4);
@@ -3163,8 +3240,40 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             }
         })();
 
+        // Tag-color stripe(s) -- unlike phase color, this is genuinely a
+        // per-node property (each note has its own tags), not something that
+        // propagates down from a phase root -- so this walks every node with
+        // a wikiTarget, not just the 6 phase roots. Same one-at-a-time
+        // discipline as the phase-color pass above (this dev server chokes on
+        // concurrent fetches); a node whose tagColors already came from the
+        // cache is skipped, same guard shape as the phase-color loop's cache
+        // check. Phase-root notes get fetched again here even though the
+        // phase-color pass above already fetched them once -- a known, minor,
+        // accepted duplication rather than entangling two independent
+        // concerns for a first pass.
+        if (tagColorMap && Object.keys(tagColorMap).length) {
+            (async () => {
+                async function walk(node, depth) {
+                    if (node.wikiTarget && !node.milestone && !node.tagColors) {
+                        try {
+                            const sel = node.selector || await NbMain.resolveWikilinkSelector(node.wikiTarget);
+                            const r   = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`);
+                            const d   = await r.json();
+                            const colors = _resolveTagColors({ meta: d.meta, body_preview: d.body }, tagColorMap);
+                            node.tagColors = colors;
+                            if (colors.length && node._g) _drawTagStripe(node._g, colors);
+                        } catch { node.tagColors = []; }
+                    }
+                    // Don't bother resolving nodes past drawDepthCap -- the full-map
+                    // view never draws them, same bound _drawNode itself uses.
+                    if (depth < drawDepthCap) for (const c of (node.children || [])) await walk(c, depth + 1);
+                }
+                await walk(tree, 1);
+            })();
+        }
+
         // Status tint is not implemented yet -- completion queries are parsed
-        // (see _parseCinePhases' `.query` field, reserved for this) but nothing
+        // (see _parseOrgSource's `.query` field, reserved for this) but nothing
         // evaluates them. Plain pills; wikilinks resolve only on click.
 
         // Viewport group — all drawn content goes in here for zoom/pan
