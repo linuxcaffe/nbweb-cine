@@ -2883,20 +2883,24 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     // ── Org chart (pipeline) ─────────────────────────────────────────────────
-    // Tree source = recursive markdown headings in .cine-phases.md, not a
-    // filesystem walk (unlike core `cfg org`, which this reuses the *technique*
-    // of, not the code — see claude:nbweb-cine_navigation_org_chart_design_2026-08-01.md).
-    // A heading is always a node. Wikilinked -> clickable, points at a real
-    // note. Plain text -> inert, "planned but not written yet". A heading owns
-    // its content up to (not including) the next heading of the same or
-    // shallower level; within that owned content the FIRST blockquote line is
-    // a status query, the FIRST list-item line is a phase code (only
-    // meaningful on a phase-root heading, captured generically here).
+    // Tree source = recursive markdown headings in a `.{name}-org.md` file, not
+    // a filesystem walk (unlike core `cfg org`, which this reuses the
+    // *technique* of, not the code — see
+    // claude:nbweb-cine_navigation_org_chart_design_2026-08-01.md). A heading
+    // is always a node. Wikilinked -> clickable, points at a real note. Plain
+    // text -> inert, "planned but not written yet". Per-heading content
+    // grammar (PHASE/QUERY structured fields, bare-text caption, `-` comment)
+    // is documented just below, next to the parser that implements it.
 
     const _CINE_WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/;
 
-    // Per-heading content grammar (2026-08-03 formalization):
-    //   "> FIELD: value"  -- structured field (CODE, QUERY today). First
+    // Per-heading content grammar (2026-08-03 formalization, PHASE renamed
+    // from CODE 2026-08-03 -- "code" was never actually generic, every use of
+    // it in the design was specifically "phase code"; PHASE makes the match
+    // against a hosting note's own `phase:` frontmatter legible from the
+    // syntax alone instead of requiring someone to already know the two are
+    // linked):
+    //   "> FIELD: value"  -- structured field (PHASE, QUERY today). First
     //     occurrence per field wins. Machine-only -- never shown anywhere.
     //   bare text / paragraphs -- accumulated, in order, into `caption`,
     //     which becomes the node's tooltip. Markdown syntax may appear but
@@ -2907,11 +2911,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     //   A malformed "> ..." (unrecognized field name, or no colon at all)
     //     falls through into `caption` instead of being silently dropped --
     //     a typo becomes visible in the tooltip, not a silent no-op.
-    const _ORG_FIELD_RE = /^(CODE|QUERY):\s*(.*)$/;
+    const _ORG_FIELD_RE = /^(PHASE|QUERY):\s*(.*)$/;
 
     function _parseOrgSource(body) {
         const lines = (body || '').split('\n');
-        const root = { level: 0, label: '', wikiTarget: null, milestone: false, query: null, code: null, caption: '', children: [] };
+        const root = { level: 0, label: '', wikiTarget: null, milestone: false, query: null, phase: null, caption: '', children: [] };
         const stack = [root];
 
         for (const raw of lines) {
@@ -2926,7 +2930,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     wikiTarget: wm ? wm[1].trim() : null,
                     milestone:  /🚩/.test(text),
                     query:      null,
-                    code:       null,
+                    phase:      null,
                     caption:    '',
                     children:   [],
                 };
@@ -2946,7 +2950,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 const fm = _ORG_FIELD_RE.exec(rest);
                 if (fm) {
                     const [, field, value] = fm;
-                    if (field === 'CODE'  && owner.code  === null) owner.code  = value.trim();
+                    if (field === 'PHASE' && owner.phase === null) owner.phase = value.trim();
                     if (field === 'QUERY' && owner.query === null) owner.query = value.trim();
                     continue;
                 }
@@ -2958,10 +2962,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         return root;
     }
 
-    function _findNodeByCode(node, code) {
-        if (node.code === code) return node;
+    function _findNodeByPhase(node, phase) {
+        if (node.phase === phase) return node;
         for (const c of (node.children || [])) {
-            const found = _findNodeByCode(c, code);
+            const found = _findNodeByPhase(c, phase);
             if (found) return found;
         }
         return null;
@@ -3042,7 +3046,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         // Wikilink resolution is lazy from here on when there's no cache --
         // neither the initial render nor phase scoping needs a node's real
-        // selector (scoping matches on `.code`, parsed straight from the
+        // selector (scoping matches on `.phase`, parsed straight from the
         // file, no network involved). Resolving all ~60 nodes eagerly up
         // front was a real, needless bottleneck; a click resolves its own
         // target on demand instead. (Status-query fetching was here too at
@@ -3058,7 +3062,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         let displayRoot = root.children[0] || root;
         let scoped = false;
         if (phase) {
-            const match = _findNodeByCode(root, phase);
+            const match = _findNodeByPhase(root, phase);
             if (match) { displayRoot = match; scoped = true; }
         }
 
