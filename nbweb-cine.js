@@ -879,9 +879,18 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-takes-pill { cursor: pointer; border: 1px solid var(--border); background: var(--bg3, var(--bg2)); color: var(--text-muted); padding: 1px 7px; border-radius: 10px; font-size: 0.9em; }
 .nb-cine-takes-pill:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 .nb-cine-plotline-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--text-muted); border: 1px solid rgba(0,0,0,0.25); }
-.nb-cine-story-spine-pill { color: #c8a800; border-color: #c8a800; }
 .nb-cine-title-nav { cursor: pointer; }
 .nb-cine-title-nav:hover { text-decoration: underline; }
+/* Big + stub -- story/plotline headers only, deliberately larger and plainer
+   than the small icon actions around it since it's a placeholder for a real
+   action not built yet, not a finished feature trying to blend in. */
+.nb-cine-big-plus-btn {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--bg2);
+    color: var(--text-muted); font-size: 18px; line-height: 1; font-weight: 600;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.nb-cine-big-plus-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* Unified storyline header — view switcher + zoom */
 .nb-cine-storyline-hdr { flex-wrap: wrap; }
@@ -899,12 +908,17 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-sl-zoom-btn[data-level="2"] .ring-mid { fill: currentColor; opacity: 1; stroke: none; }
 .nb-cine-sl-zoom-btn[data-level="2"] .ring-outer { fill: currentColor; opacity: 1; stroke: none; }
 .nb-cine-sl-zoom-btn svg { width: 16px; height: 16px; }
+/* Visually set apart from the 3 view-select icons -- a different kind of
+   control riding in the same cluster, not a 4th view. */
+.nb-cine-sl-zoom-btn { margin-left: 5px; padding-left: 7px; border-left: 1px solid var(--border); }
 .nb-cine-orders-sel { font-size: 0.85em; background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
-/* Zoom (card size) applied to Story/Script prose views -- Board already had its own small/medium/large classes */
-.nb-cine-sl-story-view.nb-cine-storylines-medium .nb-cine-sl-story-prose,
-.nb-cine-sl-script-view.nb-cine-storylines-medium .nb-cine-sl-script-story { padding: 10px 12px; font-size: 1.02em; }
-.nb-cine-sl-story-view.nb-cine-storylines-large .nb-cine-sl-story-prose,
-.nb-cine-sl-script-view.nb-cine-storylines-large .nb-cine-sl-script-story { padding: 14px 16px; font-size: 1.12em; }
+/* The native multi-renderer tab switcher (#nb-preview-renderers) is generic --
+   also used by type:script, type:scene, etc. -- so it can't be hidden globally,
+   only when a storyline view is what's actually showing (the custom header
+   already owns view-switching there, making the native tabs redundant). A
+   :has() selector keeps this self-correcting: it stops matching the instant a
+   different note type renders, no JS state to remember to reset. */
+#nb-preview-pane:has(#nb-preview-content .nb-cine-storyline-hdr) #nb-preview-renderers { display: none; }
 /* Ctrl panel mode — flex column replaces the button grid */
 .nb-slate-ctrl-grid.nb-slate-ctrl-panel-mode { display: flex; flex-direction: column; gap: 0; }
 .nb-slate-panel-hdr {
@@ -2009,6 +2023,66 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     const _SL_ZOOM_LEVEL  = { small: 0, medium: 1, large: 2 };
     const _SL_ZOOM_ORDER  = ['small', 'medium', 'large'];
 
+    // Story/Script zoom is content density, not font size (djp, 2026-08-06 --
+    // the earlier padding/font-size CSS zoom "tries to do a bad font zoom on
+    // those elements"). small never needs a body fetch (desc only, straight
+    // from the bundle); medium/large do, one fetch per item, sequential --
+    // see the dev-server concurrency gotcha in the verify skill.
+    const _SL_LEVEL_MODE = {
+        story:  { small: 'desc', medium: 'sentences3', large: 'para1' },
+        script: { small: 'desc', medium: 'para1',       large: 'full'  },
+    };
+
+    function _slSliceText(text, mode) {
+        const t = (text || '').trim();
+        if (mode === 'full') return t;
+        if (mode === 'para1') return (t.split(/\n\s*\n/)[0] || '').trim();
+        if (mode === 'sentences3') {
+            // Source-newline-agnostic on purpose: unwrapped-paragraph prose (one
+            // long physical line per paragraph, common in this demo content) made
+            // a literal "first 6 lines" grab 2+ paragraphs, more text than "large"
+            // (first paragraph) showed -- inverting the small<medium<large density
+            // ordering. Sentence-splitting sidesteps source line-wrapping entirely.
+            // Naive (doesn't special-case "Mr." etc.) -- fine for a preview
+            // truncation, worst case grabs one extra clause.
+            const sentences = t.match(/[^.!?]+[.!?]+(\s+|$)/g) || [t];
+            let out = sentences.slice(0, 3).join('').trim();
+            // A sentence boundary can land inside *emphasis*/_emphasis_, leaving an
+            // unpaired marker that marked.parse renders as a stray literal
+            // character -- strip a trailing odd-one-out rather than let it show.
+            // Simple count-based check, not marker-pair-aware (doesn't distinguish
+            // ** from *) -- fine for a preview truncation, not a markdown parser.
+            for (const marker of ['*', '_']) {
+                const count = out.split(marker).length - 1;
+                if (count % 2 === 1) out = out.slice(0, out.lastIndexOf(marker)) + out.slice(out.lastIndexOf(marker) + 1);
+            }
+            return out;
+        }
+        return '';
+    }
+
+    // Fills bodyEl for one promoted item at the given zoom mode. 'desc' is
+    // free (already in the bundle); anything else fetches this item's full
+    // body -- called from a sequential for...of loop by both the story-view
+    // and script-view branches, never concurrently (dev server chokes on
+    // concurrent fetches, see the verify skill).
+    async function _slFillBody(bodyEl, item, mode) {
+        if (mode === 'desc') {
+            bodyEl.textContent = item.meta?.desc || '';
+            return;
+        }
+        bodyEl.innerHTML = '<span style="opacity:0.3">…</span>';
+        try {
+            const d = await fetch(`/api/note?selector=${encodeURIComponent(item.selector)}`).then(r => r.json());
+            const sliced = _slSliceText(d.body, mode);
+            bodyEl.innerHTML = sliced
+                ? (window.marked?.parse ? window.marked.parse(sliced) : `<p>${_esc(sliced)}</p>`)
+                : '<em style="opacity:0.3">No body text.</em>';
+        } catch (_) {
+            bodyEl.innerHTML = '<em style="opacity:0.3">Failed to load.</em>';
+        }
+    }
+
     function _buildStorylineHeader(opts) {
         const {
             title, activeView, onSwitchView,
@@ -2024,7 +2098,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         const titleEl = document.createElement('span');
         titleEl.className = 'nb-specialty-label';
-        titleEl.textContent = `🧵 ${title || 'Storylines'}`;
+        titleEl.textContent = `🧵 ${title || 'Storylines'} — storyline`;
         if (selfSelector) {
             titleEl.classList.add('nb-cine-title-nav');
             titleEl.dataset.navMode = 'self';
@@ -2046,17 +2120,36 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             btn.addEventListener('click', () => onSwitchView(v.id));
             viewGroup.appendChild(btn);
         }
+        // Zoom rides along in the same button cluster as a 4th icon, visually
+        // separated -- it's "fickle": only meaningful when a board/story/script
+        // view is actually showing (card size has no meaning for plain body
+        // text or for a plotline/story note's own header), so showZoom is false
+        // in those contexts rather than this button living somewhere else.
+        if (showZoom) {
+            const zoomBtn = document.createElement('button');
+            zoomBtn.className = 'nb-cine-sl-view-btn nb-cine-sl-zoom-btn';
+            zoomBtn.title = `Card size: ${zoomSize}`;
+            zoomBtn.dataset.level = _SL_ZOOM_LEVEL[zoomSize] ?? 0;
+            zoomBtn.innerHTML = _SL_ICON_ZOOM;
+            zoomBtn.addEventListener('click', () => {
+                const next = _SL_ZOOM_ORDER[(_SL_ZOOM_ORDER.indexOf(zoomSize) + 1) % _SL_ZOOM_ORDER.length];
+                onZoomChange(next);
+            });
+            viewGroup.appendChild(zoomBtn);
+        }
         hdr.appendChild(viewGroup);
 
         const actions = document.createElement('span');
         actions.className = 'nb-specialty-right';
 
-        const addBtn = document.createElement('button');
-        addBtn.className = 'nb-specialty-action';
-        addBtn.title = 'Add story (unassigned)';
-        addBtn.textContent = '+ Story';
-        addBtn.addEventListener('click', onAddStory);
-        actions.appendChild(addBtn);
+        if (onAddStory) {
+            const addBtn = document.createElement('button');
+            addBtn.className = 'nb-specialty-action';
+            addBtn.title = 'Add story (unassigned)';
+            addBtn.textContent = '+ Story';
+            addBtn.addEventListener('click', onAddStory);
+            actions.appendChild(addBtn);
+        }
 
         if (showOrderControls) {
             const saveOrderBtn = document.createElement('button');
@@ -2085,19 +2178,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 });
                 actions.appendChild(ordSel);
             }
-        }
-
-        if (showZoom) {
-            const zoomBtn = document.createElement('button');
-            zoomBtn.className = 'nb-specialty-action nb-cine-sl-zoom-btn';
-            zoomBtn.title = `Card size: ${zoomSize}`;
-            zoomBtn.dataset.level = _SL_ZOOM_LEVEL[zoomSize] ?? 0;
-            zoomBtn.innerHTML = _SL_ICON_ZOOM;
-            zoomBtn.addEventListener('click', () => {
-                const next = _SL_ZOOM_ORDER[(_SL_ZOOM_ORDER.indexOf(zoomSize) + 1) % _SL_ZOOM_ORDER.length];
-                onZoomChange(next);
-            });
-            actions.appendChild(zoomBtn);
         }
 
         const refBtn = document.createElement('button');
@@ -2236,7 +2316,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             onSaveOrder: _saveOrder,
             onLoadOrder: _loadOrder,
             onRefresh: _refresh,
-            onClose: _close,
+            // No onClose -- Esc still closes the overlay via the existing
+            // _onEsc listener; the header button was redundant chrome.
             selfSelector: _selfSel,
         });
         overlay.appendChild(hdr);
@@ -2908,34 +2989,37 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 empty.textContent = 'No stories on the storyline yet — open the board and drag cards up.';
                 wrap.appendChild(empty);
             } else if (field === 'storyline-story') {
-                promotedAll.forEach(item => {
-                    const isMs = item.milestone_seq !== undefined;
-                    if (isMs) {
-                        const bar = document.createElement('div');
-                        bar.className = 'nb-cine-sl-milestone-bar';
-                        bar.textContent = item.title;
-                        bar.addEventListener('click', () => NbMain.openNote(item.selector));
-                        wrap.appendChild(bar);
-                    } else {
+                const mode = _SL_LEVEL_MODE.story[size] || 'desc';
+                (async () => {
+                    for (const item of promotedAll) {
+                        const isMs = item.milestone_seq !== undefined;
+                        if (isMs) {
+                            const bar = document.createElement('div');
+                            bar.className = 'nb-cine-sl-milestone-bar';
+                            bar.textContent = item.title;
+                            bar.addEventListener('click', () => NbMain.openNote(item.selector));
+                            wrap.appendChild(bar);
+                            continue;
+                        }
                         const color = laneColors.get(item.plotline) || '';
-                        const desc  = item.meta?.desc
-                            ? `<div class="nb-cine-sl-story-desc">${_esc(item.meta.desc)}</div>` : '';
-                        const body  = item.body_preview
-                            ? `<div class="nb-cine-sl-story-body">${_esc(item.body_preview)}</div>` : '';
+                        const _tcProse = _resolveTagColor(item, data.config);
+                        const _titleStyle = _tcProse ? ` style="color:${_esc(_tcProse)}"` : '';
                         const card = document.createElement('div');
                         card.className = 'nb-cine-sl-story-prose';
                         card.dataset.selector = item.selector;
                         if (color) card.style.borderLeftColor = color;
-                        const _tcProse = _resolveTagColor(item, data.config);
-                        const _titleStyle = _tcProse ? ` style="color:${_esc(_tcProse)}"` : '';
-                        card.innerHTML =
-                            `<div class="nb-cine-sl-story-prose-title"${_titleStyle}>${_esc(item.title)}</div>${desc}${body}`;
+                        card.innerHTML = `<div class="nb-cine-sl-story-prose-title"${_titleStyle}>${_esc(item.title)}</div>`;
+                        const bodyEl = document.createElement('div');
+                        bodyEl.className = 'nb-cine-sl-story-body';
+                        card.appendChild(bodyEl);
                         card.addEventListener('click', () => NbMain.openNote(item.selector));
                         wrap.appendChild(card);
+                        await _slFillBody(bodyEl, item, mode);
                     }
-                });
+                })();
             } else {
-                // script-view: fetch full body of each story, render markdown
+                // storyline-script
+                const mode = _SL_LEVEL_MODE.script[size] || 'desc';
                 (async () => {
                     for (const item of promotedAll) {
                         const isMs = item.milestone_seq !== undefined;
@@ -2945,47 +3029,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                             bar.textContent = item.title;
                             bar.addEventListener('click', () => NbMain.openNote(item.selector));
                             wrap.appendChild(bar);
-                        } else {
-                            const block = document.createElement('div');
-                            block.className = 'nb-cine-sl-script-story';
-                            const titleEl = document.createElement('div');
-                            titleEl.className = 'nb-cine-sl-script-story-title';
-                            titleEl.textContent = item.title;
-                            const _tcScript = _resolveTagColor(item, data.config);
-                            if (_tcScript) titleEl.style.color = _tcScript;
-                            titleEl.addEventListener('click', () => NbMain.openNote(item.selector));
-                            block.appendChild(titleEl);
-                            // desc from frontmatter shown immediately, before body prose
-                            if (item.meta?.desc) {
-                                const descEl = document.createElement('div');
-                                descEl.className = 'nb-cine-sl-story-desc';
-                                descEl.textContent = item.meta.desc;
-                                block.appendChild(descEl);
-                            }
-                            const bodyEl = document.createElement('div');
-                            bodyEl.className = 'nb-rendered';
-                            // Show body_preview immediately; replace with full body when loaded
-                            if (item.body_preview) {
-                                bodyEl.innerHTML = window.marked?.parse
-                                    ? window.marked.parse(item.body_preview)
-                                    : `<p>${_esc(item.body_preview)}</p>`;
-                            } else {
-                                bodyEl.innerHTML = '<span style="opacity:0.3">…</span>';
-                            }
-                            block.appendChild(bodyEl);
-                            wrap.appendChild(block);
-                            // Fetch full body async and replace preview
-                            fetch(`/api/note?selector=${encodeURIComponent(item.selector)}`)
-                                .then(r => r.json())
-                                .then(d => {
-                                    const body = d.body?.trim();
-                                    bodyEl.innerHTML = body
-                                        ? (window.marked?.parse ? window.marked.parse(body)
-                                            : `<pre>${_esc(body)}</pre>`)
-                                        : '<em style="opacity:0.3">No body text.</em>';
-                                })
-                                .catch(() => { bodyEl.innerHTML = '<em style="opacity:0.3">Failed to load.</em>'; });
+                            continue;
                         }
+                        const block = document.createElement('div');
+                        block.className = 'nb-cine-sl-script-story';
+                        const titleEl = document.createElement('div');
+                        titleEl.className = 'nb-cine-sl-script-story-title';
+                        titleEl.textContent = item.title;
+                        const _tcScript = _resolveTagColor(item, data.config);
+                        if (_tcScript) titleEl.style.color = _tcScript;
+                        titleEl.addEventListener('click', () => NbMain.openNote(item.selector));
+                        block.appendChild(titleEl);
+                        const bodyEl = document.createElement('div');
+                        bodyEl.className = 'nb-rendered';
+                        block.appendChild(bodyEl);
+                        wrap.appendChild(block);
+                        await _slFillBody(bodyEl, item, mode);
                     }
                 })();
             }
@@ -4302,6 +4361,57 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             `${bodyHtml}</div>`;
     }
 
+    // Resolves which type:storyline note owns a plotline/story note, if any --
+    // explicit project: field first (matches how a storyline note names
+    // itself), else the note's immediate parent folder name (storylines/<x>
+    // convention). Verifies the candidate is actually type:storyline before
+    // trusting it -- a same-named non-storyline note (e.g. the storylines.md
+    // dashboard) must never be mistaken for a match. Resolved once at header-
+    // render time (not on click) so the title can show the real storyline
+    // name and the view-switcher buttons can target it directly, with no
+    // fetch-on-click needed.
+    async function _resolveParentStoryline(note) {
+        const sel = note.selector || '';
+        const colonIdx = sel.indexOf(':');
+        if (colonIdx < 0) return null;
+        const notebook = sel.slice(0, colonIdx);
+        const path      = sel.slice(colonIdx + 1);
+
+        const explicit = (note.meta?.project || '').trim()
+            .replace(/^storylines\//, '').replace(/\/$/, '');
+        const parts = path.split('/');
+        parts.pop(); // drop filename
+        const parentFolder = parts[parts.length - 1] || '';
+        const candidates = [...new Set([explicit, parentFolder].filter(Boolean))];
+
+        for (const stem of candidates) {
+            const candSel = `${notebook}:storylines/${stem}.md`;
+            try {
+                const r = await fetch(`/api/note?selector=${encodeURIComponent(candSel)}`);
+                if (!r.ok) continue;
+                const d = await r.json();
+                if (d && !d.error && d.meta?.type === 'storyline') {
+                    return { selector: candSel, title: d.title || d.meta?.title || stem };
+                }
+            } catch (_) {}
+        }
+        return null;
+    }
+
+    // Board/Story/Script/Note mini view-switcher for a header that isn't
+    // currently ON one of those views itself (a plotline/story note) --
+    // navigates to targetSel and lands on the requested view there. No
+    // zoom (meaningless off the board/story/script views themselves). See
+    // the [data-sl-view] delegated click handler below for the wiring.
+    function _renderSlViewGroup(targetSel) {
+        const t = targetSel ? _esc(targetSel) : '';
+        return `<div class="nb-cine-sl-viewgroup" data-sl-target="${t}">
+  <button class="nb-cine-sl-view-btn" data-sl-view="board" title="Board">${_SL_ICON_BOARD}</button>
+  <button class="nb-cine-sl-view-btn" data-sl-view="story" title="Story">${_SL_ICON_STORY}</button>
+  <button class="nb-cine-sl-view-btn" data-sl-view="script" title="Script">${_SL_ICON_SCRIPT}</button>
+</div>`;
+    }
+
     // ── Plotline header + card (type: plotline) — a lane on the storyline
     // board. Identity here is its colour, not an emoji -- the same colour
     // already marks this lane's own border and every story card assigned to
@@ -4309,7 +4419,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // existing convention rather than adding an unrelated one. Distinct from
     // the master type:storyline note by design (djp, 2026-08-06) -- not the
     // same header, not a reuse of storyline's board/story/script machinery.
-    function _renderPlotlineHeader(note) {
+    async function _renderPlotlineHeader(note) {
         const m     = note.meta || {};
         const color = m.color ? String(m.color) : '';
         const seq   = m.seq != null && m.seq !== '' ? String(m.seq) : '';
@@ -4317,10 +4427,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const swatch  = `<span class="nb-cine-plotline-swatch"${color ? ` style="background:${_esc(color)}"` : ''}></span>`;
         const seqPill = seq ? `<span class="nb-specialty-pill">lane ${_esc(seq)}</span>` : '';
 
+        const parent = await _resolveParentStoryline(note);
+        const titleHtml = parent
+            ? `<span class="nb-specialty-label nb-cine-title-nav" data-sl-view="note" data-sl-target="${_esc(parent.selector)}" title="Open ${_esc(parent.title)}">${_esc(parent.title)}</span><span class="nb-specialty-label"> — plotline — ${_esc(note.title || '')}</span>`
+            : `<span class="nb-specialty-label">plotline — ${_esc(note.title || '')}</span>`;
+
         return `<div class="nb-specialty-header nb-cine-plotline-hdr" data-selector="${_esc(note.selector || '')}"${color ? ` style="border-left-color:${_esc(color)}"` : ''}>
   ${swatch}
-  <span class="nb-specialty-label nb-cine-title-nav" data-nav-mode="parent" data-self-selector="${_esc(note.selector || '')}" data-project="${_esc(m.project || '')}" title="Open the storyline this plotline belongs to">${_esc(note.title || '')}</span>
-  ${seqPill}
+  ${titleHtml}
+  ${_renderSlViewGroup(parent?.selector || '')}
+  <span class="nb-specialty-right">
+    ${seqPill}
+    <button class="nb-cine-big-plus-btn" data-sl-action="stub-add" title="Coming soon">+</button>
+  </span>
 </div>`;
     }
 
@@ -4340,23 +4459,23 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             `${bodyHtml}</div>`;
     }
 
-    // ── Story header (type: story) — a card on a plotline lane. story_seq
-    // (promoted to the master storyline) is called out explicitly since it's
-    // load-bearing state (drives the Production Flow via film-school.md) that
-    // was otherwise invisible outside the board itself.
-    function _renderStoryHeader(note) {
-        const m        = note.meta || {};
-        const plotline = m.plotline ? String(m.plotline).trim() : '';
-        const onSpine  = m.story_seq != null && m.story_seq !== '';
-
-        const plotlinePill = plotline ? `<span class="nb-specialty-pill">${_esc(plotline)}</span>` : '';
-        const spinePill    = onSpine
-            ? `<span class="nb-specialty-pill nb-cine-story-spine-pill">★ on storyline</span>` : '';
+    // ── Story header (type: story) — a card on a plotline lane. plotline
+    // name and on-storyline (story_seq) status used to show as pills here;
+    // removed 2026-08-06 (djp) once the view-switcher made this header busy
+    // enough that they read as clutter rather than useful at-a-glance state.
+    async function _renderStoryHeader(note) {
+        const parent = await _resolveParentStoryline(note);
+        const titleHtml = parent
+            ? `<span class="nb-specialty-label nb-cine-title-nav" data-sl-view="note" data-sl-target="${_esc(parent.selector)}" title="Open ${_esc(parent.title)}">${_esc(parent.title)}</span><span class="nb-specialty-label"> — story — ${_esc(note.title || '')}</span>`
+            : `<span class="nb-specialty-label">story — ${_esc(note.title || '')}</span>`;
 
         return `<div class="nb-specialty-header nb-cine-story-hdr" data-selector="${_esc(note.selector || '')}">
   <span class="nb-specialty-icon">🃏</span>
-  <span class="nb-specialty-label nb-cine-title-nav" data-nav-mode="parent" data-self-selector="${_esc(note.selector || '')}" data-project="${_esc(m.project || '')}" title="Open the storyline this story belongs to">${_esc(note.title || '')}</span>
-  ${plotlinePill}${spinePill}
+  ${titleHtml}
+  ${_renderSlViewGroup(parent?.selector || '')}
+  <span class="nb-specialty-right">
+    <button class="nb-cine-big-plus-btn" data-sl-action="stub-add" title="Coming soon">+</button>
+  </span>
 </div>`;
     }
 
@@ -5505,7 +5624,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Plotline',
                 types:  ['plotline'],
                 detect: note => note.type === 'plotline',
-                render: note => _renderPlotlineHeader(note) + _renderPlotlineCard(note),
+                render: async note => (await _renderPlotlineHeader(note)) + _renderPlotlineCard(note),
             },
             {
                 id:     'storyline-story',
@@ -5553,7 +5672,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Story card',
                 types:  ['story'],
                 detect: note => note.type === 'story',
-                render: note => {
+                render: async note => {
                     const m        = note.meta || {};
                     const desc     = m.desc     ? String(m.desc).trim()     : '';
                     const scenes   = m.scenes   ? String(m.scenes).trim()   : '';
@@ -5573,8 +5692,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     ].filter(Boolean).join('');
                     const bodyHtml = (note.body || '').trim()
                         ? `<div class="nb-wp-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
+                    const headerHtml = await _renderStoryHeader(note);
                     return `<div class="nb-cine-shot-card">
-                        ${_renderStoryHeader(note)}
+                        ${headerHtml}
                         ${inner ? `<div class="nb-card nb-cine-card-fm">${inner}</div>` : ''}
                         ${bodyHtml}
                     </div>`;
@@ -5754,61 +5874,54 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }],
     });
 
-    // ── Header title-click navigation ───────────────────────────────────────
+    // ── Header title-click navigation (storyline's own header) ─────────────
     // storyline header title (data-nav-mode="self"): switch this same note to
     // the 'storyline-note' renderer tab (plain body, no board machinery).
-    // plotline/story header title (data-nav-mode="parent"): jump up to the
-    // note.body of the type:storyline note that owns this project, landing
-    // directly on its 'storyline-note' tab. Resolution order: explicit
-    // project: field first (matches how a storyline note names itself),
-    // else the note's own immediate parent folder name (storylines/<folder>
-    // convention) -- each candidate is verified to actually be type:storyline
-    // before navigating, so a same-named non-storyline note (e.g. the
-    // storylines.md dashboard) is never mistaken for a match.
     const _STORYLINE_NOTE_MODE = 'storyline-note';
 
     document.addEventListener('click', async e => {
-        const el = e.target.closest('.nb-cine-title-nav');
+        const el = e.target.closest('.nb-cine-title-nav[data-nav-mode="self"]');
         if (!el) return;
         e.stopPropagation();
+        const note = NbMain.activeNote();
+        if (!note) return;
+        localStorage.setItem(`nb-render-mode:${note.notebook}`, _STORYLINE_NOTE_MODE);
+        await NbMain.openNote(note.selector);
+    }, true);
 
-        if (el.dataset.navMode === 'self') {
-            const note = NbMain.activeNote();
-            if (!note) return;
-            localStorage.setItem(`nb-render-mode:${note.notebook}`, _STORYLINE_NOTE_MODE);
-            await NbMain.openNote(note.selector);
-            return;
+    // ── Plotline/story header: title + view-switcher navigation ────────────
+    // [data-sl-view] fires from two places: a plotline/story header's title
+    // (always "note", pre-resolved by _resolveParentStoryline at render time
+    // -- see data-sl-target) and its Board/Story/Script view-group (this
+    // repo's storyline notes have no separate "open board directly" sub-
+    // state, so board sets the same one-shot pending-open flag the Note
+    // view's own return-trip uses). Missing data-sl-target (project has no
+    // resolvable storyline note yet) degrades to an explanatory alert rather
+    // than a silent no-op or a wrong navigation.
+    document.addEventListener('click', async e => {
+        const btn = e.target.closest('[data-sl-view]');
+        if (!btn) return;
+        e.stopPropagation();
+        const targetSel = btn.dataset.slTarget || btn.closest('[data-sl-target]')?.dataset.slTarget || '';
+        if (!targetSel) { alert('No storyline note found for this project yet.'); return; }
+        const notebook = targetSel.split(':')[0];
+        const view = btn.dataset.slView;
+        if (view === 'note') {
+            localStorage.setItem(`nb-render-mode:${notebook}`, _STORYLINE_NOTE_MODE);
+        } else {
+            if (view === 'board') localStorage.setItem(_SL_PENDING_BOARD_KEY(notebook), '1');
+            else localStorage.setItem(_SL_VIEW_KEY(notebook), view === 'script' ? 'script' : 'story');
+            localStorage.setItem(`nb-render-mode:${notebook}`, 'storyline-story');
         }
+        await NbMain.openNote(targetSel);
+    }, true);
 
-        if (el.dataset.navMode === 'parent') {
-            const selfSel = el.dataset.selfSelector || '';
-            const colonIdx = selfSel.indexOf(':');
-            if (colonIdx < 0) return;
-            const notebook = selfSel.slice(0, colonIdx);
-            const path      = selfSel.slice(colonIdx + 1);
-            const explicit  = (el.dataset.project || '').trim()
-                .replace(/^storylines\//, '').replace(/\/$/, '');
-            const parts = path.split('/');
-            parts.pop(); // drop filename
-            const parentFolder = parts[parts.length - 1] || '';
-            const candidates = [...new Set([explicit, parentFolder].filter(Boolean))];
-
-            for (const stem of candidates) {
-                const candSel = `${notebook}:storylines/${stem}.md`;
-                try {
-                    const r = await fetch(`/api/note?selector=${encodeURIComponent(candSel)}`);
-                    if (!r.ok) continue;
-                    const d = await r.json();
-                    if (d && !d.error && d.meta?.type === 'storyline') {
-                        localStorage.setItem(`nb-render-mode:${notebook}`, _STORYLINE_NOTE_MODE);
-                        await NbMain.openNote(candSel);
-                        return;
-                    }
-                } catch (_) {}
-            }
-            // No resolvable parent storyline for this project -- nothing to jump to.
-            alert('No storyline note found for this project yet.');
-        }
+    // ── Big + stub (story/plotline headers) ─────────────────────────────────
+    document.addEventListener('click', e => {
+        const btn = e.target.closest('[data-sl-action="stub-add"]');
+        if (!btn) return;
+        e.stopPropagation();
+        alert('Coming soon — not built yet.');
     }, true);
 
     // ── Slate launch button delegation ────────────────────────────────────────
