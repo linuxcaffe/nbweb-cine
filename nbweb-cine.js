@@ -375,7 +375,20 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     font-size: 13px; font-weight: 600; color: var(--text-muted, #aaa); opacity: 1;
 }
 .nb-cine-sl-overlay > .nb-cine-header .nb-cine-hdr-btns { gap: 4px; }
-.nb-cine-sl-overlay-body { flex: 1; overflow-x: auto; overflow-y: auto; }
+.nb-cine-sl-overlay-body {
+    flex: 1; overflow-x: auto; overflow-y: auto;
+    scrollbar-color: var(--accent, #7c6af7) var(--bg2, #1e2228);
+}
+/* Fat, finger-friendly horizontal scrollbar -- the board's own long lanes are
+   otherwise only reachable via the native scrollbar, which is thin and easy
+   to miss (Chromium/Safari; Firefox falls back to scrollbar-color above). */
+.nb-cine-sl-overlay-body::-webkit-scrollbar { height: 22px; }
+.nb-cine-sl-overlay-body::-webkit-scrollbar-track { background: var(--bg2, #1e2228); }
+.nb-cine-sl-overlay-body::-webkit-scrollbar-thumb {
+    background: var(--accent, #7c6af7); border-radius: 11px;
+    border: 5px solid var(--bg2, #1e2228);
+}
+.nb-cine-sl-overlay-body::-webkit-scrollbar-thumb:hover { background: var(--accent-hover, #9384fa); }
 .nb-cine-sl-overlay > .nb-cine-card-peek { flex-shrink: 0; }
 
 /* Board layout (used inside overlay) */
@@ -432,7 +445,26 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     transition: opacity 0.15s;
 }
 .nb-cine-lane-add-end:hover { opacity: 1; background: rgba(255,255,255,0.07); }
+/* Row-header add button -- corner-pinned so it never forces the row taller
+   (esp. at small zoom, where rows are short) and rides along with the label's
+   own sticky positioning while a long lane scrolls horizontally. */
+.nb-cine-lane-add-hdr {
+    position: absolute; top: 3px; right: 3px;
+    display: flex; align-items: center; justify-content: center;
+    width: 1.3em; height: 1.3em; line-height: 1; padding: 0;
+    border: 1px dashed rgba(255,255,255,0.3); border-radius: 4px;
+    background: none; color: inherit; cursor: pointer;
+    opacity: 0.35; font-size: 0.95em;
+    transition: opacity 0.15s;
+}
+.nb-cine-lane-add-hdr:hover { opacity: 1; background: rgba(255,255,255,0.12); }
 .nb-cine-story-card:active { cursor: grabbing; }
+/* Locked board -- read-only: no add/demote affordances, cards aren't draggable */
+.nb-cine-sl-locked .nb-cine-lane-add-end,
+.nb-cine-sl-locked .nb-cine-lane-add-hdr,
+.nb-cine-sl-locked .nb-cine-demote-btn { display: none; }
+.nb-cine-sl-locked .nb-cine-story-card,
+.nb-cine-sl-locked .nb-cine-milestone-card { cursor: default; }
 .nb-cine-story-title { font-weight: bold; margin-bottom: 3px; }
 /* Gold title when story has a matching nb-web tool */
 .nb-cine-story-scenes {
@@ -2089,6 +2121,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             showZoom = true, zoomSize, onZoomChange,
             onAddStory,
             showOrderControls = false, orderNames = [], onSaveOrder, onLoadOrder,
+            locked = false, onToggleLock,
             onRefresh, onClose,
             selfSelector = '',
         } = opts;
@@ -2157,7 +2190,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const actions = document.createElement('span');
         actions.className = 'nb-specialty-right';
 
-        if (onAddStory) {
+        if (onAddStory && !locked) {
             const addBtn = document.createElement('button');
             addBtn.className = 'nb-specialty-action';
             addBtn.title = 'Add story (unassigned)';
@@ -2166,7 +2199,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             actions.appendChild(addBtn);
         }
 
-        if (showOrderControls) {
+        if (showOrderControls && !locked) {
             const saveOrderBtn = document.createElement('button');
             saveOrderBtn.className = 'nb-specialty-action';
             saveOrderBtn.title = 'Save current timeline order';
@@ -2193,6 +2226,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 });
                 actions.appendChild(ordSel);
             }
+        }
+
+        if (onToggleLock) {
+            const lockBtn = document.createElement('button');
+            lockBtn.className = 'nb-specialty-action';
+            lockBtn.title = locked ? 'Unlock storyline' : 'Lock storyline';
+            lockBtn.textContent = locked ? '🔒' : '🔓';
+            lockBtn.addEventListener('click', onToggleLock);
+            actions.appendChild(lockBtn);
         }
 
         const refBtn = document.createElement('button');
@@ -2222,13 +2264,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         overlay.className = 'nb-cine-sl-overlay';
         document.body.appendChild(overlay);
 
-        // Align top edge to the bottom of the list + preview toolbars
-        const toolbarBottom = Math.max(
-            document.getElementById('nb-preview-toolbar')?.getBoundingClientRect().bottom ?? 0,
-            document.getElementById('nb-list-meta')?.getBoundingClientRect().bottom ?? 0
-        );
-        if (toolbarBottom > 0) overlay.style.top = toolbarBottom + 'px';
-
         let board; // declared early so header button closures can reference it
 
         function _close() {
@@ -2254,6 +2289,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const _slLane   = lanes?.find(l => l.is_storyline);
         const _orders   = _slLane?.orders || {};
         const _ordNames = Object.keys(_orders);
+
+        // Locked (via the master storyline note's own lock: field) makes the
+        // whole board read-only -- .nb-cine-sl-locked hides every mutation
+        // affordance (add/demote buttons) via CSS; Sortable is disabled below.
+        overlay.classList.toggle('nb-cine-sl-locked', !!_slLane?.locked);
 
         async function _saveOrder() {
             const raw = prompt('Save current timeline as:');
@@ -2306,6 +2346,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             await _refresh();
         }
 
+        // Lock/unlock targets the master storyline note's own lock: field --
+        // the same field the plain note-preview toolbar's lock button writes,
+        // regardless of whether the toggle happens from here, Story/Script,
+        // or the Note view (see _buildStorylineHeader's onToggleLock).
+        async function _toggleStorylineLock() {
+            if (!_slLane) return;
+            await fetch('/api/cine/lock', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ selector: _slLane.selector, locked: !_slLane.locked }),
+            }).catch(e => console.error('Lock toggle:', e));
+            await _refresh();
+        }
+
         // ── Header ──
         const _activeNoteForSelf = NbMain.activeNote?.();
         const _selfSel = (_activeNoteForSelf?.type === 'storyline') ? _activeNoteForSelf.selector : '';
@@ -2333,11 +2386,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 _close();
                 _openStorylineOverlay(el, data, notebook, next, project);
             },
-            onAddStory: () => _showInlineStoryInput(board, null, notebook, el, size, _refresh, project),
+            // No onAddStory here -- Board replaces the header "+ Story" pill
+            // with a per-lane add button in each plotline row's own sticky
+            // label (see _buildLaneRow), which stays reachable while scrolled.
             showOrderControls: !!_slLane,
             orderNames: _ordNames,
             onSaveOrder: _saveOrder,
             onLoadOrder: _loadOrder,
+            locked: !!_slLane?.locked,
+            onToggleLock: _slLane ? _toggleStorylineLock : undefined,
             onRefresh: _refresh,
             // No onClose -- Esc still closes the overlay via the existing
             // _onEsc listener; the header button was redundant chrome.
@@ -2588,21 +2645,25 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 });
             }
             label.appendChild(labelText);
-            row.appendChild(label);
 
             const cardZone = document.createElement('div');
             cardZone.className = 'nb-cine-lane-cards';
             cards.forEach(s => cardZone.appendChild(_buildCard(s, size, 'plotline')));
-            row.appendChild(cardZone);
 
+            // Add-story button lives in the row's own sticky label (not at the
+            // row's end) so it stays reachable when a long lane is scrolled
+            // horizontally -- the label is position:sticky; left:0.
             const laneAdd = document.createElement('button');
-            laneAdd.className = 'nb-cine-lane-add-end'; laneAdd.textContent = '+';
+            laneAdd.className = 'nb-cine-lane-add-hdr'; laneAdd.textContent = '+';
             laneAdd.title = `Add story to ${laneTitle}`;
             laneAdd.addEventListener('click', e => {
                 e.stopPropagation();
                 _showInlineStoryInput(cardZone, laneStem, notebook, el, size, _refresh, project);
             });
-            row.appendChild(laneAdd);
+            label.appendChild(laneAdd);
+
+            row.appendChild(label);
+            row.appendChild(cardZone);
 
             return { row, cardZone };
         }
@@ -2634,6 +2695,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     animation:      150,
                     forceFallback:  true,
                     fallbackOnBody: true,
+                    disabled:       !!_slLane?.locked,
                     onAdd() {
                         // Card arrived from a plotline — it's at the correct DOM position; resequence + rebuild
                         _resequenceStoryline(cardZone).then(_refresh);
@@ -2664,6 +2726,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     animation:      150,
                     forceFallback:  true,
                     fallbackOnBody: true,
+                    disabled:       !!_slLane?.locked,
                     async onStart(evt) {
                         const sel = evt.item?.dataset?.selector;
                         if (!sel) return;
@@ -2824,6 +2887,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     animation:      150,
                     forceFallback:  true,
                     fallbackOnBody: true,
+                    disabled:       !!_slLane?.locked,
                     onAdd(evt) {
                         if (evt.from.closest('.nb-cine-storyline-main')) {
                             _msDemoting = true;
@@ -2974,6 +3038,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
             const _activeNoteForSelf = NbMain.activeNote?.();
             const _selfSel = (_activeNoteForSelf?.type === 'storyline') ? _activeNoteForSelf.selector : '';
+            const _slLaneForLock = (data.lanes || []).find(l => l.is_storyline);
 
             const hdr = _buildStorylineHeader({
                 // See the board overlay's own header for why not config?.project.
@@ -3002,6 +3067,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     _loadCineBlock(el);
                 }, _project),
                 showOrderControls: false,
+                locked: !!_slLaneForLock?.locked,
+                onToggleLock: _slLaneForLock ? async () => {
+                    await fetch('/api/cine/lock', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ selector: _slLaneForLock.selector, locked: !_slLaneForLock.locked }),
+                    }).catch(e => console.error('Lock toggle:', e));
+                    _bust(notebook, _project);
+                    el.dataset.query = field;
+                    _loadCineBlock(el);
+                } : undefined,
                 onRefresh: () => { _bust(notebook, _project); el.dataset.query = field; _loadCineBlock(el); },
                 selfSelector: _selfSel,
             });
@@ -3079,6 +3154,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             _openStorylineOverlay(el, data, notebook, size, _project);
         } else if (field === 'storyline-note') {
             const activeNote = NbMain.activeNote();
+            const _slLaneForLock = (data.lanes || []).find(l => l.is_storyline);
 
             el.innerHTML = '';
             const wrap = document.createElement('div');
@@ -3103,6 +3179,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     _loadCineBlock(el);
                 }, _project),
                 showOrderControls: false,
+                locked: !!_slLaneForLock?.locked,
+                onToggleLock: _slLaneForLock ? async () => {
+                    await fetch('/api/cine/lock', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ selector: _slLaneForLock.selector, locked: !_slLaneForLock.locked }),
+                    }).catch(e => console.error('Lock toggle:', e));
+                    _bust(notebook, _project);
+                    el.dataset.query = 'storyline-note';
+                    _loadCineBlock(el);
+                } : undefined,
                 onRefresh: () => { _bust(notebook, _project); el.dataset.query = 'storyline-note'; _loadCineBlock(el); },
                 selfSelector: activeNote?.selector || '',
             });
