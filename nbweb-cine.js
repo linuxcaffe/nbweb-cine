@@ -2096,15 +2096,30 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const hdr = document.createElement('div');
         hdr.className = 'nb-specialty-header nb-cine-storyline-hdr';
 
-        const titleEl = document.createElement('span');
-        titleEl.className = 'nb-specialty-label';
-        titleEl.textContent = `🧵 ${title || 'Storylines'} — storyline`;
+        // Two separate spans, same as the plotline/story headers -- only the
+        // storyline's own name is clickable, "— storyline" is plain suffix
+        // text, not part of the same selectable/clickable unit. Wrapped in one
+        // flex item so hdr's own `gap` (meant to space header *sections*
+        // apart) doesn't also shove the two title parts apart from each other.
+        const titleWrap = document.createElement('span');
+        titleWrap.className = 'nb-cine-sl-title-wrap';
+
+        const titleNameEl = document.createElement('span');
+        titleNameEl.className = 'nb-specialty-label';
+        titleNameEl.textContent = `🧵 ${title || 'Storylines'}`;
         if (selfSelector) {
-            titleEl.classList.add('nb-cine-title-nav');
-            titleEl.dataset.navMode = 'self';
-            titleEl.title = 'View this storyline’s own note';
+            titleNameEl.classList.add('nb-cine-title-nav');
+            titleNameEl.dataset.navMode = 'self';
+            titleNameEl.title = 'View this storyline’s own note';
         }
-        hdr.appendChild(titleEl);
+        titleWrap.appendChild(titleNameEl);
+
+        const titleSuffixEl = document.createElement('span');
+        titleSuffixEl.className = 'nb-specialty-label';
+        titleSuffixEl.textContent = ' — storyline';
+        titleWrap.appendChild(titleSuffixEl);
+
+        hdr.appendChild(titleWrap);
 
         const viewGroup = document.createElement('div');
         viewGroup.className = 'nb-cine-sl-viewgroup';
@@ -2296,7 +2311,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const _selfSel = (_activeNoteForSelf?.type === 'storyline') ? _activeNoteForSelf.selector : '';
 
         const hdr = _buildStorylineHeader({
-            title: config?.project || 'Storylines',
+            // config is the notebook's own cine: settings block (production
+            // company, strip colours, ...) -- it has never had a project
+            // field, config?.project is always undefined. The real display
+            // name is the storyline note's own title when we're viewing it
+            // directly (the common case, hence the same type check as
+            // _selfSel); 'Storylines' is a last-resort fallback for contexts
+            // with no active storyline note at all (e.g. this board embedded
+            // via codeblock on an unrelated note).
+            title: (_activeNoteForSelf?.type === 'storyline' ? _activeNoteForSelf.title : '') || 'Storylines',
             activeView: 'board',
             onSwitchView: view => {
                 if (view === 'board') return;
@@ -2953,7 +2976,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const _selfSel = (_activeNoteForSelf?.type === 'storyline') ? _activeNoteForSelf.selector : '';
 
             const hdr = _buildStorylineHeader({
-                title: data.config?.project || 'Storylines',
+                // See the board overlay's own header for why not config?.project.
+                title: (_activeNoteForSelf?.type === 'storyline' ? _activeNoteForSelf.title : '') || 'Storylines',
                 activeView: field === 'storyline-script' ? 'script' : 'story',
                 onSwitchView: view => {
                     if (view === 'board') {
@@ -3061,7 +3085,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             wrap.className = 'nb-cine-sl-note-view';
 
             const hdr = _buildStorylineHeader({
-                title: data.config?.project || activeNote?.title || 'Storylines',
+                // See the board overlay's own header for why not config?.project.
+                title: activeNote?.title || 'Storylines',
                 activeView: null, // none of Board/Story/Script is "active" while viewing the note itself
                 onSwitchView: view => {
                     if (view === 'board') {
