@@ -4608,6 +4608,27 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 </div>`;
     }
 
+    // ── Milestone header (type: milestone) — same shape as _renderStoryHeader;
+    // milestone notes had no specialty preview at all until this (fell through
+    // to generic markdown, no title-click back to the storyline, no mini
+    // Board/Story/Script switcher). _resolveParentStoryline is already type-
+    // agnostic (project FM / parent folder), so no changes needed there.
+    async function _renderMilestoneHeader(note) {
+        const parent = await _resolveParentStoryline(note);
+        const titleHtml = parent
+            ? `<span class="nb-specialty-label nb-cine-title-nav" data-sl-view="note" data-sl-target="${_esc(parent.selector)}" title="Open ${_esc(parent.title)}">${_esc(parent.title)}</span><span class="nb-specialty-label"> — milestone — ${_esc(note.title || '')}</span>`
+            : `<span class="nb-specialty-label">milestone — ${_esc(note.title || '')}</span>`;
+
+        return `<div class="nb-specialty-header nb-cine-milestone-hdr" data-selector="${_esc(note.selector || '')}">
+  <span class="nb-specialty-icon">🏁</span>
+  ${titleHtml}
+  ${_renderSlViewGroup(parent?.selector || '')}
+  <span class="nb-specialty-right">
+    <button class="nb-cine-big-plus-btn" data-sl-action="stub-add" title="Coming soon">+</button>
+  </span>
+</div>`;
+    }
+
     // ── Slate overlay ─────────────────────────────────────────────────────────
 
     // Walk up from the note's selector looking for a slate.md config note.
@@ -5822,6 +5843,30 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     const bodyHtml = (note.body || '').trim()
                         ? `<div class="nb-wp-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
                     const headerHtml = await _renderStoryHeader(note);
+                    return `<div class="nb-cine-shot-card">
+                        ${headerHtml}
+                        ${inner ? `<div class="nb-card nb-cine-card-fm">${inner}</div>` : ''}
+                        ${bodyHtml}
+                    </div>`;
+                },
+            },
+            {
+                id:     'milestone-card',
+                icon:   '🏁',
+                label:  'Milestone card',
+                types:  ['milestone'],
+                detect: note => note.type === 'milestone',
+                render: async note => {
+                    const m      = note.meta || {};
+                    // milestone_seq/story_seq now live in _renderMilestoneHeader above.
+                    const skip   = new Set(['title','type','milestone_seq','story_seq','color','lock']);
+                    const extras = Object.entries(m).filter(([k,v]) => !skip.has(k) && v != null && String(v).trim());
+                    const _row = (k, v) =>
+                        `<div class="nb-contact-row"><span class="nb-contact-label">${_esc(k)}</span><span class="nb-contact-value">${_esc(String(v))}</span></div>`;
+                    const inner = extras.length ? extras.map(([k,v]) => _row(k, String(v).trim())).join('') : '';
+                    const bodyHtml = (note.body || '').trim()
+                        ? `<div class="nb-wp-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
+                    const headerHtml = await _renderMilestoneHeader(note);
                     return `<div class="nb-cine-shot-card">
                         ${headerHtml}
                         ${inner ? `<div class="nb-card nb-cine-card-fm">${inner}</div>` : ''}
