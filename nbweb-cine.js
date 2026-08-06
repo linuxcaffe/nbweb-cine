@@ -1944,6 +1944,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     const _SL_SIZE_KEY = nb => `nb-cine-sl-size-${nb}`;
     const _SL_VIEW_KEY = nb => `nb-cine-sl-view-${nb}`;
+    // One-shot signal: Board clicked from the Note view has nowhere to switch
+    // "to" the way Story/Script do (there's no board sub-state of the
+    // storyline-story tab) -- it has to reopen the note on the storyline-story
+    // tab AND immediately pop the overlay. Consumed once by _loadCineBlock's
+    // storyline-story branch, then cleared.
+    const _SL_PENDING_BOARD_KEY = nb => `nb-cine-sl-pending-board-${nb}`;
 
     function _buildStorylines(el, data, notebook, defaultSize = 'small') {
         const stored = localStorage.getItem(_SL_SIZE_KEY(notebook));
@@ -2006,7 +2012,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     function _buildStorylineHeader(opts) {
         const {
             title, activeView, onSwitchView,
-            zoomSize, onZoomChange,
+            showZoom = true, zoomSize, onZoomChange,
             onAddStory,
             showOrderControls = false, orderNames = [], onSaveOrder, onLoadOrder,
             onRefresh, onClose,
@@ -2081,16 +2087,18 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             }
         }
 
-        const zoomBtn = document.createElement('button');
-        zoomBtn.className = 'nb-specialty-action nb-cine-sl-zoom-btn';
-        zoomBtn.title = `Card size: ${zoomSize}`;
-        zoomBtn.dataset.level = _SL_ZOOM_LEVEL[zoomSize] ?? 0;
-        zoomBtn.innerHTML = _SL_ICON_ZOOM;
-        zoomBtn.addEventListener('click', () => {
-            const next = _SL_ZOOM_ORDER[(_SL_ZOOM_ORDER.indexOf(zoomSize) + 1) % _SL_ZOOM_ORDER.length];
-            onZoomChange(next);
-        });
-        actions.appendChild(zoomBtn);
+        if (showZoom) {
+            const zoomBtn = document.createElement('button');
+            zoomBtn.className = 'nb-specialty-action nb-cine-sl-zoom-btn';
+            zoomBtn.title = `Card size: ${zoomSize}`;
+            zoomBtn.dataset.level = _SL_ZOOM_LEVEL[zoomSize] ?? 0;
+            zoomBtn.innerHTML = _SL_ICON_ZOOM;
+            zoomBtn.addEventListener('click', () => {
+                const next = _SL_ZOOM_ORDER[(_SL_ZOOM_ORDER.indexOf(zoomSize) + 1) % _SL_ZOOM_ORDER.length];
+                onZoomChange(next);
+            });
+            actions.appendChild(zoomBtn);
+        }
 
         const refBtn = document.createElement('button');
         refBtn.className = 'nb-specialty-action'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
@@ -2787,7 +2795,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }
 
         const { field, format, filter, codes, arg } = _parseQuery(el.dataset.query || '');
-        const _project = (field === 'storyline-board' || field === 'storyline-story' || field === 'storyline-script') ? (el.dataset.project || '') : '';
+        const _project = (field === 'storyline-board' || field === 'storyline-story' || field === 'storyline-script' || field === 'storyline-note') ? (el.dataset.project || '') : '';
 
         if (field === 'org') {
             // Pipeline org chart — its own data source (a `.{name}-org.md` heading
@@ -2831,6 +2839,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         } else if (field === 'storylines') {
             _buildStorylines(el, data, notebook, format || 'small');
         } else if (field === 'storyline-story' || field === 'storyline-script') {
+            // Board clicked from the Note view — one-shot, consumed here.
+            if (field === 'storyline-story' && localStorage.getItem(_SL_PENDING_BOARD_KEY(notebook))) {
+                localStorage.removeItem(_SL_PENDING_BOARD_KEY(notebook));
+                const size = localStorage.getItem(_SL_SIZE_KEY(notebook)) || 'small';
+                _buildStorylines(el, data, notebook, size);
+                _openStorylineOverlay(el, data, notebook, size, _project);
+                return;
+            }
             // Restore saved view preference — survives Back navigation (which re-renders as story-view)
             if (field === 'storyline-story') {
                 const saved = localStorage.getItem(_SL_VIEW_KEY(notebook));
@@ -2978,6 +2994,45 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             const size = localStorage.getItem(_SL_SIZE_KEY(notebook)) || 'small';
             _buildStorylines(el, data, notebook, size);
             _openStorylineOverlay(el, data, notebook, size, _project);
+        } else if (field === 'storyline-note') {
+            const activeNote = NbMain.activeNote();
+
+            el.innerHTML = '';
+            const wrap = document.createElement('div');
+            wrap.className = 'nb-cine-sl-note-view';
+
+            const hdr = _buildStorylineHeader({
+                title: data.config?.project || activeNote?.title || 'Storylines',
+                activeView: null, // none of Board/Story/Script is "active" while viewing the note itself
+                onSwitchView: view => {
+                    if (view === 'board') {
+                        localStorage.setItem(_SL_PENDING_BOARD_KEY(notebook), '1');
+                    } else {
+                        localStorage.setItem(_SL_VIEW_KEY(notebook), view === 'script' ? 'script' : 'story');
+                    }
+                    localStorage.setItem(`nb-render-mode:${notebook}`, 'storyline-story');
+                    NbMain.openNote(activeNote.selector);
+                },
+                showZoom: false, // card-size has no meaning for plain body text
+                onAddStory: () => _showInlineStoryInput(wrap, null, notebook, el, 'small', () => {
+                    el.dataset.query = 'storyline-note';
+                    _loadCineBlock(el);
+                }, _project),
+                showOrderControls: false,
+                onRefresh: () => { _bust(notebook, _project); el.dataset.query = 'storyline-note'; _loadCineBlock(el); },
+                selfSelector: activeNote?.selector || '',
+            });
+            wrap.appendChild(hdr);
+
+            const bodyWrap = document.createElement('div');
+            bodyWrap.className = 'nb-rendered';
+            const body = (activeNote?.body || '').trim();
+            bodyWrap.innerHTML = body
+                ? NbMain.renderMarkdown(body, activeNote.selector)
+                : '<div class="nb-cine-empty">This storyline has no written description yet.</div>';
+            wrap.appendChild(bodyWrap);
+
+            el.appendChild(wrap);
         } else if (format && ['actor','location','resource'].includes(field)) {
             _buildFieldLookup(el, data, field, format, codes);
         } else {
@@ -5480,9 +5535,17 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Note',
                 types:  ['storyline'],
                 detect: note => note.type === 'storyline',
-                render: note => (note.body || '').trim()
-                    ? NbMain.renderMarkdown(note.body, note.selector)
-                    : '<div class="nb-cine-empty">This storyline has no written description yet.</div>',
+                // Routed through _loadCineBlock (like storyline-story/-script) rather than
+                // returned as a plain string -- gives it a real, persistent DOM element to
+                // build the shared header into, with working closures for the Board/Story/
+                // Script return-trip buttons. A plain-string render can't do that: its
+                // previewRenderer output is serialized once into innerHTML, so any header
+                // built there could show the same icons but none of the clicks would work.
+                render: note => {
+                    const raw     = (note.meta?.project || '').trim();
+                    const project = raw.replace(/^storylines\//, '').replace(/\/$/, '');
+                    return `<div class="nb-cine-block" data-query="storyline-note"${project ? ` data-project="${_esc(project)}"` : ''}><span class="nb-spin">⟳</span></div>`;
+                },
             },
             {
                 id:     'story-card',
