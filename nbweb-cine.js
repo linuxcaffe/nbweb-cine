@@ -864,14 +864,24 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-slate-ctrl-good   { background: #2a7a2a !important; color: #fff !important; border-color: #1a5a1a !important; }
 .nb-slate-ctrl-ng     { background: #a93226 !important; color: #fff !important; border-color: #7a1e14 !important; }
 .nb-slate-ctrl-active { filter: brightness(1.3) !important; outline: 2px solid rgba(255,255,255,0.5) !important; }
-/* Shot specialty header — color-coded border by INT/EXT · DAY/NIGHT */
-.nb-cine-shot-hdr[data-dnie="ID"] { border-left-color: #a8a890; }
-.nb-cine-shot-hdr[data-dnie="ED"] { border-left-color: #c8a800; }
-.nb-cine-shot-hdr[data-dnie="IN"] { border-left-color: #6a8bba; }
-.nb-cine-shot-hdr[data-dnie="EN"] { border-left-color: #5ba35b; }
-.nb-cine-shot-pill-dnie { font-weight: 700; font-size: 0.78em; letter-spacing: 0.04em; }
+/* Shot/scene specialty header — color-coded border by INT/EXT · DAY/NIGHT.
+   Shared between .nb-cine-shot-hdr and .nb-cine-scene-hdr so both read as
+   one system. */
+.nb-cine-shot-hdr[data-dnie="ID"], .nb-cine-scene-hdr[data-dnie="ID"] { border-left-color: #a8a890; }
+.nb-cine-shot-hdr[data-dnie="ED"], .nb-cine-scene-hdr[data-dnie="ED"] { border-left-color: #c8a800; }
+.nb-cine-shot-hdr[data-dnie="IN"], .nb-cine-scene-hdr[data-dnie="IN"] { border-left-color: #6a8bba; }
+.nb-cine-shot-hdr[data-dnie="EN"], .nb-cine-scene-hdr[data-dnie="EN"] { border-left-color: #5ba35b; }
+/* Fixed dark text -- all four dnie backgrounds above are light pastels
+   regardless of app theme, so var(--text-muted) (near-invisible on light
+   bg in dark mode) is wrong here. Pre-existing bug on the shot header;
+   fixed for both shot and scene at once since they share this class. */
+.nb-cine-shot-pill-dnie { font-weight: 700; font-size: 0.78em; letter-spacing: 0.04em; color: #2a2a2a; }
 .nb-cine-takes-pill { cursor: pointer; border: 1px solid var(--border); background: var(--bg3, var(--bg2)); color: var(--text-muted); padding: 1px 7px; border-radius: 10px; font-size: 0.9em; }
 .nb-cine-takes-pill:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.nb-cine-plotline-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--text-muted); border: 1px solid rgba(0,0,0,0.25); }
+.nb-cine-story-spine-pill { color: #c8a800; border-color: #c8a800; }
+.nb-cine-title-nav { cursor: pointer; }
+.nb-cine-title-nav:hover { text-decoration: underline; }
 /* Ctrl panel mode — flex column replaces the button grid */
 .nb-slate-ctrl-grid.nb-slate-ctrl-panel-mode { display: flex; flex-direction: column; gap: 0; }
 .nb-slate-panel-hdr {
@@ -4086,13 +4096,44 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             `</div>${_cBody(note)}`;
     }
 
+    // ── Scene header (type: scene) — mirrors _renderShotHeader's identity
+    // strip so shot and scene read as one system (same dnie colour coding,
+    // same nb-specialty-header shell). No action button: unlike a shot's
+    // Slate, a scene note has no equivalent single-launch tool to offer.
+    function _renderSceneHeader(note) {
+        const m     = note.meta || {};
+        const alias = m.alias != null ? String(m.alias) : '';
+        const ie    = (m.int_ext   || '').charAt(0).toUpperCase();
+        const dn    = (m.day_night || '').charAt(0).toUpperCase();
+        const dnie  = (ie && dn) ? ie + dn : (ie || dn || '');
+        const loc   = m.loc ? String(m.loc) : '';
+
+        const sceneId = alias ? `SC ${_esc(alias)}` : _esc(note.title || '');
+
+        const dnieLabel = { ID: 'INT·DAY', ED: 'EXT·DAY', IN: 'INT·NIGHT', EN: 'EXT·NIGHT' };
+        const dniePill  = dnie
+            ? `<span class="nb-specialty-pill nb-cine-shot-pill-dnie nb-cine-strip-${dnie}">${dnieLabel[dnie] || dnie}</span>`
+            : '';
+        const locPill   = loc ? `<span class="nb-specialty-pill">${_esc(loc)}</span>` : '';
+
+        return `<div class="nb-specialty-header nb-cine-scene-hdr" data-selector="${_esc(note.selector || '')}" data-dnie="${_esc(dnie)}">
+  <span class="nb-specialty-icon">🎞</span>
+  <span class="nb-specialty-label">${sceneId}</span>
+  ${dniePill}${locPill}
+</div>`;
+    }
+
     // ── Scene card (type: scene) — frontmatter card + body ───────────────────
 
     function _renderSceneCard(note) {
         const m  = note.meta || {};
         const fields = _cAllFields(m, {
-            day_night: v => _cRow('day/night', v),
-            int_ext:   v => _cRow('int/ext',   v),
+            // alias/loc/day_night/int_ext now live in _renderSceneHeader above —
+            // suppress here so they don't show twice.
+            alias:     () => '',
+            loc:       () => '',
+            day_night: () => '',
+            int_ext:   () => '',
         });
 
         const bodyHtml = (note.body || '').trim()
@@ -4102,6 +4143,64 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             (fields ? `<div class="nb-card nb-cine-card-fm">` +
             `<div class="nb-card-fields">${fields}</div></div>` : '') +
             `${bodyHtml}</div>`;
+    }
+
+    // ── Plotline header + card (type: plotline) — a lane on the storyline
+    // board. Identity here is its colour, not an emoji -- the same colour
+    // already marks this lane's own border and every story card assigned to
+    // it, so the header swatch is the header's own icon slot, reinforcing an
+    // existing convention rather than adding an unrelated one. Distinct from
+    // the master type:storyline note by design (djp, 2026-08-06) -- not the
+    // same header, not a reuse of storyline's board/story/script machinery.
+    function _renderPlotlineHeader(note) {
+        const m     = note.meta || {};
+        const color = m.color ? String(m.color) : '';
+        const seq   = m.seq != null && m.seq !== '' ? String(m.seq) : '';
+
+        const swatch  = `<span class="nb-cine-plotline-swatch"${color ? ` style="background:${_esc(color)}"` : ''}></span>`;
+        const seqPill = seq ? `<span class="nb-specialty-pill">lane ${_esc(seq)}</span>` : '';
+
+        return `<div class="nb-specialty-header nb-cine-plotline-hdr" data-selector="${_esc(note.selector || '')}"${color ? ` style="border-left-color:${_esc(color)}"` : ''}>
+  ${swatch}
+  <span class="nb-specialty-label nb-cine-title-nav" data-nav-mode="parent" data-self-selector="${_esc(note.selector || '')}" data-project="${_esc(m.project || '')}" title="Open the storyline this plotline belongs to">${_esc(note.title || '')}</span>
+  ${seqPill}
+</div>`;
+    }
+
+    function _renderPlotlineCard(note) {
+        const m = note.meta || {};
+        const fields = _cAllFields(m, {
+            // title/color/seq now live in _renderPlotlineHeader above.
+            title: () => '',
+            color: () => '',
+            seq:   () => '',
+        });
+        const bodyHtml = (note.body || '').trim()
+            ? `<div class="nb-card-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
+        return `<div class="nb-cine-shot-card">` +
+            (fields ? `<div class="nb-card nb-cine-card-fm">` +
+            `<div class="nb-card-fields">${fields}</div></div>` : '') +
+            `${bodyHtml}</div>`;
+    }
+
+    // ── Story header (type: story) — a card on a plotline lane. story_seq
+    // (promoted to the master storyline) is called out explicitly since it's
+    // load-bearing state (drives the Production Flow via film-school.md) that
+    // was otherwise invisible outside the board itself.
+    function _renderStoryHeader(note) {
+        const m        = note.meta || {};
+        const plotline = m.plotline ? String(m.plotline).trim() : '';
+        const onSpine  = m.story_seq != null && m.story_seq !== '';
+
+        const plotlinePill = plotline ? `<span class="nb-specialty-pill">${_esc(plotline)}</span>` : '';
+        const spinePill    = onSpine
+            ? `<span class="nb-specialty-pill nb-cine-story-spine-pill">★ on storyline</span>` : '';
+
+        return `<div class="nb-specialty-header nb-cine-story-hdr" data-selector="${_esc(note.selector || '')}">
+  <span class="nb-specialty-icon">🃏</span>
+  <span class="nb-specialty-label nb-cine-title-nav" data-nav-mode="parent" data-self-selector="${_esc(note.selector || '')}" data-project="${_esc(m.project || '')}" title="Open the storyline this story belongs to">${_esc(note.title || '')}</span>
+  ${plotlinePill}${spinePill}
+</div>`;
     }
 
     // ── Slate overlay ─────────────────────────────────────────────────────────
@@ -5244,6 +5343,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 },
             },
             {
+                id:     'plotline-card',
+                icon:   '🧶',
+                label:  'Plotline',
+                types:  ['plotline'],
+                detect: note => note.type === 'plotline',
+                render: note => _renderPlotlineHeader(note) + _renderPlotlineCard(note),
+            },
+            {
                 id:     'storyline-story',
                 icon:   '📖',
                 label:  'Story view',
@@ -5256,6 +5363,26 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 },
             },
             {
+                // The master storyline note's own written word -- until this
+                // renderer existed, type:storyline had exactly one view (the
+                // aggregate board/story data), so the note's *own* body was
+                // permanently unreachable through the preview pane no matter
+                // what it said. Plain body render, no board machinery. Reached
+                // either via nb-web's own multi-renderer tab switcher (auto-
+                // appears now that this type has 2 renderers) or via the
+                // storyline header's title-click / a plotline-or-story
+                // header's title-click jumping up to its parent storyline
+                // (see the delegated .nb-cine-title-nav click handler below).
+                id:     'storyline-note',
+                icon:   '📝',
+                label:  'Note',
+                types:  ['storyline'],
+                detect: note => note.type === 'storyline',
+                render: note => (note.body || '').trim()
+                    ? NbMain.renderMarkdown(note.body, note.selector)
+                    : '<div class="nb-cine-empty">This storyline has no written description yet.</div>',
+            },
+            {
                 id:     'story-card',
                 icon:   '🃏',
                 label:  'Story card',
@@ -5263,9 +5390,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 detect: note => note.type === 'story',
                 render: note => {
                     const m        = note.meta || {};
-                    const plotline = m.plotline ? String(m.plotline).trim() : '';
                     const desc     = m.desc     ? String(m.desc).trim()     : '';
                     const scenes   = m.scenes   ? String(m.scenes).trim()   : '';
+                    // plotline/story_seq now live in _renderStoryHeader above.
                     const skip     = new Set(['title','type','plotline','seq','desc','scenes','color','lock','story_seq']);
                     const extras   = Object.entries(m).filter(([k,v]) => !skip.has(k) && v != null && String(v).trim());
                     const _row = (k, v) =>
@@ -5275,7 +5402,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                             `<span class="nb-cine-cast-chip nb-wiki-link" data-selector="${_esc(s.trim())}">${_esc(s.trim())}</span>`).join('')
                         : '';
                     const inner = [
-                        plotline ? _row('plotline', plotline) : '',
                         desc     ? `<div class="nb-cine-sc-desc">${_esc(desc)}</div>` : '',
                         scenesHtml ? `<div class="nb-cine-sc-cast">${scenesHtml}</div>` : '',
                         extras.length ? extras.map(([k,v]) => _row(k, String(v).trim())).join('') : '',
@@ -5283,6 +5409,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     const bodyHtml = (note.body || '').trim()
                         ? `<div class="nb-wp-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
                     return `<div class="nb-cine-shot-card">
+                        ${_renderStoryHeader(note)}
                         ${inner ? `<div class="nb-card nb-cine-card-fm">${inner}</div>` : ''}
                         ${bodyHtml}
                     </div>`;
@@ -5303,7 +5430,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Screenplay format',
                 types:  ['scene'],
                 detect: note => note.type === 'scene',
-                render: note => _renderScript(note),
+                render: note => _renderSceneHeader(note) + _renderScript(note),
             },
             {
                 id:     'markdown',
@@ -5313,9 +5440,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 detect: note => note.type === 'scene',
                 render: note => {
                     if (note.type !== 'scene') return null;
+                    const header = _renderSceneHeader(note);
                     const body = (note.body || '').trim();
                     if (typeof marked === 'undefined')
-                        return `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
+                        return header + `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
                     // Pre-process Fountain-specific syntax that marked would render as blockquotes.
                     let processed = body
                         .replace(/^> (.+?) <\s*$/gm, (_, t) =>
@@ -5330,7 +5458,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                             return `<span class="nb-wiki-link" data-selector="${_esc(t)}"${label ? '' : ' data-autolabel="1"'}>${_esc(label?.trim() || t)}</span>`;
                         }
                     );
-                    return `<div class="nb-cine-plain-script nb-rendered">${marked.parse(withLinks)}</div>`;
+                    return header + `<div class="nb-cine-plain-script nb-rendered">${marked.parse(withLinks)}</div>`;
                 },
             },
             {
@@ -5339,7 +5467,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Scene card',
                 types:  ['scene'],
                 detect: note => note.type === 'scene',
-                render: note => _renderSceneCard(note),
+                render: note => _renderSceneHeader(note) + _renderSceneCard(note),
             },
             {
                 id:     'actor-card',
@@ -5460,6 +5588,63 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             ),
         }],
     });
+
+    // ── Header title-click navigation ───────────────────────────────────────
+    // storyline header title (data-nav-mode="self"): switch this same note to
+    // the 'storyline-note' renderer tab (plain body, no board machinery).
+    // plotline/story header title (data-nav-mode="parent"): jump up to the
+    // note.body of the type:storyline note that owns this project, landing
+    // directly on its 'storyline-note' tab. Resolution order: explicit
+    // project: field first (matches how a storyline note names itself),
+    // else the note's own immediate parent folder name (storylines/<folder>
+    // convention) -- each candidate is verified to actually be type:storyline
+    // before navigating, so a same-named non-storyline note (e.g. the
+    // storylines.md dashboard) is never mistaken for a match.
+    const _STORYLINE_NOTE_MODE = 'storyline-note';
+
+    document.addEventListener('click', async e => {
+        const el = e.target.closest('.nb-cine-title-nav');
+        if (!el) return;
+        e.stopPropagation();
+
+        if (el.dataset.navMode === 'self') {
+            const note = NbMain.activeNote();
+            if (!note) return;
+            localStorage.setItem(`nb-render-mode:${note.notebook}`, _STORYLINE_NOTE_MODE);
+            await NbMain.openNote(note.selector);
+            return;
+        }
+
+        if (el.dataset.navMode === 'parent') {
+            const selfSel = el.dataset.selfSelector || '';
+            const colonIdx = selfSel.indexOf(':');
+            if (colonIdx < 0) return;
+            const notebook = selfSel.slice(0, colonIdx);
+            const path      = selfSel.slice(colonIdx + 1);
+            const explicit  = (el.dataset.project || '').trim()
+                .replace(/^storylines\//, '').replace(/\/$/, '');
+            const parts = path.split('/');
+            parts.pop(); // drop filename
+            const parentFolder = parts[parts.length - 1] || '';
+            const candidates = [...new Set([explicit, parentFolder].filter(Boolean))];
+
+            for (const stem of candidates) {
+                const candSel = `${notebook}:storylines/${stem}.md`;
+                try {
+                    const r = await fetch(`/api/note?selector=${encodeURIComponent(candSel)}`);
+                    if (!r.ok) continue;
+                    const d = await r.json();
+                    if (d && !d.error && d.meta?.type === 'storyline') {
+                        localStorage.setItem(`nb-render-mode:${notebook}`, _STORYLINE_NOTE_MODE);
+                        await NbMain.openNote(candSel);
+                        return;
+                    }
+                } catch (_) {}
+            }
+            // No resolvable parent storyline for this project -- nothing to jump to.
+            alert('No storyline note found for this project yet.');
+        }
+    }, true);
 
     // ── Slate launch button delegation ────────────────────────────────────────
     document.addEventListener('click', async e => {
