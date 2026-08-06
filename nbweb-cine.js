@@ -2906,6 +2906,24 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             }
         }
 
+        // At min zoom, squeeze row height to fit every lane on screen with no
+        // vertical scroll -- but only shrink, never grow past the normal small-
+        // zoom row height (80px / 60px milestone row), so a short lane list on
+        // a tall screen doesn't get stretched out just because there's room.
+        if (size === 'small') {
+            const rows    = [...board.querySelectorAll('.nb-cine-storyline-row')];
+            const msRow   = board.querySelector('.nb-cine-milestone-row');
+            const allRows = msRow ? [...rows, msRow] : rows;
+            if (allRows.length) {
+                const availH  = overlayBody.clientHeight;
+                const perRow  = Math.floor(availH / allRows.length);
+                rows.forEach(row => {
+                    row.style.minHeight = Math.max(1, Math.min(80, perRow)) + 'px';
+                });
+                if (msRow) msRow.style.minHeight = Math.max(1, Math.min(60, perRow)) + 'px';
+            }
+        }
+
         overlay.querySelectorAll('.nb-cine-link[data-selector]').forEach(btn =>
             btn.addEventListener('click', e => {
                 e.stopPropagation();
