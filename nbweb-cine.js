@@ -910,7 +910,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-shot-pill-dnie { font-weight: 700; font-size: 0.78em; letter-spacing: 0.04em; color: #2a2a2a; }
 .nb-cine-takes-pill { cursor: pointer; border: 1px solid var(--border); background: var(--bg3, var(--bg2)); color: var(--text-muted); padding: 1px 7px; border-radius: 10px; font-size: 0.9em; }
 .nb-cine-takes-pill:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-.nb-cine-plotline-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--text-muted); border: 1px solid rgba(0,0,0,0.25); }
+/* .nb-cine-plotline-swatch.nb-specialty-nav-btn (combined selector, not just
+   the bare class) so this wins over core's .nb-specialty-nav-btn button-reset
+   regardless of stylesheet load order -- the swatch keeps its round color-dot
+   look while doubling as the nav trigger, not a second icon next to it. */
+.nb-cine-plotline-swatch.nb-specialty-nav-btn {
+    display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none;
+    background: var(--text-muted); border: 1px solid rgba(0,0,0,0.25);
+    padding: 0; cursor: pointer;
+}
 .nb-cine-title-nav { cursor: pointer; }
 .nb-cine-title-nav:hover { text-decoration: underline; }
 /* Big + stub -- story/plotline headers only, deliberately larger and plainer
@@ -926,6 +934,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
 /* Unified storyline header — view switcher + zoom */
 .nb-cine-storyline-hdr { flex-wrap: wrap; }
+/* Story/Script/Note embed this header inside .nb-cine-block (the codeblock host
+   div), which sets font-family:monospace + font-size:0.85em for the stripboard/
+   shot-sheet's own tabular views -- that ambient styling was leaking into the
+   storyline header's title text too, making it look different from the plain
+   story/plotline/milestone note headers (never nested inside .nb-cine-block, so
+   never affected). calc(1em / 0.85) exactly cancels the inherited scale rather
+   than hardcoding a size. Board's own header already escapes .nb-cine-block
+   (its overlay is appended straight to document.body), so this rule is a no-op
+   there -- fixing Story/Script/Note only, which is where it was needed. */
+.nb-cine-block .nb-cine-storyline-hdr {
+    font-family: var(--font-ui);
+    font-size: calc(1em / 0.85);
+}
 .nb-cine-sl-viewgroup { display: flex; gap: 2px; background: var(--bg, #16191e); border-radius: 6px; padding: 2px; }
 .nb-cine-sl-view-btn {
     display: inline-flex; align-items: center; justify-content: center;
@@ -2130,11 +2151,26 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             showOrderControls = false, orderNames = [], onSaveOrder, onLoadOrder,
             locked = false, onToggleLock,
             onRefresh, onClose,
-            selfSelector = '',
+            selfSelector = '', notebook = '',
         } = opts;
 
         const hdr = document.createElement('div');
         hdr.className = 'nb-specialty-header nb-cine-storyline-hdr';
+        if (selfSelector) hdr.dataset.selector = selfSelector;
+
+        // Leading icon is its own nav-trigger element, same as the plotline/
+        // story/milestone headers -- opens nbweb-specialty's cross-type popup
+        // (only type:storyline is registered into it, not story/plotline/
+        // milestone, so this stays "jump to another production" rather than
+        // "browse every card"). Click delegation is entirely nbweb-specialty's
+        // own generic listener (matches on class/data attributes) -- nothing
+        // to wire here beyond emitting the right markup.
+        const iconBtn = document.createElement('button');
+        iconBtn.className = 'nb-specialty-icon nb-specialty-nav-btn';
+        iconBtn.dataset.nbNav = notebook;
+        iconBtn.title = `All specialty notes in ${notebook || 'this notebook'}`;
+        iconBtn.textContent = '🧵';
+        hdr.appendChild(iconBtn);
 
         // Two separate spans, same as the plotline/story headers -- only the
         // storyline's own name is clickable, "— storyline" is plain suffix
@@ -2146,7 +2182,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         const titleNameEl = document.createElement('span');
         titleNameEl.className = 'nb-specialty-label';
-        titleNameEl.textContent = `🧵 ${title || 'Storylines'}`;
+        titleNameEl.textContent = title || 'Storylines';
         if (selfSelector) {
             titleNameEl.classList.add('nb-cine-title-nav');
             titleNameEl.dataset.navMode = 'self';
@@ -2408,6 +2444,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             // No onClose -- Esc still closes the overlay via the existing
             // _onEsc listener; the header button was redundant chrome.
             selfSelector: _selfSel,
+            notebook,
         });
         overlay.appendChild(hdr);
 
@@ -3106,6 +3143,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 } : undefined,
                 onRefresh: () => { _bust(notebook, _project); el.dataset.query = field; _loadCineBlock(el); },
                 selfSelector: _selfSel,
+                notebook,
             });
             wrap.appendChild(hdr);
 
@@ -3218,6 +3256,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 } : undefined,
                 onRefresh: () => { _bust(notebook, _project); el.dataset.query = 'storyline-note'; _loadCineBlock(el); },
                 selfSelector: activeNote?.selector || '',
+                notebook,
             });
             wrap.appendChild(hdr);
 
@@ -4558,11 +4597,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // the master type:storyline note by design (djp, 2026-08-06) -- not the
     // same header, not a reuse of storyline's board/story/script machinery.
     async function _renderPlotlineHeader(note) {
-        const m     = note.meta || {};
-        const color = m.color ? String(m.color) : '';
-        const seq   = m.seq != null && m.seq !== '' ? String(m.seq) : '';
+        const m        = note.meta || {};
+        const color    = m.color ? String(m.color) : '';
+        const seq      = m.seq != null && m.seq !== '' ? String(m.seq) : '';
+        const notebook = (note.selector || '').split(':')[0];
 
-        const swatch  = `<span class="nb-cine-plotline-swatch"${color ? ` style="background:${_esc(color)}"` : ''}></span>`;
+        // The swatch doubles as the nav-trigger (same slot, not a second icon
+        // stacked next to it) -- clicking it opens nbweb-specialty's cross-type
+        // popup, same as story/milestone's plain-emoji icon does.
+        const swatch  = `<button class="nb-cine-plotline-swatch nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}"${color ? ` style="background:${_esc(color)}"` : ''}></button>`;
         const seqPill = seq ? `<span class="nb-specialty-pill">lane ${_esc(seq)}</span>` : '';
 
         const parent = await _resolveParentStoryline(note);
@@ -4602,13 +4645,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // removed 2026-08-06 (djp) once the view-switcher made this header busy
     // enough that they read as clutter rather than useful at-a-glance state.
     async function _renderStoryHeader(note) {
-        const parent = await _resolveParentStoryline(note);
+        const parent   = await _resolveParentStoryline(note);
+        const notebook = (note.selector || '').split(':')[0];
         const titleHtml = parent
             ? `<span class="nb-specialty-label nb-cine-title-nav" data-sl-view="note" data-sl-target="${_esc(parent.selector)}" title="Open ${_esc(parent.title)}">${_esc(parent.title)}</span><span class="nb-specialty-label"> — story — ${_esc(note.title || '')}</span>`
             : `<span class="nb-specialty-label">story — ${_esc(note.title || '')}</span>`;
 
         return `<div class="nb-specialty-header nb-cine-story-hdr" data-selector="${_esc(note.selector || '')}">
-  <span class="nb-specialty-icon">🃏</span>
+  <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🃏</button>
   ${titleHtml}
   ${_renderSlViewGroup(parent?.selector || '')}
   <span class="nb-specialty-right">
@@ -4623,13 +4667,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // Board/Story/Script switcher). _resolveParentStoryline is already type-
     // agnostic (project FM / parent folder), so no changes needed there.
     async function _renderMilestoneHeader(note) {
-        const parent = await _resolveParentStoryline(note);
+        const parent   = await _resolveParentStoryline(note);
+        const notebook = (note.selector || '').split(':')[0];
         const titleHtml = parent
             ? `<span class="nb-specialty-label nb-cine-title-nav" data-sl-view="note" data-sl-target="${_esc(parent.selector)}" title="Open ${_esc(parent.title)}">${_esc(parent.title)}</span><span class="nb-specialty-label"> — milestone — ${_esc(note.title || '')}</span>`
             : `<span class="nb-specialty-label">milestone — ${_esc(note.title || '')}</span>`;
 
         return `<div class="nb-specialty-header nb-cine-milestone-hdr" data-selector="${_esc(note.selector || '')}">
-  <span class="nb-specialty-icon">🏁</span>
+  <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🏁</button>
   ${titleHtml}
   ${_renderSlViewGroup(parent?.selector || '')}
   <span class="nb-specialty-right">
@@ -5697,6 +5742,21 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     // ── Plugin registration ───────────────────────────────────────────────────
+
+    // Only the master type:storyline note is registered into nbweb-specialty's
+    // cross-type nav popup (dashboard/project headers etc. can jump straight to
+    // it, and vice versa) -- deliberately not story/plotline/milestone, which
+    // would flood that popup with every card in the notebook and aren't
+    // meaningfully "navigable" as a flat list from a header dropdown the way a
+    // handful of per-production storyline notes are. nbweb-specialty.js loads
+    // before nbweb-cine.js (see nb-settings.json plugin order), but this is
+    // still optional-chained defensively rather than assumed.
+    // noRender: true is required -- without it, nbweb-specialty's own generic
+    // previewRenderer starts competing for type:storyline notes too (it just
+    // wants the type in _cfg for nav-popup/pill purposes) and won, silently
+    // replacing cine's real storyline-story/storyline-note UI with a bare
+    // FM-field dump. Same mechanism nbweb-quartz's 'item' type already needed.
+    window.NbSpecialty?.register?.('storyline', { icon: '🧵', label: 'Storyline', noRender: true });
 
     NbWeb.registerModule('cine', {
         label:       'NbWeb-cine',
