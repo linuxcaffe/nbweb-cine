@@ -1142,6 +1142,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     const _cache = new Map();
     const _TTL   = 30000;
 
+    // Set to the currently-open board overlay's own _close (removes the
+    // overlay + its keydown listener) while one is open, null otherwise --
+    // lets code outside _openStorylineOverlay (the title-nav click handler
+    // below) close it before navigating away, instead of leaving it sitting
+    // on top of whatever the navigation just switched to underneath.
+    let _slOverlayClose = null;
+
     async function _fetchData(notebook, project = '') {
         const key = project ? `${notebook}:${project}` : notebook;
         const hit = _cache.get(key);
@@ -2269,9 +2276,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         function _close() {
             overlay.remove();
             document.removeEventListener('keydown', _onEsc);
+            if (_slOverlayClose === _close) _slOverlayClose = null;
         }
         function _onEsc(e) { if (e.key === 'Escape') _close(); }
         document.addEventListener('keydown', _onEsc);
+        _slOverlayClose = _close;
 
         async function _refresh() {
             _bust(notebook, project);
@@ -6059,6 +6068,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         e.stopPropagation();
         const note = NbMain.activeNote();
         if (!note) return;
+        // Board view's own header title carries this same data-nav-mode --
+        // the note switch below happens underneath the still-open full-screen
+        // overlay otherwise, invisibly.
+        _slOverlayClose?.();
         localStorage.setItem(`nb-render-mode:${note.notebook}`, _STORYLINE_NOTE_MODE);
         await NbMain.openNote(note.selector);
     }, true);
