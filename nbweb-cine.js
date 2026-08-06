@@ -882,6 +882,29 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-story-spine-pill { color: #c8a800; border-color: #c8a800; }
 .nb-cine-title-nav { cursor: pointer; }
 .nb-cine-title-nav:hover { text-decoration: underline; }
+
+/* Unified storyline header — view switcher + zoom */
+.nb-cine-storyline-hdr { flex-wrap: wrap; }
+.nb-cine-sl-viewgroup { display: flex; gap: 2px; background: var(--bg, #16191e); border-radius: 6px; padding: 2px; }
+.nb-cine-sl-view-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 26px; border: none; border-radius: 4px;
+    background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.nb-cine-sl-view-btn svg { width: 17px; height: 17px; }
+.nb-cine-sl-view-btn:hover { background: var(--bg3, var(--bg2)); color: var(--text); }
+.nb-cine-sl-view-btn.nb-active { background: var(--accent); color: #fff; }
+.nb-cine-sl-zoom-btn .ring-outer, .nb-cine-sl-zoom-btn .ring-mid { fill: none; transition: fill .12s, opacity .12s; }
+.nb-cine-sl-zoom-btn[data-level="1"] .ring-mid { fill: currentColor; opacity: 1; stroke: none; }
+.nb-cine-sl-zoom-btn[data-level="2"] .ring-mid { fill: currentColor; opacity: 1; stroke: none; }
+.nb-cine-sl-zoom-btn[data-level="2"] .ring-outer { fill: currentColor; opacity: 1; stroke: none; }
+.nb-cine-sl-zoom-btn svg { width: 16px; height: 16px; }
+.nb-cine-orders-sel { font-size: 0.85em; background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
+/* Zoom (card size) applied to Story/Script prose views -- Board already had its own small/medium/large classes */
+.nb-cine-sl-story-view.nb-cine-storylines-medium .nb-cine-sl-story-prose,
+.nb-cine-sl-script-view.nb-cine-storylines-medium .nb-cine-sl-script-story { padding: 10px 12px; font-size: 1.02em; }
+.nb-cine-sl-story-view.nb-cine-storylines-large .nb-cine-sl-story-prose,
+.nb-cine-sl-script-view.nb-cine-storylines-large .nb-cine-sl-script-story { padding: 14px 16px; font-size: 1.12em; }
 /* Ctrl panel mode — flex column replaces the button grid */
 .nb-slate-ctrl-grid.nb-slate-ctrl-panel-mode { display: flex; flex-direction: column; gap: 0; }
 .nb-slate-panel-hdr {
@@ -1965,6 +1988,126 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         el.appendChild(stub);
     }
 
+    // ── Unified storyline header ────────────────────────────────────────────
+    // Shared by the board overlay and the inline story/script views so
+    // Board/Story/Script read as one system instead of three independently
+    // built toolbars. Icon family: same outer silhouette, different fill
+    // (3 lanes / 3 solid bars / ragged hairlines) -- settled with djp
+    // 2026-08-06. Zoom (concentric-square fill, one shared button) applies
+    // to all three views via the same _SL_SIZE_KEY preference; Save/Load
+    // order stay board-only since they act on the board's own drag state.
+    const _SL_ICON_BOARD  = '<svg viewBox="0 0 20 20" fill="none"><rect x="1.5" y="7" width="4.6" height="6" rx="1.1" stroke="currentColor" stroke-width="1.6"/><rect x="7.7" y="7" width="4.6" height="6" rx="1.1" stroke="currentColor" stroke-width="1.6"/><rect x="13.9" y="7" width="4.6" height="6" rx="1.1" stroke="currentColor" stroke-width="1.6"/></svg>';
+    const _SL_ICON_STORY  = '<svg viewBox="0 0 20 20" fill="none"><rect x="2" y="5.5" width="16" height="2.6" rx="1.3" fill="currentColor"/><rect x="2" y="9.6" width="16" height="2.6" rx="1.3" fill="currentColor"/><rect x="2" y="13.7" width="10" height="2.6" rx="1.3" fill="currentColor"/></svg>';
+    const _SL_ICON_SCRIPT = '<svg viewBox="0 0 20 20" fill="none"><line x1="2" y1="3.6" x2="15.5" y2="3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="2" y1="6.4" x2="10.5" y2="6.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="2" y1="9.2" x2="17" y2="9.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="2" y1="12" x2="7.5" y2="12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="2" y1="14.8" x2="13.5" y2="14.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="2" y1="17.6" x2="9" y2="17.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+    const _SL_ICON_ZOOM   = '<svg viewBox="0 0 20 20" fill="none"><rect class="ring-outer" x="2" y="2" width="16" height="16" rx="3.2" stroke="currentColor" stroke-width="1.4"/><rect class="ring-mid" x="6" y="6" width="8" height="8" rx="1.8" stroke="currentColor" stroke-width="1.4"/><rect class="ring-inner" x="8.6" y="8.6" width="2.8" height="2.8" rx="0.7" fill="currentColor"/></svg>';
+    const _SL_ZOOM_LEVEL  = { small: 0, medium: 1, large: 2 };
+    const _SL_ZOOM_ORDER  = ['small', 'medium', 'large'];
+
+    function _buildStorylineHeader(opts) {
+        const {
+            title, activeView, onSwitchView,
+            zoomSize, onZoomChange,
+            onAddStory,
+            showOrderControls = false, orderNames = [], onSaveOrder, onLoadOrder,
+            onRefresh, onClose,
+            selfSelector = '',
+        } = opts;
+
+        const hdr = document.createElement('div');
+        hdr.className = 'nb-specialty-header nb-cine-storyline-hdr';
+
+        const titleEl = document.createElement('span');
+        titleEl.className = 'nb-specialty-label';
+        titleEl.textContent = `🧵 ${title || 'Storylines'}`;
+        if (selfSelector) {
+            titleEl.classList.add('nb-cine-title-nav');
+            titleEl.dataset.navMode = 'self';
+            titleEl.title = 'View this storyline’s own note';
+        }
+        hdr.appendChild(titleEl);
+
+        const viewGroup = document.createElement('div');
+        viewGroup.className = 'nb-cine-sl-viewgroup';
+        for (const v of [
+            { id: 'board',  title: 'Board',  svg: _SL_ICON_BOARD  },
+            { id: 'story',  title: 'Story',  svg: _SL_ICON_STORY  },
+            { id: 'script', title: 'Script', svg: _SL_ICON_SCRIPT },
+        ]) {
+            const btn = document.createElement('button');
+            btn.className = 'nb-cine-sl-view-btn' + (v.id === activeView ? ' nb-active' : '');
+            btn.title = v.title;
+            btn.innerHTML = v.svg;
+            btn.addEventListener('click', () => onSwitchView(v.id));
+            viewGroup.appendChild(btn);
+        }
+        hdr.appendChild(viewGroup);
+
+        const actions = document.createElement('span');
+        actions.className = 'nb-specialty-right';
+
+        const addBtn = document.createElement('button');
+        addBtn.className = 'nb-specialty-action';
+        addBtn.title = 'Add story (unassigned)';
+        addBtn.textContent = '+ Story';
+        addBtn.addEventListener('click', onAddStory);
+        actions.appendChild(addBtn);
+
+        if (showOrderControls) {
+            const saveOrderBtn = document.createElement('button');
+            saveOrderBtn.className = 'nb-specialty-action';
+            saveOrderBtn.title = 'Save current timeline order';
+            saveOrderBtn.textContent = '⊙';
+            saveOrderBtn.addEventListener('click', onSaveOrder);
+            actions.appendChild(saveOrderBtn);
+
+            if (orderNames.length) {
+                const ordSel = document.createElement('select');
+                ordSel.className = 'nb-cine-orders-sel';
+                ordSel.title = 'Load a saved timeline order';
+                const ph = document.createElement('option');
+                ph.value = ''; ph.textContent = 'Load order…';
+                ordSel.appendChild(ph);
+                orderNames.forEach(n => {
+                    const opt = document.createElement('option');
+                    opt.value = n; opt.textContent = n;
+                    ordSel.appendChild(opt);
+                });
+                ordSel.addEventListener('change', () => {
+                    const name = ordSel.value;
+                    ordSel.value = '';
+                    if (name) onLoadOrder(name);
+                });
+                actions.appendChild(ordSel);
+            }
+        }
+
+        const zoomBtn = document.createElement('button');
+        zoomBtn.className = 'nb-specialty-action nb-cine-sl-zoom-btn';
+        zoomBtn.title = `Card size: ${zoomSize}`;
+        zoomBtn.dataset.level = _SL_ZOOM_LEVEL[zoomSize] ?? 0;
+        zoomBtn.innerHTML = _SL_ICON_ZOOM;
+        zoomBtn.addEventListener('click', () => {
+            const next = _SL_ZOOM_ORDER[(_SL_ZOOM_ORDER.indexOf(zoomSize) + 1) % _SL_ZOOM_ORDER.length];
+            onZoomChange(next);
+        });
+        actions.appendChild(zoomBtn);
+
+        const refBtn = document.createElement('button');
+        refBtn.className = 'nb-specialty-action'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
+        refBtn.addEventListener('click', onRefresh);
+        actions.appendChild(refBtn);
+
+        if (onClose) {
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'nb-specialty-action'; closeBtn.title = 'Close (Esc)'; closeBtn.textContent = '✕';
+            closeBtn.addEventListener('click', onClose);
+            actions.appendChild(closeBtn);
+        }
+
+        hdr.appendChild(actions);
+        return hdr;
+    }
+
     function _openStorylineOverlay(el, data, notebook, currentSize, project = '') {
         document.querySelector('.nb-cine-sl-overlay')?.remove();
 
@@ -2061,83 +2204,33 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }
 
         // ── Header ──
-        const hdr = document.createElement('div');
-        hdr.className = 'nb-cine-header';
-        hdr.innerHTML = `<span class="nb-cine-title">🧵 ${_esc(config?.project || 'Storylines')}</span>`;
+        const _activeNoteForSelf = NbMain.activeNote?.();
+        const _selfSel = (_activeNoteForSelf?.type === 'storyline') ? _activeNoteForSelf.selector : '';
 
-        const storyModeBtn = document.createElement('button');
-        storyModeBtn.className = 'nb-tool-btn nb-cine-story-mode-btn';
-        storyModeBtn.title = 'Story view';
-        storyModeBtn.textContent = '📖';
-        storyModeBtn.addEventListener('click', () => {
-            _close();
-            el.dataset.query = 'storyline-story';
-            _loadCineBlock(el);
+        const hdr = _buildStorylineHeader({
+            title: config?.project || 'Storylines',
+            activeView: 'board',
+            onSwitchView: view => {
+                if (view === 'board') return;
+                _close();
+                el.dataset.query = view === 'script' ? 'storyline-script' : 'storyline-story';
+                _loadCineBlock(el);
+            },
+            zoomSize: size,
+            onZoomChange: next => {
+                localStorage.setItem(_SL_SIZE_KEY(notebook), next);
+                _close();
+                _openStorylineOverlay(el, data, notebook, next, project);
+            },
+            onAddStory: () => _showInlineStoryInput(board, null, notebook, el, size, _refresh, project),
+            showOrderControls: !!_slLane,
+            orderNames: _ordNames,
+            onSaveOrder: _saveOrder,
+            onLoadOrder: _loadOrder,
+            onRefresh: _refresh,
+            onClose: _close,
+            selfSelector: _selfSel,
         });
-        hdr.appendChild(storyModeBtn);
-
-        const btnGroup = document.createElement('div');
-        btnGroup.className = 'nb-cine-hdr-btns';
-
-        const addBtn = document.createElement('button');
-        addBtn.className = 'nb-tool-btn'; addBtn.title = 'Add story (unassigned)'; addBtn.textContent = '+ Story';
-        addBtn.addEventListener('click', () => _showInlineStoryInput(board, null, notebook, el, size, _refresh, project));
-        btnGroup.appendChild(addBtn);
-
-        if (_slLane) {
-            const saveOrderBtn = document.createElement('button');
-            saveOrderBtn.className = 'nb-tool-btn';
-            saveOrderBtn.title = 'Save current timeline order';
-            saveOrderBtn.textContent = '⊙';
-            saveOrderBtn.addEventListener('click', _saveOrder);
-            btnGroup.appendChild(saveOrderBtn);
-        }
-
-        if (_ordNames.length) {
-            const ordSel = document.createElement('select');
-            ordSel.className = 'nb-cine-orders-sel';
-            ordSel.title = 'Load a saved timeline order';
-            const ph = document.createElement('option');
-            ph.value = ''; ph.textContent = 'Load order…';
-            ordSel.appendChild(ph);
-            _ordNames.forEach(n => {
-                const opt = document.createElement('option');
-                opt.value = n; opt.textContent = n;
-                ordSel.appendChild(opt);
-            });
-            ordSel.addEventListener('change', () => {
-                const name = ordSel.value;
-                ordSel.value = '';
-                if (name) _loadOrder(name);
-            });
-            btnGroup.appendChild(ordSel);
-        }
-
-        const _sizes     = ['small', 'medium', 'large'];
-        const _sizeIcons = { small: '▦', medium: '▤', large: '▣' };
-        const sizeBtn = document.createElement('button');
-        sizeBtn.className = 'nb-tool-btn';
-        sizeBtn.title = `Zoom: ${size}`;
-        sizeBtn.textContent = _sizeIcons[size] || '▦';
-        sizeBtn.addEventListener('click', () => {
-            const next = _sizes[(_sizes.indexOf(size) + 1) % _sizes.length];
-            localStorage.setItem(_SL_SIZE_KEY(notebook), next);
-            _close();
-            _openStorylineOverlay(el, data, notebook, next, project);
-        });
-        btnGroup.appendChild(sizeBtn);
-
-        const refBtn = document.createElement('button');
-        refBtn.className = 'nb-tool-btn'; refBtn.title = 'Refresh'; refBtn.textContent = '↻';
-        refBtn.addEventListener('click', _refresh);
-        btnGroup.appendChild(refBtn);
-
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'nb-tool-btn'; closeBtn.title = 'Close (Esc)'; closeBtn.textContent = '✕';
-        closeBtn.addEventListener('click', _close);
-        btnGroup.appendChild(closeBtn);
-
-        hdr.appendChild(btnGroup);
         overlay.appendChild(hdr);
 
         // ── Scrollable board area ──
@@ -2752,37 +2845,46 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 .sort((a, b) => a.story_seq - b.story_seq);
             const laneColors = new Map((data.lanes || []).map(l => [l.stem, l.color]));
 
+            const size = localStorage.getItem(_SL_SIZE_KEY(notebook)) || 'small';
+
             el.innerHTML = '';
             const wrap = document.createElement('div');
-            wrap.className = field === 'storyline-script'
-                ? 'nb-cine-sl-script-view' : 'nb-cine-sl-story-view';
+            wrap.className = (field === 'storyline-script'
+                ? 'nb-cine-sl-script-view' : 'nb-cine-sl-story-view') + ` nb-cine-storylines-${size}`;
 
-            // ── Toolbar ──
-            const toolbar = document.createElement('div');
-            toolbar.style.cssText = 'display:flex;gap:6px;margin-bottom:10px;';
+            const _activeNoteForSelf = NbMain.activeNote?.();
+            const _selfSel = (_activeNoteForSelf?.type === 'storyline') ? _activeNoteForSelf.selector : '';
 
-            const boardBtn = document.createElement('button');
-            boardBtn.className = 'nb-tool-btn nb-cine-open-board-btn';
-            boardBtn.title = 'Open line board'; boardBtn.textContent = '▦';
-            boardBtn.addEventListener('click', () => {
-                const sz = localStorage.getItem(_SL_SIZE_KEY(notebook)) || 'small';
-                _buildStorylines(el, data, notebook, sz);
-                _openStorylineOverlay(el, data, notebook, sz, _project);
+            const hdr = _buildStorylineHeader({
+                title: data.config?.project || 'Storylines',
+                activeView: field === 'storyline-script' ? 'script' : 'story',
+                onSwitchView: view => {
+                    if (view === 'board') {
+                        _buildStorylines(el, data, notebook, size);
+                        _openStorylineOverlay(el, data, notebook, size, _project);
+                        return;
+                    }
+                    const next = view === 'script' ? 'storyline-script' : 'storyline-story';
+                    if (next === field) return;
+                    localStorage.setItem(_SL_VIEW_KEY(notebook), view === 'script' ? 'script' : 'story');
+                    el.dataset.query = next;
+                    _loadCineBlock(el);
+                },
+                zoomSize: size,
+                onZoomChange: next => {
+                    localStorage.setItem(_SL_SIZE_KEY(notebook), next);
+                    el.dataset.query = field;
+                    _loadCineBlock(el);
+                },
+                onAddStory: () => _showInlineStoryInput(wrap, null, notebook, el, size, () => {
+                    el.dataset.query = field;
+                    _loadCineBlock(el);
+                }, _project),
+                showOrderControls: false,
+                onRefresh: () => { _bust(notebook, _project); el.dataset.query = field; _loadCineBlock(el); },
+                selfSelector: _selfSel,
             });
-            toolbar.appendChild(boardBtn);
-
-            const scriptBtn = document.createElement('button');
-            scriptBtn.className = 'nb-tool-btn';
-            scriptBtn.title = field === 'storyline-script' ? 'Story view' : 'Script view';
-            scriptBtn.textContent = field === 'storyline-script' ? '☰' : '≡';
-            scriptBtn.addEventListener('click', () => {
-                const next = field === 'storyline-script' ? 'storyline-story' : 'storyline-script';
-                localStorage.setItem(_SL_VIEW_KEY(notebook), next === 'storyline-script' ? 'script' : 'story');
-                el.dataset.query = next;
-                _loadCineBlock(el);
-            });
-            toolbar.appendChild(scriptBtn);
-            wrap.appendChild(toolbar);
+            wrap.appendChild(hdr);
 
             if (!promotedAll.length) {
                 const empty = document.createElement('div');
