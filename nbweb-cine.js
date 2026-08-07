@@ -143,6 +143,9 @@ button.nb-cine-actor {
     /* WGA-standard page: 8.5" wide, 1.5" left/1" right margins at 12pt Courier = ~57 chars */
     max-width: 680px; margin: 0 auto;
     background: #fff; color: #111;
+    /* Local override — .nb-rendered p/h1-h3/a rules read var(--text) directly off each
+       element; without this they resolve to :root's dark-mode pale text on this white page. */
+    --text: #111;
     font-family: 'Courier Prime', 'Courier New', Courier, monospace;
     font-size: 12pt; line-height: 1.65;
     padding: 72px 80px 96px 96px;
