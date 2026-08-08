@@ -1024,6 +1024,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-org-node.nb-cine-org-inert .nb-cine-org-label { fill: var(--text-muted, #aaa); }
 .nb-cine-org-node.nb-cine-org-milestone .nb-cine-org-rect { stroke: var(--text-muted, #aaa); }
 .nb-cine-org-tagstripe { stroke: none; pointer-events: none; }
+.nb-cine-org-query-glyph circle { stroke: var(--bg2, #1e2228); stroke-width: 1.5; }
+.nb-cine-org-query-glyph text { font-size: 9px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+.nb-cine-org-query-pass circle { fill: #2e7d32; }
+.nb-cine-org-query-pass text   { fill: #eafbea; }
+.nb-cine-org-query-fail circle { fill: #b45309; }
+.nb-cine-org-query-fail text   { fill: #fff6e6; }
 .nb-cine-org-legend {
     position: absolute; left: 6px; bottom: 6px; z-index: 1;
     background: var(--bg2, #1e2228); border: 1px solid var(--border, #444);
@@ -3306,8 +3312,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // against a hosting note's own `phase:` frontmatter legible from the
     // syntax alone instead of requiring someone to already know the two are
     // linked):
-    //   "> FIELD: value"  -- structured field (PHASE, QUERY today). First
-    //     occurrence per field wins. Machine-only -- never shown anywhere.
+    //   "> FIELD: value"  -- structured field (PHASE, QUERY today). PHASE is
+    //     first-occurrence-wins (a node has exactly one phase). QUERY instead
+    //     accumulates -- a node can carry N readiness checks, every `> QUERY:`
+    //     line appended in document order to `node.queries[]`; any one of them
+    //     failing marks the node not-ready (2026-08-07, see _evalQueries).
+    //     Machine-only -- never shown anywhere.
     //   bare text / paragraphs -- accumulated, in order, into `caption`,
     //     which becomes the node's tooltip. Markdown syntax may appear but
     //     isn't rendered (native SVG <title>, plain text only) -- accepted
@@ -3321,7 +3331,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     function _parseOrgSource(body) {
         const lines = (body || '').split('\n');
-        const root = { level: 0, label: '', wikiTarget: null, milestone: false, query: null, phase: null, caption: '', children: [] };
+        const root = { level: 0, label: '', wikiTarget: null, milestone: false, queries: [], phase: null, caption: '', children: [] };
         const stack = [root];
 
         for (const raw of lines) {
@@ -3335,7 +3345,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     label:      wm ? (wm[2] || wm[1]).trim() : text,
                     wikiTarget: wm ? wm[1].trim() : null,
                     milestone:  /🚩/.test(text),
-                    query:      null,
+                    queries:    [],
                     phase:      null,
                     caption:    '',
                     children:   [],
@@ -3357,7 +3367,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 if (fm) {
                     const [, field, value] = fm;
                     if (field === 'PHASE' && owner.phase === null) owner.phase = value.trim();
-                    if (field === 'QUERY' && owner.query === null) owner.query = value.trim();
+                    if (field === 'QUERY') owner.queries.push(value.trim());
                     continue;
                 }
                 owner.caption += (owner.caption ? '\n' : '') + rest;
@@ -3366,6 +3376,102 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             owner.caption += (owner.caption ? '\n' : '') + trimmed;
         }
         return root;
+    }
+
+    // ── Query matcher (readiness checks) ─────────────────────────────────────
+    // Faithful port of _fm_eval_one/_front_matches (app.py) -- the real fm
+    // filter grammar, not the simplified eq/exists/empty-only version this
+    // used to have before the whole status-query mechanism was removed for a
+    // performance reason (adedfd3, 2026-08-02) and never restored until now
+    // (2026-08-07). One QUERY string is a space-separated set of
+    // "field:value" tokens ANDed together (comma *inside* one token's value
+    // means anyof for that field, same as _parse_fm_scope -- not an
+    // AND-separator the way the old removed matcher used comma). A node's
+    // queries[] are themselves ANDed -- any one failing marks the node
+    // not-ready. sort:/limit: aren't special-cased here unlike
+    // _parse_fm_scope -- those are list-query directives with no meaning
+    // when matching a single note's own meta.
+    const _QUERY_TOKEN_RE = /(-)?(\w[\w.-]*):"([^"]*)"|(-)?(\w[\w.-]*):(\S*)/g;
+
+    function _fmCompare(a, b, op) {
+        const an = Number(a), bn = Number(b);
+        if (a !== '' && b !== '' && !Number.isNaN(an) && !Number.isNaN(bn)) {
+            return op === '>' ? an > bn : an < bn;
+        }
+        return op === '>' ? String(a) > String(b) : String(a) < String(b);
+    }
+
+    function _fmEvalOne(meta, field, op, value) {
+        if (op === 'exists') return field in meta;
+        if (op === 'empty') { const v = meta[field]; return v == null || !String(v).trim(); }
+        if (op === 'anyof') {
+            const v = meta[field];
+            if (v == null) return false;
+            const values = new Set(value.map(x => String(x).toLowerCase()));
+            return values.has(String(v).toLowerCase());
+        }
+        if (op === '>' || op === '<') {
+            const v = meta[field];
+            if (v == null) return false;
+            return _fmCompare(String(v), String(value), op);
+        }
+        const v = meta[field];  // eq
+        if (v == null) return false;
+        return String(v).toLowerCase() === String(value).toLowerCase();
+    }
+
+    function _parseQueryFilters(queryStr) {
+        const filters = [];
+        _QUERY_TOKEN_RE.lastIndex = 0;
+        let m;
+        while ((m = _QUERY_TOKEN_RE.exec(queryStr || ''))) {
+            if (m[2] !== undefined) {
+                filters.push({ field: m[2], op: m[3] === '' ? 'empty' : 'eq', value: m[3], neg: !!m[1] });
+            } else {
+                const field = m[5], value = m[6], neg = !!m[4];
+                if (value[0] === '>' || value[0] === '<') {
+                    filters.push({ field, op: value[0], value: value.slice(1), neg });
+                } else if (value.includes(',')) {
+                    filters.push({ field, op: 'anyof', value: value.split(','), neg });
+                } else {
+                    filters.push({ field, op: value === '' ? 'exists' : 'eq', value, neg });
+                }
+            }
+        }
+        return filters;
+    }
+
+    function _matchesQuery(meta, queryStr) {
+        const filters = _parseQueryFilters(queryStr);
+        // Zero parseable conditions never vacuously passes -- the exact bug
+        // found and fixed once already in the removed implementation's own
+        // history (adedfd3), a query with nothing real in it must not read
+        // as "done."
+        if (!filters.length) return false;
+        for (const f of filters) {
+            if (_fmEvalOne(meta, f.field, f.op, f.value) === f.neg) return false;
+        }
+        return true;
+    }
+
+    // { allPass, failing: [queryStr, ...] } across every QUERY on the node.
+    // wordcount/linecount mirror _scan_file's pseudo-fields (app.py) -- not
+    // present on /api/note's response, so computed here from the note's real
+    // body before matching (this is what makes "wordcount:>20" work with zero
+    // new syntax).
+    function _evalQueries(queries, meta, body) {
+        if (!queries || !queries.length) return { allPass: true, failing: [] };
+        const trimmed = (body || '').trim();
+        // linecount mirrors Python's str.splitlines() (app.py's _scan_file) --
+        // a single trailing newline isn't counted as an extra blank line, and
+        // an empty body is 0 lines, not 1.
+        const b = body || '';
+        const linecount = b === '' ? 0 : b.replace(/\n$/, '').split('\n').length;
+        const withPseudo = { ...meta,
+            wordcount: String(trimmed ? trimmed.split(/\s+/).length : 0),
+            linecount: String(linecount) };
+        const failing = queries.filter(q => !_matchesQuery(withPseudo, q));
+        return { allPass: failing.length === 0, failing };
     }
 
     function _findNodeByPhase(node, phase) {
@@ -3695,6 +3801,34 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             });
         }
 
+        // Readiness glyph -- the 4th visual channel (stroke-style=clickability,
+        // stroke-color=phase, left-stripe=tags, this=readiness), a small dot in
+        // the node's top-right corner. Never drawn for a node with zero
+        // queries[] -- most nodes (today, ~44 of ~60) have none, and lumping
+        // "no query defined" in with "failing" would misrepresent most of the
+        // chart as incomplete. Takes the whole node (not just queryStatus) so
+        // it can make that distinction itself.
+        function _drawQueryGlyph(g, node) {
+            g.querySelectorAll('.nb-cine-org-query-glyph').forEach(n => n.remove());
+            if (!node.queries?.length || !node.queryStatus) return;
+            const pass = node.queryStatus.allPass;
+            const grp = document.createElementNS(NS, 'g');
+            grp.setAttribute('class', 'nb-cine-org-query-glyph ' + (pass ? 'nb-cine-org-query-pass' : 'nb-cine-org-query-fail'));
+            const cx = NW - 9, cy = 9;
+            const dot = document.createElementNS(NS, 'circle');
+            dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('r', 7);
+            grp.appendChild(dot);
+            const glyph = document.createElementNS(NS, 'text');
+            glyph.setAttribute('x', cx); glyph.setAttribute('y', cy + 3.5);
+            glyph.setAttribute('text-anchor', 'middle');
+            glyph.textContent = pass ? '✓' : '!';
+            grp.appendChild(glyph);
+            const tip = document.createElementNS(NS, 'title');
+            tip.textContent = pass ? 'Ready' : `Not ready — click resolves anyway. Failing: ${node.queryStatus.failing.join('; ')}`;
+            grp.appendChild(tip);
+            g.appendChild(grp);
+        }
+
         // tag_color_legend: true (org-source frontmatter) -- a compact legend of
         // whatever tags actually resolved to a color *in this rendered tree*, not
         // the full notebook tag_color: map (a phase-scoped view showing every
@@ -3730,6 +3864,26 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             }
         }
 
+        // Non-blocking readiness offer, fired from a failing-query node's click
+        // handler below. Never gates navigation -- the design's own standing
+        // invariant ("every node is clickable in any order, always") stays
+        // true: filled in or not, saved or not, dismissed any way, the click
+        // always still resolves to the target note afterward. Silently does
+        // nothing if the target's folder has no constraints: schema at all --
+        // no dead-end dialog for a folder that never declared one, and a
+        // wordcount-style failure has no corresponding field to offer either.
+        async function _maybeOfferCompletion(sel) {
+            let note;
+            try {
+                note = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`).then(r => r.json());
+            } catch { return; }
+            if (note.error) return;
+            await NbWeb.openFieldsModal?.(note, {
+                title: `✓ Complete this note — <em>${_esc(note.meta?.title || note.filename || '')}</em>`,
+                silentIfEmpty: true,
+            });
+        }
+
         function _drawNode(node, depth) {
             const g = document.createElementNS(NS, 'g');
             g.setAttribute('transform', `translate(${node._x},${node._y})`);
@@ -3760,6 +3914,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             // stripe colors offline. Live/no-cache case is filled in later by
             // the background pass below _drawNode's own call site.
             if (node.tagColors?.length && !node.milestone) _drawTagStripe(g, node.tagColors);
+            if (!node.milestone) _drawQueryGlyph(g, node);
 
             const label = document.createElementNS(NS, 'text');
             label.setAttribute('x', NW / 2); label.setAttribute('y', NH / 2 + 4);
@@ -3776,6 +3931,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 g.style.cursor = 'pointer';
                 g.addEventListener('click', async () => {
                     const sel = node.selector || await NbMain.resolveWikilinkSelector(node.wikiTarget);
+                    node.selector = sel;
+                    if (node.queries?.length) {
+                        let status = node.queryStatus;
+                        if (!status) {
+                            // Background walk hasn't reached this node yet --
+                            // best-effort resolve at click time rather than let
+                            // readiness silently no-op on a fast first click.
+                            try {
+                                const r = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`);
+                                const d = await r.json();
+                                status = _evalQueries(node.queries, d.meta || {}, d.body || '');
+                                node.queryStatus = status;
+                            } catch { status = null; }
+                        }
+                        if (status && !status.allPass) await _maybeOfferCompletion(sel);
+                    }
                     NbMain.openNote(sel);
                 });
             }
@@ -3830,7 +4001,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
           try {
             async function walk(node, depth, phaseColor) {
                 let effective = phaseColor;
-                if (node.wikiTarget && !node.milestone && !node.tagColors) {
+                // Also re-fetch when tagColors came from a cache built before
+                // queryStatus existed (schema grew, content didn't change --
+                // sourceLength staleness check wouldn't have caught this) --
+                // a manual Refresh or the next content edit clears it up either
+                // way, same as any other cache-schema addition to this feature.
+                const needsFetch = node.wikiTarget && !node.milestone &&
+                    (!node.tagColors || (node.queries?.length && !node.queryStatus));
+                if (needsFetch) {
                     try {
                         const sel = node.selector || await NbMain.resolveWikilinkSelector(node.wikiTarget);
                         const r   = await fetch(`/api/note?selector=${encodeURIComponent(sel)}`);
@@ -3844,7 +4022,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                         const pairs = _resolveTagColors({ meta: d.meta, body_preview: d.body }, tagColorMap);
                         node.tagColors = pairs;
                         if (pairs.length && node._g) _drawTagStripe(node._g, pairs);
-                    } catch { node.tagColors = node.tagColors || []; }
+                        node.queryStatus = _evalQueries(node.queries, d.meta || {}, d.body || '');
+                        if (node._g) _drawQueryGlyph(node._g, node);
+                    } catch { node.tagColors = node.tagColors || []; node.queryStatus = node.queryStatus || _evalQueries(node.queries, {}, ''); }
                 } else if (node.phaseColor) {
                     effective = node.phaseColor;  // cache already resolved this node's own color
                 }
@@ -3861,9 +4041,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
           }
         })();
 
-        // Status tint is not implemented yet -- completion queries are parsed
-        // (see _parseOrgSource's `.query` field, reserved for this) but nothing
-        // evaluates them. Plain pills; wikilinks resolve only on click.
+        // Readiness glyph (2026-08-07): a node's queries[] are evaluated in the
+        // background walk above (or already resolved from the gen-org.py
+        // cache) and drawn as a small overlay -- see _drawQueryGlyph. Neither
+        // this nor a failing query gates navigation; see the click handler in
+        // _drawNode for the non-blocking completion-dialog offer.
 
         // Viewport group — all drawn content goes in here for zoom/pan
         const vp = document.createElementNS(NS, 'g');
