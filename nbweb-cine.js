@@ -4542,7 +4542,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // _renderProductionCard's atlRows for the pattern).
     function _cMissingRow(label) {
         return `<div class="nb-card-row nb-card-row-missing"><span class="nb-card-label">${_esc(label)}</span>` +
-               `<span class="nb-card-value nb-card-value-missing">— required —</span></div>`;
+               `<span class="nb-card-value nb-card-value-missing" title="Use FM above to enter values">— required —</span></div>`;
     }
 
     // Expand a block field (multiline string OR plain object) into a sub-section.
