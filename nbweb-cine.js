@@ -4536,6 +4536,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                `<span class="nb-card-value"><span class="nb-wiki-link" data-selector="${_esc(selector)}" data-autolabel>${_esc(selector)}</span></span></div>`;
     }
 
+    // Card row for a required-but-blank field -- driven by /api/note/constraints-full's
+    // required: flag, not a value. Bypasses _cAllFields' own value != null skip, so a
+    // caller must check emptiness + required itself before reaching for this (see
+    // _renderProductionCard's atlRows for the pattern).
+    function _cMissingRow(label) {
+        return `<div class="nb-card-row nb-card-row-missing"><span class="nb-card-label">${_esc(label)}</span>` +
+               `<span class="nb-card-value nb-card-value-missing">— required —</span></div>`;
+    }
+
     // Expand a block field (multiline string OR plain object) into a sub-section.
     // rowFn: optional (key, val) → html for each sub-field; defaults to _cRow.
     function _cBlock(label, v, rowFn) {
@@ -4550,6 +4559,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                `<div class="nb-card-block-fields">${rows}</div></div>`;
     }
 
+    // Keys that are pure schema/plumbing, never meaningful to display raw on any
+    // card -- constraints:/constraints_add: are objects-of-objects (see
+    // api_note_constraints_full), not display data; rendering them through the
+    // generic block/row fallback below produces garbled "[object Object]" rows.
+    const _C_SCHEMA_KEYS = new Set(['constraints', 'constraints_add']);
+
     // Render ALL entries in meta as card rows. Rule: no field may be silently omitted.
     // customRenderers: { fieldName: (value) → html }  — return '' to suppress a field.
     // Fields without a custom renderer are auto-rendered: blocks expanded, plain text for scalars.
@@ -4557,6 +4572,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const out = [];
         for (const [k, v] of Object.entries(meta)) {
             if (v == null || v === '' || v === false) continue;
+            if (_C_SCHEMA_KEYS.has(k)) continue;
             if (customRenderers && Object.prototype.hasOwnProperty.call(customRenderers, k)) {
                 const h = customRenderers[k](v);
                 if (h) out.push(h);
@@ -4641,6 +4657,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // link only on an exact match against a real cast/ stem -- same "resolve if
     // possible, plain text otherwise" degrade _renderCharacterCard's alias row
     // already uses. No create-new-note affordance; djp wants this kept simple.
+    //
+    // ATL rows are built explicitly, outside _cAllFields -- _cAllFields skips any
+    // key whose value is null/''/false *before* it ever reaches a customRenderer,
+    // so a blank-but-required field (the normal preproduction state for these six)
+    // would otherwise vanish silently instead of showing as a visible gap. The
+    // `director: () => ''` etc. entries below only suppress _cAllFields' own pass
+    // for these keys once filled, so a value never renders twice.
+
+    const _ATL_ROLES = ['director', 'exec_producer', 'producer', 'line_producer', 'dp', 'writer'];
 
     async function _renderProductionCard(note) {
         const m    = note.meta || {};
@@ -4648,13 +4673,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         const avatar = `<div class="nb-card-avatar" style="background:${_cColor(name)}">${_esc(_cInitials(name))}</div>`;
 
-        let cast = {};
+        let cast = {}, constraints = {};
         try {
-            const data = await _fetchData(note.notebook);
-            cast = data.cast || {};
-        } catch (e) { /* lookup is best-effort -- fields still render as plain text */ }
+            const [data, cons] = await Promise.all([
+                _fetchData(note.notebook).catch(() => ({})),
+                fetch(`/api/note/constraints-full?selector=${encodeURIComponent(note.selector)}`)
+                    .then(r => r.json()).catch(() => ({})),
+            ]);
+            cast        = data.cast || {};
+            constraints = cons && !cons.error ? cons : {};
+        } catch (e) { /* best-effort -- ATL rows still render, just without resolution/required cues */ }
 
-        const atlRow = role => v => cast[v] ? _cWikiRow(role, v) : _cRow(role, v);
+        const atlRows = _ATL_ROLES.map(role => {
+            const v = m[role];
+            if (v) return cast[v] ? _cWikiRow(role, v) : _cRow(role, v);
+            return constraints[role]?.required ? _cMissingRow(role) : '';
+        }).join('');
 
         const fields = _cAllFields(m, {
             type:               () => '',
@@ -4664,19 +4698,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             phone:              v => _cLink('phone', v, 'tel:' + String(v).replace(/\s/g, '')),
             email:              v => _cLink('email', v, 'mailto:' + v),
             copyright:          v => _cRow('copyright', `© ${v}`),
-            director:           atlRow('director'),
-            exec_producer:      atlRow('exec_producer'),
-            producer:           atlRow('producer'),
-            line_producer:      atlRow('line_producer'),
-            dp:                 atlRow('dp'),
-            writer:             atlRow('writer'),
+            director:           () => '',   // handled explicitly above (needs required-when-blank)
+            exec_producer:      () => '',
+            producer:           () => '',
+            line_producer:      () => '',
+            dp:                 () => '',
+            writer:             () => '',
         });
 
         return `<div class="nb-card">` +
             `<div class="nb-card-header">${avatar}` +
             `<div><div class="nb-card-title">${_esc(name)}</div>` +
             `<div class="nb-card-sub">Production</div></div></div>` +
-            `<div class="nb-card-fields">${fields}</div>` +
+            `<div class="nb-card-fields">${fields}${atlRows}</div>` +
             `</div>${_cBody(note)}`;
     }
 
