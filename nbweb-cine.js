@@ -4540,9 +4540,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // required: flag, not a value. Bypasses _cAllFields' own value != null skip, so a
     // caller must check emptiness + required itself before reaching for this (see
     // _renderProductionCard's atlRows for the pattern).
-    function _cMissingRow(label) {
+    function _cMissingRow(label, tooltip) {
         return `<div class="nb-card-row nb-card-row-missing"><span class="nb-card-label">${_esc(label)}</span>` +
-               `<span class="nb-card-value nb-card-value-missing" title="Use FM above to enter values">— required —</span></div>`;
+               `<span class="nb-card-value nb-card-value-missing" title="${_esc(tooltip || 'Use FM above to enter values')}">— required —</span></div>`;
     }
 
     // Expand a block field (multiline string OR plain object) into a sub-section.
@@ -4667,7 +4667,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     const _ATL_ROLES = ['director', 'exec_producer', 'producer', 'line_producer', 'dp', 'writer'];
 
-    async function _renderProductionCard(note) {
+    async function _renderProductionCard(note, opts = {}) {
         const m    = note.meta || {};
         const name = m.production_company || note.title || 'Production';
 
@@ -4684,10 +4684,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             constraints = cons && !cons.error ? cons : {};
         } catch (e) { /* best-effort -- ATL rows still render, just without resolution/required cues */ }
 
+        // opts.inline: this card is embedded via {{inline: card path}}, not the note's
+        // own toolbar view -- "Use FM above" is meaningless there (there's no "above",
+        // and no Changes button for a note that isn't the one actually open). Point at
+        // where to actually go instead. djp: "the now invalid tooltip should be
+        // sourcefile title (fall back to filename.ext)."
+        const missingTip = opts.inline
+            ? `Set in "${note.title || note.filename}" — click the card to open it`
+            : undefined;
+
         const atlRows = _ATL_ROLES.map(role => {
             const v = m[role];
             if (v) return cast[v] ? _cWikiRow(role, v) : _cRow(role, v);
-            return constraints[role]?.required ? _cMissingRow(role) : '';
+            return constraints[role]?.required ? _cMissingRow(role, missingTip) : '';
         }).join('');
 
         const fields = _cAllFields(m, {
@@ -6281,7 +6290,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Production card',
                 types:  ['production'],
                 detect: note => note.type === 'production',
-                render: note => _renderProductionCard(note),
+                render: (note, opts) => _renderProductionCard(note, opts),
             },
             {
                 id:     'day-card',
