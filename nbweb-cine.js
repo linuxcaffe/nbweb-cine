@@ -4636,6 +4636,50 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             `</div>${_cBody(note)}`;
     }
 
+    // ── Production card (type: production) ───────────────────────────────────
+    // ATL role fields (director, producer, ...) resolve to a clickable card-cast
+    // link only on an exact match against a real cast/ stem -- same "resolve if
+    // possible, plain text otherwise" degrade _renderCharacterCard's alias row
+    // already uses. No create-new-note affordance; djp wants this kept simple.
+
+    async function _renderProductionCard(note) {
+        const m    = note.meta || {};
+        const name = m.production_company || note.title || 'Production';
+
+        const avatar = `<div class="nb-card-avatar" style="background:${_cColor(name)}">${_esc(_cInitials(name))}</div>`;
+
+        let cast = {};
+        try {
+            const data = await _fetchData(note.notebook);
+            cast = data.cast || {};
+        } catch (e) { /* lookup is best-effort -- fields still render as plain text */ }
+
+        const atlRow = role => v => cast[v] ? _cWikiRow(role, v) : _cRow(role, v);
+
+        const fields = _cAllFields(m, {
+            type:               () => '',
+            access:             () => '',
+            lock:               () => '',
+            production_company: () => '',   // already the card title
+            phone:              v => _cLink('phone', v, 'tel:' + String(v).replace(/\s/g, '')),
+            email:              v => _cLink('email', v, 'mailto:' + v),
+            copyright:          v => _cRow('copyright', `© ${v}`),
+            director:           atlRow('director'),
+            exec_producer:      atlRow('exec_producer'),
+            producer:           atlRow('producer'),
+            line_producer:      atlRow('line_producer'),
+            dp:                 atlRow('dp'),
+            writer:             atlRow('writer'),
+        });
+
+        return `<div class="nb-card">` +
+            `<div class="nb-card-header">${avatar}` +
+            `<div><div class="nb-card-title">${_esc(name)}</div>` +
+            `<div class="nb-card-sub">Production</div></div></div>` +
+            `<div class="nb-card-fields">${fields}</div>` +
+            `</div>${_cBody(note)}`;
+    }
+
     // ── Location card (type: location) ───────────────────────────────────────
 
     function _renderLocationCard(note) {
@@ -6196,6 +6240,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 types:  ['location'],
                 detect: note => note.type === 'location',
                 render: note => _renderLocationCard(note),
+            },
+            {
+                id:     'production-card',
+                icon:   '🎬',
+                label:  'Production card',
+                types:  ['production'],
+                detect: note => note.type === 'production',
+                render: note => _renderProductionCard(note),
             },
             {
                 id:     'day-card',
