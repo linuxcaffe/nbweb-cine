@@ -906,6 +906,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-shot-hdr[data-dnie="ED"], .nb-cine-scene-hdr[data-dnie="ED"] { border-left-color: #c8a800; }
 .nb-cine-shot-hdr[data-dnie="IN"], .nb-cine-scene-hdr[data-dnie="IN"] { border-left-color: #6a8bba; }
 .nb-cine-shot-hdr[data-dnie="EN"], .nb-cine-scene-hdr[data-dnie="EN"] { border-left-color: #5ba35b; }
+/* Scene header's own Scene:# label is clickable (reopens the note -- needed
+   to re-align the preview toolbar to the document after certain navigation
+   paths) but should read as plain label text, not as a link/chip -- strip
+   .nb-specialty-link's pill chrome back down to .nb-specialty-label's look. */
+.nb-cine-self-link { color: inherit; font-size: inherit; padding: 0; border: none; border-radius: 0; cursor: pointer; }
+.nb-cine-self-link:hover { background: none; color: inherit !important; text-decoration: underline; }
 /* Fixed dark text -- all four dnie backgrounds above are light pastels
    regardless of app theme, so var(--text-muted) (near-invisible on light
    bg in dark mode) is wrong here. Pre-existing bug on the shot header;
@@ -4754,51 +4760,146 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // ── Scene header (type: scene) — mirrors _renderShotHeader's identity
     // strip so shot and scene read as one system (same dnie colour coding,
-    // same nb-specialty-header shell). No action button: unlike a shot's
-    // Slate, a scene note has no equivalent single-launch tool to offer.
-    function _renderSceneHeader(note) {
+    // same nb-specialty-header shell, same leading nav-button + clickable-LOC
+    // conventions). No action button: unlike a shot's Slate, a scene note has
+    // no equivalent single-launch tool to offer. No Day: field either — shoot
+    // day is a shot-level scheduling concept (a scene can span several shot
+    // days), not something a scene note itself carries.
+    async function _renderSceneHeader(note) {
         const m     = note.meta || {};
         const alias = m.alias != null ? String(m.alias) : '';
         const ie    = (m.int_ext   || '').charAt(0).toUpperCase();
         const dn    = (m.day_night || '').charAt(0).toUpperCase();
         const dnie  = (ie && dn) ? ie + dn : (ie || dn || '');
         const loc   = m.loc ? String(m.loc) : '';
-
-        const sceneId = alias ? `SC ${_esc(alias)}` : _esc(note.title || '');
+        const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
 
         const dnieLabel = { ID: 'INT·DAY', ED: 'EXT·DAY', IN: 'INT·NIGHT', EN: 'EXT·NIGHT' };
         const dniePill  = dnie
             ? `<span class="nb-specialty-pill nb-cine-shot-pill-dnie nb-cine-strip-${dnie}">${dnieLabel[dnie] || dnie}</span>`
             : '';
-        const locPill   = loc ? `<span class="nb-specialty-pill">${_esc(loc)}</span>` : '';
+
+        // LOC resolves to its real location note the same way a shot's does;
+        // falls back to a plain pill if the lookup fails or nothing matches.
+        let locField = loc ? `<span class="nb-specialty-pill">${_esc(loc)}</span>` : '';
+        if (notebook && loc) {
+            try {
+                const data = await _fetchData(notebook);
+                const lo = (data.locations || {})[loc];
+                if (lo) locField = `<a class="nb-specialty-link" href="#" data-open="${_esc(lo.selector)}" title="${_esc(lo.meta?.title || '')}">${_esc(loc)}</a>`;
+            } catch { /* keep the plain-pill fallback already set above */ }
+        }
+
+        const wordCount = ((note.body || '').match(/\S+/g) || []).length;
+        const wordCountPill = wordCount
+            ? `<span class="nb-specialty-pill nb-cine-wordcount-pill" title="Word count">${wordCount} words</span>`
+            : '';
 
         return `<div class="nb-specialty-header nb-cine-scene-hdr" data-selector="${_esc(note.selector || '')}" data-dnie="${_esc(dnie)}">
-  <span class="nb-specialty-icon">🎞</span>
-  <span class="nb-specialty-label">${sceneId}</span>
-  ${dniePill}${locPill}
+  <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🎞</button>
+  <strong class="nb-specialty-label nb-specialty-link nb-cine-self-link" data-open="${_esc(note.selector || '')}" title="Reload this note">Scene:${alias ? _esc(alias) : _esc(note.title || '')}</strong>
+  ${dniePill}
+  ${locField}
+  <span class="nb-specialty-right">${wordCountPill}</span>
 </div>`;
     }
 
-    // ── Scene card (type: scene) — frontmatter card + body ───────────────────
+    // Lenient character-cue detector for the scene card's cast roster -- looser
+    // than _parseFountain's own 'character' token rule, which requires the
+    // *whole* cue line to be uppercase and so misses cues that carry an inline
+    // mixed-case wrylie on the same line (e.g. "BILL (very quietly, to himself)"),
+    // a shape that shows up in real notes in this notebook. Judges case on the
+    // cue with any trailing parenthetical/dual-dialogue marker stripped first,
+    // keeping the same blank-line-before / non-blank-line-after context check
+    // _parseFountain uses to avoid flagging random all-caps action text.
+    function _sceneCharacterNames(body) {
+        const lines = (body || '').split('\n');
+        const names = new Set();
+        let prevBlank = true;
+        for (let i = 0; i < lines.length; i++) {
+            const t = lines[i].trim();
+            if (!t) { prevBlank = true; continue; }
+            const nextNonBlank = i + 1 < lines.length && lines[i + 1].trim() !== '';
+            const core = t.replace(/\s*\([^)]*\)\s*$/, '').replace(/\s*\^\s*$/, '').replace(/^@/, '').trim();
+            if (prevBlank && nextNonBlank && core
+                && core === core.toUpperCase() && /[A-Z]/.test(core)
+                && !/^(int|ext|est)[\s.\-]/i.test(core)
+                && !core.endsWith('TO:')) {
+                names.add(core);
+            }
+            prevBlank = false;
+        }
+        return [...names];
+    }
 
-    function _renderSceneCard(note) {
-        const m  = note.meta || {};
-        const fields = _cAllFields(m, {
-            // alias/loc/day_night/int_ext now live in _renderSceneHeader above —
-            // suppress here so they don't show twice.
-            alias:     () => '',
-            loc:       () => '',
-            day_night: () => '',
-            int_ext:   () => '',
-        });
+    // First line of the scene, then its first paragraph -- a short excerpt for
+    // the scene card, not the full body (Markdown view already renders that in
+    // full; this view is a quick-glance summary).
+    function _sceneExcerpt(body) {
+        const lines = (body || '').split('\n');
+        let i = 0;
+        while (i < lines.length && !lines[i].trim()) i++;
+        const firstLine = i < lines.length ? lines[i].trim() : '';
+        i++;
+        while (i < lines.length && !lines[i].trim()) i++;
+        const paraLines = [];
+        while (i < lines.length && lines[i].trim()) { paraLines.push(lines[i].trim()); i++; }
+        return { firstLine, firstPara: paraLines.join(' ') };
+    }
 
-        const bodyHtml = (note.body || '').trim()
-            ? `<div class="nb-card-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
+    // ── Scene card (type: scene) — vitals only: identity, location, cast
+    // roster, then a short excerpt below a divider. Deliberately no full body
+    // render here -- Screenplay and Markdown views already cover the complete
+    // text; this view exists to be a quick-glance summary, not a third copy.
+    async function _renderSceneCard(note) {
+        const m     = note.meta || {};
+        const stem  = (note.filename || '').replace(/\.md$/i, '');
+        const alias = m.alias ? String(m.alias) : '';
+        const title = note.title ? String(note.title) : '';
+        const loc   = m.loc ? String(m.loc) : '';
+        const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
+
+        // Line 1: filename-stub (alias), title -- same identity convention as
+        // the shot card; the header carries only the alias.
+        const idPart = alias ? `${stem} (${alias})` : stem;
+        const idLine = [idPart, title].filter(Boolean).join(', ');
+
+        // Line 2: the location's own title -- same lookup _renderSceneHeader's
+        // LOC pill uses -- falling back to the bare code if unresolved.
+        let locLine = loc ? _esc(loc) : '';
+        if (notebook && loc) {
+            try {
+                const data = await _fetchData(notebook);
+                const lo = (data.locations || {})[loc];
+                if (lo) {
+                    const locTitle = lo.meta?.title || loc;
+                    locLine = `<a class="nb-wiki-link" data-selector="${_esc(lo.selector)}" title="${_esc(loc)}">${_esc(locTitle)}</a>`;
+                }
+            } catch { /* keep the bare-code fallback already set above */ }
+        }
+
+        // Line 3: every unique character cue found in the body, as clickable
+        // chips -- character codes are ALLCAPS filename stems in characters/
+        // by convention (see the CHARACTER/actor resolution chain in
+        // CLAUDE.md), so a bare-stem wikilink selector resolves directly.
+        const castChips = _sceneCharacterNames(note.body || '')
+            .map(n => `<span class="nb-cine-cast-chip nb-wiki-link" data-selector="${_esc(n)}">${_esc(n)}</span>`)
+            .join('');
+
+        const { firstLine, firstPara } = _sceneExcerpt(note.body || '');
+
+        const inner = [
+            idLine    ? `<div class="nb-cine-sc-name">${_esc(idLine)}</div>` : '',
+            locLine   ? `<div class="nb-cine-sc-sub">${locLine}</div>` : '',
+            castChips ? `<div class="nb-cine-sc-cast">${castChips}</div>` : '',
+            (firstLine || firstPara) ? '<hr class="nb-cine-card-sep">' : '',
+            firstLine ? `<div class="nb-cine-sc-desc">${_esc(firstLine)}</div>` : '',
+            firstPara ? `<div class="nb-cine-sc-desc">${_esc(firstPara)}</div>` : '',
+        ].filter(Boolean).join('');
 
         return `<div class="nb-cine-shot-card">` +
-            (fields ? `<div class="nb-card nb-cine-card-fm">` +
-            `<div class="nb-card-fields">${fields}</div></div>` : '') +
-            `${bodyHtml}</div>`;
+            (inner ? `<div class="nb-card nb-cine-card-fm">${inner}</div>` : '') +
+            `</div>`;
     }
 
     // Resolves which type:storyline note owns a plotline/story note, if any --
@@ -5788,7 +5889,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         document.addEventListener('keydown', _esc_key);
     }
 
-    function _renderShotHeader(note) {
+    // Async: Scene/LOC resolve to real target notes via the notebook's cine data
+    // (cached, see _fetchData); Day resolves by the schedule/day_N.md filename
+    // convention with no server lookup, so it gets a generic tooltip, not a real title.
+    async function _renderShotHeader(note) {
         const m     = note.meta || {};
         const alias = m.alias != null ? String(m.alias) : '';
         const scene = m.scene != null ? String(m.scene) : '';
@@ -5798,18 +5902,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const loc   = m.loc        ? String(m.loc)        : '';
         const day   = m.day  != null ? String(m.day)      : '';
         const pages = m.page_count  ? String(m.page_count): '';
-
-        const shotId = scene && alias ? `SC ${_esc(scene)} · ${_esc(alias)}`
-                     : alias          ? _esc(alias)
-                     : scene          ? `SC ${_esc(scene)}`
-                     : _esc(note.title || '');
+        const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
 
         const dnieLabel = { ID: 'INT·DAY', ED: 'EXT·DAY', IN: 'INT·NIGHT', EN: 'EXT·NIGHT' };
         const dniePill  = dnie
             ? `<span class="nb-specialty-pill nb-cine-shot-pill-dnie nb-cine-strip-${dnie}">${dnieLabel[dnie] || dnie}</span>`
             : '';
-        const locPill   = loc   ? `<span class="nb-specialty-pill">${_esc(loc)}</span>`      : '';
-        const dayPill   = day   ? `<span class="nb-specialty-pill">Day ${_esc(day)}</span>` : '';
         const pagesPill = pages ? `<span class="nb-specialty-pill">${_esc(pages)}p</span>`  : '';
 
         const takeCount = note.annotation
@@ -5818,10 +5916,37 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             ? `<button class="nb-specialty-pill nb-cine-takes-pill" data-action="view-takes" title="Scroll to take log">📋 ${takeCount} take${takeCount !== 1 ? 's' : ''}</button>`
             : '';
 
+        // Scene + LOC resolve to real target notes; fall back to plain text/pill
+        // if the lookup fails or nothing matches.
+        let sceneField = scene ? _esc(`Scene:${scene}`) : '';
+        let locField   = loc   ? `<span class="nb-specialty-pill">${_esc(loc)}</span>` : '';
+        if (notebook && (scene || loc)) {
+            try {
+                const data = await _fetchData(notebook);
+                if (scene) {
+                    const sc = (data.scenes || []).find(s => String(s.alias) === scene);
+                    sceneField = sc
+                        ? `<a class="nb-specialty-link" href="#" data-open="${_esc(sc.selector)}" title="${_esc(sc.synopsis || '')}">Scene:${_esc(scene)}</a>`
+                        : _esc(`Scene:${scene}`);
+                }
+                if (loc) {
+                    const lo = (data.locations || {})[loc];
+                    if (lo) locField = `<a class="nb-specialty-link" href="#" data-open="${_esc(lo.selector)}" title="${_esc(lo.meta?.title || '')}">${_esc(loc)}</a>`;
+                }
+            } catch { /* keep the plain-text fallbacks already set above */ }
+        }
+        const dayField = day
+            ? `<a class="nb-specialty-link" href="#" data-open="${_esc(notebook)}:schedule/day_${_esc(day)}.md" title="Shoot day ${_esc(day)}">Day:${_esc(day)}</a>`
+            : '';
+
         return `<div class="nb-specialty-header nb-cine-shot-hdr" data-selector="${_esc(note.selector || '')}" data-dnie="${_esc(dnie)}">
-  <span class="nb-specialty-icon">🎬</span>
-  <span class="nb-specialty-label">${shotId}</span>
-  ${dniePill}${locPill}${dayPill}${pagesPill}${takesPill}
+  <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🎬</button>
+  ${sceneField}
+  <strong class="nb-specialty-label">Shot:${alias ? _esc(alias) : _esc(note.title || '')}</strong>
+  ${dniePill}
+  ${dayField}
+  ${locField}
+  ${pagesPill}${takesPill}
   <span class="nb-specialty-right">
     <button class="nb-specialty-action nb-cine-slate-btn" data-slate-sel="${_esc(note.selector || '')}">🎞 Slate</button>
   </span>
@@ -5829,23 +5954,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     function _renderShotCard(note) {
-        const m = note.meta || {};
-        const alias    = m.alias     ? String(m.alias)    : '';
-        const scene    = m.scene     != null ? String(m.scene) : '';
-        const shotName = m.shot      ? String(m.shot)     : '';
-        const dn       = (m.day_night || '').toUpperCase();
-        const ie       = (m.int_ext   || '').toUpperCase();
-        const loc      = m.loc  ? String(m.loc)  : '';
-        const day      = m.day  != null ? String(m.day) : '';
-        const desc     = typeof m.desc === 'string' ? m.desc.trim() : '';
+        const m     = note.meta || {};
+        const stem  = (note.filename || '').replace(/\.md$/i, '');
+        const alias = m.alias ? String(m.alias) : '';
+        const title = note.title ? String(note.title) : '';
+        const desc  = typeof m.desc === 'string' ? m.desc.trim() : '';
 
         const tech = _parseBlock(typeof m.tech === 'string' ? m.tech : '');
         const art  = _parseBlock(typeof m.art  === 'string' ? m.art  : '');
         const cast = _parseBlock(typeof m.cast === 'string' ? m.cast : '');
-
-        // Strip color class from I/E + D/N
-        const colorClass = (ie && dn) ? ie + dn : (ie || dn || 'scene');
-        const dnie       = [dn, ie].filter(Boolean).join('');
 
         const actorCodes = cast.actors
             ? cast.actors.split(/,\s*/).map(s => s.trim()).filter(Boolean) : [];
@@ -5862,20 +5979,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 : '';
         };
 
-        const subParts = [scene ? `Sc. ${scene}` : '', day ? `Day ${day}` : ''].filter(Boolean);
-
         const castChipHtml = [
             ...actorCodes.map(c => `<span class="nb-cine-cast-chip">${_esc(c)}</span>`),
             extrasChip,
         ].filter(Boolean).join('');
 
-        // Fields inside .nb-cine-card-fm — toggled visible/hidden by the ◉ extras toggle.
+        // Line 1: filename-stub (alias), title -- full identity; the header carries
+        // only the alias, so this is where filename + title actually show up.
+        const idPart = alias ? `${stem} (${alias})` : stem;
+        const idLine = [idPart, title].filter(Boolean).join(', ');
+
+        // Fields inside .nb-cine-card-fm -- toggled visible/hidden by the ◉ extras toggle.
         // Body stays outside the card box so annotation button is never obscured.
         const fieldsInner = [
-            subParts.length  ? `<div class="nb-cine-sc-sub">${_esc(subParts.join('  ·  '))}</div>` : '',
-            shotName         ? `<div class="nb-cine-sc-name">${_esc(shotName)}</div>` : '',
-            desc             ? `<div class="nb-cine-sc-desc">${_esc(desc)}</div>` : '',
-            castChipHtml     ? `<div class="nb-cine-sc-cast">${castChipHtml}</div>` : '',
+            idLine       ? `<div class="nb-cine-sc-name">${_esc(idLine)}</div>` : '',
+            desc         ? `<div class="nb-cine-sc-desc">${_esc(desc)}</div>` : '',
+            castChipHtml ? `<div class="nb-cine-sc-cast">${castChipHtml}</div>` : '',
             _sec('tech', tech),
             _sec('art', art),
         ].filter(Boolean).join('');
@@ -6020,6 +6139,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // replacing cine's real storyline-story/storyline-note UI with a bare
     // FM-field dump. Same mechanism nbweb-quartz's 'item' type already needed.
     window.NbSpecialty?.register?.('storyline', { icon: '🧵', label: 'Storyline', noRender: true });
+    // Shot's own header is a custom nb-cine-shot-hdr, not the generic specialty
+    // header -- registering it here is purely so shots appear in the nav popup
+    // (and other specialty headers' nav buttons can jump to a shot from anywhere).
+    window.NbSpecialty?.register?.('shot', { icon: '🎬', label: 'Shot', noRender: true });
+    window.NbSpecialty?.register?.('scene', { icon: '🎞', label: 'Scene', noRender: true });
 
     NbWeb.registerModule('cine', {
         label:       'NbWeb-cine',
@@ -6213,7 +6337,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 types:    ['shot'],
                 fullCard: true,
                 detect:   note => note.type === 'shot',
-                render:   note => _renderShotHeader(note) + _renderShotCard(note),
+                render:   async note => (await _renderShotHeader(note)) + _renderShotCard(note),
             },
             {
                 id:     'screenplay',
@@ -6221,7 +6345,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Screenplay format',
                 types:  ['scene'],
                 detect: note => note.type === 'scene',
-                render: note => _renderSceneHeader(note) + _renderScript(note),
+                render: async note => (await _renderSceneHeader(note)) + _renderScript(note),
             },
             {
                 id:     'markdown',
@@ -6229,9 +6353,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Markdown',
                 types:  ['scene'],
                 detect: note => note.type === 'scene',
-                render: note => {
+                render: async note => {
                     if (note.type !== 'scene') return null;
-                    const header = _renderSceneHeader(note);
+                    const header = await _renderSceneHeader(note);
                     const body = (note.body || '').trim();
                     if (typeof marked === 'undefined')
                         return header + `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
@@ -6258,7 +6382,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Scene card',
                 types:  ['scene'],
                 detect: note => note.type === 'scene',
-                render: note => _renderSceneHeader(note) + _renderSceneCard(note),
+                render: async note => (await _renderSceneHeader(note)) + (await _renderSceneCard(note)),
             },
             {
                 id:     'actor-card',
