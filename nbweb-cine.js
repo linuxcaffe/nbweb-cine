@@ -4565,11 +4565,18 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                `<div class="nb-card-block-fields">${rows}</div></div>`;
     }
 
-    // Keys that are pure schema/plumbing, never meaningful to display raw on any
-    // card -- constraints:/constraints_add: are objects-of-objects (see
-    // api_note_constraints_full), not display data; rendering them through the
-    // generic block/row fallback below produces garbled "[object Object]" rows.
-    const _C_SCHEMA_KEYS = new Set(['constraints', 'constraints_add']);
+    // Keys that are pure schema/plumbing/housekeeping, never meaningful to display
+    // raw as card content on ANY cine type -- constraints:/constraints_add: are
+    // objects-of-objects (see api_note_constraints_full), not display data,
+    // rendering them through the generic block/row fallback below produces
+    // garbled "[object Object]" rows. type: is redundant with the card itself
+    // (icon/sub-label already say what type this is); lock:/access: are surfaced
+    // through the app's own Lock/Unlock UI and access-level controls, not card
+    // content. Individual renderers used to suppress these one at a time,
+    // inconsistently (e.g. production/day/resource each had their own
+    // `type: () => ''`); centralizing here means a new card gets this for free
+    // instead of needing to remember it.
+    const _C_SCHEMA_KEYS = new Set(['constraints', 'constraints_add', 'type', 'lock', 'access']);
 
     // Render ALL entries in meta as card rows. Rule: no field may be silently omitted.
     // customRenderers: { fieldName: (value) → html }  — return '' to suppress a field.
@@ -4644,41 +4651,63 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const avatar = `<div class="nb-card-avatar" style="background:${_cColor(note.title)}">${_esc(_cInitials(name))}</div>`;
         const sub    = 'Character';
 
+        let data = {};
+        try { data = await _fetchData(notebook); } catch { /* fields/cross-refs below degrade gracefully */ }
+
+        // cast: <title> (<alias>) -- alias is the cast member's own filename stem;
+        // resolve their real name + callsheet code instead of a bare selector link.
+        let castRowHtml = '';
+        if (m.alias) {
+            const person = (data.cast || {})[m.alias];
+            const label  = person
+                ? [person.meta?.title, person.meta?.alias ? `(${person.meta.alias})` : ''].filter(Boolean).join(' ')
+                : '';
+            castRowHtml = person
+                ? `<div class="nb-card-row"><span class="nb-card-label">cast</span><span class="nb-card-value">` +
+                  `<span class="nb-wiki-link" data-selector="${_esc(person.selector)}">${_esc(label || m.alias)}</span></span></div>`
+                : _cWikiRow('cast', m.alias);
+        }
+
         const fields = _cAllFields(m, {
-            title:       v => _cRow('title', v),
-            alias:       v => _cWikiRow('cast', v),   // alias is the cast member's stem
-            description: v => typeof v === 'string' && v.includes('\n')
-                ? _cBlock('description', v)
-                : _cRow('description', v),
+            // type: is a global housekeeping suppression (_C_SCHEMA_KEYS). title:
+            // already shows in the card header (.nb-card-title) -- suppress here
+            // too so it doesn't also appear as a generic row below.
+            title:       () => '',
+            alias:       () => castRowHtml,
+            // Plain prose line, not _cBlock -- description is free text, not
+            // key: value sub-fields, and _cBlock's _parseBlock silently produces
+            // nothing useful against prose, which was dropping this field entirely.
+            description: v => `<div class="nb-cine-sc-desc">${_esc(String(v).trim())}</div>`,
         });
 
-        // Scenes/shots this character appears in -- derived from each shot's own
-        // cast.actors list (the granular unit shots already carry; a scene's
-        // membership is just the union of its shots'), same _fetchData cache
-        // the shot/scene headers use.
+        // Scenes/shots this character appears in, one line per scene -- derived
+        // from each shot's own cast.actors list (the granular unit shots already
+        // carry), sorted numeric-aware by alias throughout (localeCompare's
+        // numeric option, so "10a" sorts after "2a" rather than before it).
         let crossRefHtml = '';
-        if (notebook && code) {
-            try {
-                const data  = await _fetchData(notebook);
-                const shots = (data.shots || []).filter(s => (s.actors || []).includes(code));
-                const sceneLookup = new Map((data.scenes || []).map(sc => [String(sc.alias), sc]));
-                const sceneNums   = [...new Set(shots.map(s => s.scene).filter(Boolean))];
+        if (code) {
+            const shots = (data.shots || []).filter(s => (s.actors || []).includes(code));
+            const sceneLookup = new Map((data.scenes || []).map(sc => [String(sc.alias), sc]));
+            const byScene = new Map();
+            for (const s of shots) {
+                const key = String(s.scene || '');
+                if (!byScene.has(key)) byScene.set(key, []);
+                byScene.get(key).push(s);
+            }
+            const sceneKeys = [...byScene.keys()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-                const sceneChips = sceneNums.map(scNum => {
-                    const sc = sceneLookup.get(String(scNum));
-                    return sc
-                        ? `<span class="nb-cine-cast-chip nb-wiki-link" data-selector="${_esc(sc.selector)}" title="${_esc(sc.synopsis || '')}">Sc.${_esc(scNum)}</span>`
-                        : `<span class="nb-cine-cast-chip">Sc.${_esc(scNum)}</span>`;
-                }).join('');
-                const shotChips = shots.map(s =>
-                    `<span class="nb-cine-cast-chip nb-wiki-link" data-selector="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(s.alias || s.shot || s.filename)}</span>`
-                ).join('');
-
-                crossRefHtml = [
-                    sceneChips ? `<div class="nb-cine-card-sec"><div class="nb-cine-card-sec-lbl">scenes</div><div class="nb-cine-sc-cast">${sceneChips}</div></div>` : '',
-                    shotChips  ? `<div class="nb-cine-card-sec"><div class="nb-cine-card-sec-lbl">shots</div><div class="nb-cine-sc-cast">${shotChips}</div></div>` : '',
-                ].filter(Boolean).join('');
-            } catch { /* best-effort -- card still renders without cross-refs */ }
+            crossRefHtml = sceneKeys.map(scNum => {
+                const sc = sceneLookup.get(scNum);
+                const sceneLabel = sc
+                    ? `<span class="nb-wiki-link" data-selector="${_esc(sc.selector)}" title="${_esc(sc.synopsis || '')}">Scene:${_esc(scNum)}</span>`
+                    : `Scene:${_esc(scNum)}`;
+                const shotSpans = byScene.get(scNum)
+                    .sort((a, b) => (a.alias || a.shot || a.filename)
+                        .localeCompare(b.alias || b.shot || b.filename, undefined, { numeric: true }))
+                    .map(s => `<span class="nb-wiki-link" data-selector="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(s.alias || s.shot || s.filename)}</span>`)
+                    .join('  ');
+                return `<div class="nb-cine-sc-desc">${sceneLabel} -- ${shotSpans}</div>`;
+            }).join('');
         }
 
         return `<div class="nb-card">` +
@@ -4738,9 +4767,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }).join('');
 
         const fields = _cAllFields(m, {
-            type:               () => '',
-            access:             () => '',
-            lock:               () => '',
+            // type:/access:/lock: are global housekeeping suppressions (_C_SCHEMA_KEYS).
             production_company: () => '',   // already the card title
             phone:              v => _cLink('phone', v, 'tel:' + String(v).replace(/\s/g, '')),
             email:              v => _cLink('email', v, 'mailto:' + v),
@@ -4920,6 +4947,18 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         const { firstLine, firstPara } = _sceneExcerpt(note.body || '');
 
+        // Catch-all for anything not already handled above (by name or by the
+        // header) -- a custom field an author adds still has to show up
+        // *somewhere*. Dropped by the "vitals only" redesign; restored since a
+        // vitals-only view still can't mean "silently drops content."
+        const extraFields = _cAllFields(m, {
+            alias:     () => '',
+            title:     () => '',
+            loc:       () => '',
+            day_night: () => '',
+            int_ext:   () => '',
+        });
+
         const inner = [
             idLine    ? `<div class="nb-cine-sc-name">${_esc(idLine)}</div>` : '',
             locLine   ? `<div class="nb-cine-sc-sub">${locLine}</div>` : '',
@@ -4927,6 +4966,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             (firstLine || firstPara) ? '<hr class="nb-cine-card-sep">' : '',
             firstLine ? `<div class="nb-cine-sc-desc">${_esc(firstLine)}</div>` : '',
             firstPara ? `<div class="nb-cine-sc-desc">${_esc(firstPara)}</div>` : '',
+            extraFields ? `<div class="nb-cine-card-sec"><div class="nb-cine-card-sec-lbl">other</div><div class="nb-card-fields">${extraFields}</div></div>` : '',
         ].filter(Boolean).join('');
 
         return `<div class="nb-cine-shot-card">` +
@@ -6021,6 +6061,26 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const idPart = alias ? `${stem} (${alias})` : stem;
         const idLine = [idPart, title].filter(Boolean).join(', ');
 
+        // Catch-all for anything not already handled above (by name or by the
+        // header) -- a custom field an author adds still has to show up
+        // *somewhere*, not just silently vanish. shot: (the legacy descriptive-
+        // name field, distinct from alias:) falls through to here too now that
+        // neither the header nor idLine reference it.
+        const extraFields = _cAllFields(m, {
+            alias:      () => '',
+            title:      () => '',
+            scene:      () => '',
+            day_night:  () => '',
+            int_ext:    () => '',
+            loc:        () => '',
+            day:        () => '',
+            page_count: () => '',
+            desc:       () => '',
+            tech:       () => '',
+            art:        () => '',
+            cast:       () => '',
+        });
+
         // Fields inside .nb-cine-card-fm -- toggled visible/hidden by the ◉ extras toggle.
         // Body stays outside the card box so annotation button is never obscured.
         const fieldsInner = [
@@ -6029,6 +6089,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             castChipHtml ? `<div class="nb-cine-sc-cast">${castChipHtml}</div>` : '',
             _sec('tech', tech),
             _sec('art', art),
+            extraFields  ? `<div class="nb-cine-card-sec"><div class="nb-cine-card-sec-lbl">other</div><div class="nb-card-fields">${extraFields}</div></div>` : '',
         ].filter(Boolean).join('');
 
         const bodyHtml = (note.body || '').trim()
@@ -6063,7 +6124,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             : '';
 
         const extraFields = _cAllFields(m, {
-            type:  () => '',
+            // type: is a global housekeeping suppression (_C_SCHEMA_KEYS).
             day:   () => '',
             date:  () => '',
             hours: () => '',
@@ -6097,7 +6158,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             : unit;
 
         const fields = _cAllFields(m, {
-            type:       () => '',
+            // type:/lock: are global housekeeping suppressions (_C_SCHEMA_KEYS).
             resource:   () => '',
             code:       v  => _cRow('code', v),
             supplier:   v  => _cRow('supplier', v),
@@ -6106,7 +6167,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             'cost per': v  => _cRow('cost per', v),
             start:      v  => _cRow('start', v),
             end:        v  => _cRow('end', v),
-            lock:       () => '',
         });
 
         const bodyHtml = (note.body || '').trim()
