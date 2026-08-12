@@ -4875,11 +4875,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const code = m.alias ? String(m.alias) : '';
 
         const avatar = `<div class="nb-card-avatar" style="background:${_cColor(name)}">${_esc(code || _cInitials(name))}</div>`;
-        const sub    = ['Location', code ? `code: ${code}` : ''].filter(Boolean).join(' · ');
+        const sub    = 'Location';
 
         const fields = _cAllFields(m, {
-            title:   v => _cRow('title', v),
-            alias:   v => _cRow('alias', v),
+            // title/alias already show -- title as the bold card title, alias
+            // (code) inside the avatar dot -- so suppress both here.
+            title:   () => '',
+            alias:   () => '',
             address: v => {
                 const mq = 'https://maps.google.com/?q=' + encodeURIComponent(String(v));
                 return `<div class="nb-card-row"><span class="nb-card-label">address</span>` +
