@@ -137,11 +137,19 @@ button.nb-cine-actor {
 }
 
 .nb-cine-screenplay {
+    /* Strict layout by design (djp): line length/pagination need to track a
+       fixed real-world page width, not reflow with viewport size -- a
+       narrower screen scrolls sideways instead of the page shrinking and
+       silently invalidating the character-per-line math the whole point of
+       this view depends on. */
     padding: 24px; background: var(--bg, #1a1a1a); min-height: 100%;
+    overflow-x: auto;
 }
 .nb-script-page {
-    /* WGA-standard page: 8.5" wide, 1.5" left/1" right margins at 12pt Courier = ~57 chars */
-    max-width: 680px; margin: 0 auto;
+    /* WGA-standard page: 8.5" wide, 1.5" left/1" right margins at 12pt Courier = ~57 chars.
+       width (not max-width) + min-width: never shrinks below this, on any screen size
+       or in any flex/grid ancestor -- see .nb-cine-screenplay's overflow-x above. */
+    width: 680px; min-width: 680px; margin: 0 auto;
     background: #fff; color: #111;
     /* Local override — .nb-rendered p/h1-h3/a rules read var(--text) directly off each
        element; without this they resolve to :root's dark-mode pale text on this white page. */
@@ -160,6 +168,19 @@ button.nb-cine-actor {
 .nb-script-scene-tag  { float: right; font-weight: normal; opacity: .4; font-size: .85em; }
 /* Action: blank line above, blank line below each paragraph */
 .nb-script-action     { margin: 0 0 1em; white-space: pre-wrap; }
+/* Shot-cue post-it flags -- stuck to the page's own right margin (never the
+   text column), so they read as a physical page-edge marker, not part of the
+   prose. .nb-cine-has-flag makes the flagged paragraph the positioning
+   anchor; multiple flags on one paragraph stack via _cueFlags' top offset. */
+.nb-cine-has-flag    { position: relative; }
+.nb-cine-shot-flag {
+    position: absolute; right: -92px; width: 46px; height: 20px;
+    background: #ffd84d; border-radius: 2px 6px 6px 2px;
+    box-shadow: 1px 2px 4px rgba(0,0,0,.35);
+    transform: rotate(-3deg);
+    cursor: pointer; display: block;
+}
+.nb-cine-shot-flag:hover { transform: rotate(-3deg) scale(1.1); }
 /* Character: 3.7" from left = ~37% of 10" text width */
 .nb-script-char       { margin: 1em 0 0; padding-left: 37%; text-transform: uppercase; }
 /* Dialogue: 2.5" from left, ends 2.5" from right */
@@ -187,19 +208,16 @@ sup.nb-cine-shot-cue {
 }
 sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
-/* Script title-page header (type: script) */
-.nb-script-title-page {
-    font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-    text-align: center; padding: 48px 24px 32px;
-    border-bottom: 2px solid var(--border, #444);
-    margin-bottom: 24px;
+/* Script title page (type: script) -- real Fountain-rendered content now
+   (see _renderScriptTitlePage), not a parallel ad-hoc HTML block; this is
+   just page-level polish on top of the same .nb-script-page/.nb-script-centered
+   classes the rest of the screenplay uses. Pushed down from the top like a
+   real cover page; the title itself (first centered line) gets the one
+   deliberate size bump -- everything else stays plain centered text. */
+.nb-script-titlepage { padding-top: 120px; }
+.nb-script-titlepage .nb-script-centered:first-child {
+    font-size: 1.8em; letter-spacing: .06em; margin-bottom: 1em;
 }
-.nb-stp-title  { font-size: 2em; font-weight: bold; text-transform: uppercase;
-                  letter-spacing: .08em; margin-bottom: 20px; color: var(--text, #eee); }
-.nb-stp-byline { font-size: .85em; opacity: .55; margin-bottom: 4px; }
-.nb-stp-author { font-size: 1.1em; margin-bottom: 12px; color: var(--text, #eee); }
-.nb-stp-info   { font-size: .8em; opacity: .5; margin-bottom: 20px; }
-.nb-stp-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; align-items: center; }
 
 /* Insert Shot overlay */
 .nb-cine-insert-overlay {
@@ -1561,6 +1579,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // Render Fountain tokens → HTML string.
     function _renderFountainTokens(tokens) {
+        // Renders a paragraph with any [[shot-cue]]s in its text pulled out
+        // into margin flags instead of left inline -- see _extractCues/_cueFlags.
+        const _flaggedP = (cls, text) => {
+            const { clean, cues } = _extractCues(text);
+            return `<p class="${cls}${cues.length ? ' nb-cine-has-flag' : ''}">${_renderInline(clean)}${_cueFlags(cues)}</p>`;
+        };
         const out = [];
         let i = 0;
         while (i < tokens.length) {
@@ -1576,16 +1600,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                     out.push(`<div class="nb-script-slug nb-script-slug-inline">${_esc(tok.text)}</div>`);
                     break;
                 case 'action':
-                    out.push(`<p class="nb-script-action">${_renderInline(tok.text)}</p>`);
+                    out.push(_flaggedP('nb-script-action', tok.text));
                     break;
                 case 'transition':
                     out.push(`<p class="nb-script-transition">${_esc(tok.text)}</p>`);
                     break;
                 case 'centered':
-                    out.push(`<p class="nb-script-centered">${_renderInline(tok.text)}</p>`);
+                    out.push(_flaggedP('nb-script-centered', tok.text));
                     break;
                 case 'lyrics':
-                    out.push(`<p class="nb-script-lyrics">${_renderInline(tok.text)}</p>`);
+                    out.push(_flaggedP('nb-script-lyrics', tok.text));
                     break;
                 case 'section':
                     out.push(`<div class="nb-script-section nb-script-sec-${tok.depth}">${_esc(tok.text)}</div>`);
@@ -1600,7 +1624,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                         const d = tokens[j++];
                         dHtml.push(d.type === 'parenthetical'
                             ? `<p class="nb-script-paren">${_esc(d.text)}</p>`
-                            : `<p class="nb-script-dialogue">${_renderInline(d.text)}</p>`);
+                            : _flaggedP('nb-script-dialogue', d.text));
                     }
                     out.push(`<div class="nb-script-speech${tok.dual ? ' nb-script-dual' : ''}">` +
                              `<p class="nb-script-char">${_esc(tok.text)}</p>` +
@@ -1612,6 +1636,31 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             i++;
         }
         return out.join('\n');
+    }
+
+    // Shot-cue markers ([[filename-stem]]) are stripped entirely from the
+    // real .fountain/PDF export (_build_fountain/_strip_shot_cues, app.py) --
+    // paper can't be clicked. The on-screen formal render keeps them, but as
+    // a margin flag rather than an inline superscript: extracts cues out of
+    // a token's raw text (clean prose + the list of cue ids found), so the
+    // caller can render clean text in the flow and attach flags outside it.
+    function _extractCues(text) {
+        const cues = [];
+        const clean = (text || '').replace(/\s*\[\[([^\]]+)\]\]/g, (_, id) => {
+            cues.push(id.trim());
+            return '';
+        });
+        return { clean, cues };
+    }
+
+    // Small post-it-style flag(s) poking past the page's right edge, one per
+    // cue -- clicking opens the shot. Lives in the page's own right margin,
+    // outside the text column, so it never disturbs line-wrap or (future)
+    // pagination math the way an inline marker would.
+    function _cueFlags(cues) {
+        return cues.map((id, idx) =>
+            `<a class="nb-cine-shot-flag nb-wiki-link" data-selector="${_esc(id)}" title="${_esc(id)}" style="top:${6 + idx * 22}px"></a>`
+        ).join('');
     }
 
     function _renderScript(note) {
@@ -1632,22 +1681,75 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                `</div></div>`;
     }
 
-    // ── Script title-page header (type: script) ──────────────────────────────
+    // ── Script header (type: script) — shared across all three views, same
+    // shape as _renderSceneHeader/_renderShotHeader: identity + stats as a
+    // pill row, export actions on the right (nb-specialty-right, same slot
+    // shot's Slate button uses). Scene-count/runtime stats need their own
+    // _fetchData call -- cheap, cached 30s, same call the full-assembly view
+    // below already makes independently for its own purpose.
+    async function _renderScriptHeader(note) {
+        const m        = _ownMeta(note);
+        const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
+        const title    = m.title || note.title || 'Script';
+
+        let sceneCount = 0, maxAlias = 0;
+        try {
+            const data   = await _fetchData(notebook);
+            const scenes = (data.scenes || []).filter(s => /^\d+$/.test(String(s.alias || '')));
+            sceneCount   = scenes.length;
+            maxAlias     = Math.max(0, ...scenes.map(s => parseInt(s.alias)));
+        } catch { /* stats just stay at 0 */ }
+
+        const statsHtml = [
+            sceneCount ? `<span class="nb-specialty-pill">${sceneCount} scene${sceneCount !== 1 ? 's' : ''}</span>` : '',
+            maxAlias   ? `<span class="nb-specialty-pill">~${maxAlias} min est.</span>` : '',
+        ].join('');
+
+        return `<div class="nb-specialty-header nb-cine-script-hdr" data-selector="${_esc(note.selector || '')}">
+  <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🎬</button>
+  <strong class="nb-specialty-label">${_esc(title)}</strong>
+  ${statsHtml}
+  <span class="nb-specialty-right">
+    <button class="nb-specialty-action nb-script-dl-fountain" data-notebook="${_esc(notebook)}" title="Download .fountain">⬇ .fountain</button>
+    <button class="nb-specialty-action nb-script-dl-pdf" data-notebook="${_esc(notebook)}" title="Export PDF via afterwriting">⬇ PDF</button>
+  </span>
+</div>`;
+    }
+
+    // Real screenplay title page — classic shape (title, tagline, "written
+    // by", author, draft/copyright), rendered through the same Fountain
+    // centered-text pipeline (`> text <`) scene bodies already use instead of
+    // a parallel ad-hoc HTML block; the real-world preamble belongs on the
+    // actual first page of the script, not bolted onto a specialty header.
+    // djp: "as classically formatted as practical" -- bold+enlarged title is
+    // the one deliberate emphasis point (CSS, see .nb-script-titlepage), no
+    // attempt at exact professional vertical-centering/margins beyond that.
+    function _renderScriptTitlePage(note) {
+        const m       = _ownMeta(note);
+        const title   = (m.title || note.title || 'Untitled').toUpperCase();
+        const caption = m.caption ? String(m.caption) : '';
+        const author  = m.author  ? String(m.author)  : '';
+        const info    = [m.draft, m.copyright ? `© ${m.copyright}` : ''].filter(Boolean).join(' · ');
+
+        const lines = [
+            `> **${title}** <`,
+            caption ? `> ${caption} <` : '',
+            author  ? '> written by <' : '',
+            author  ? `> ${author} <` : '',
+            info    ? `> ${info} <` : '',
+        ].filter(Boolean);
+
+        const bodyHtml = _renderFountainTokens(_parseFountain(lines.join('\n')));
+        return `<div class="nb-cine-screenplay"><div class="nb-script-page nb-script-titlepage">${bodyHtml}</div></div>`;
+    }
 
     async function _renderScriptNote(note) {
-        const meta    = _ownMeta(note);
-        const title   = meta.title || note.title || 'Untitled';
-        const author  = meta.author   ? `<div class="nb-stp-byline">written by</div><div class="nb-stp-author">${_esc(meta.author)}</div>` : '';
-        const info    = [meta.draft, meta.copyright ? `© ${meta.copyright}` : ''].filter(Boolean).join(' · ');
-
-        let sceneCount = 0, maxAlias = 0, assembledHtml = '';
+        let assembledHtml = '';
         try {
             const data   = await _fetchData(note.notebook);
             const scenes = (data.scenes || [])
                 .filter(s => /^\d+$/.test(String(s.alias || '')))
                 .sort((a, b) => parseInt(a.alias) - parseInt(b.alias));
-            sceneCount = scenes.length;
-            maxAlias   = Math.max(0, ...scenes.map(s => parseInt(s.alias)));
 
             const sceneNotes = await Promise.all(
                 scenes.map(s =>
@@ -1661,22 +1763,37 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 .join('');
         } catch (_) {}
 
-        const stats = [
-            sceneCount ? `<span class="nb-specialty-pill">${sceneCount} scene${sceneCount !== 1 ? 's' : ''}</span>` : '',
-            maxAlias   ? `<span class="nb-specialty-pill">~${maxAlias} min est.</span>` : '',
-        ].join('');
+        return _renderScriptTitlePage(note) + assembledHtml;
+    }
 
-        const exportBtns = `
-            <button class="nb-specialty-action nb-script-dl-fountain" data-notebook="${_esc(note.notebook || '')}" title="Download .fountain">⬇ .fountain</button>
-            <button class="nb-specialty-action nb-script-dl-pdf"      data-notebook="${_esc(note.notebook || '')}" title="Export PDF via afterwriting">⬇ PDF</button>`;
+    // ── Script card (type: script) — vitals only, third view alongside
+    // Script/Markdown. Deliberately no _requiredRows here: script/.script.md's
+    // constraints (alias/loc/day_night/int_ext required) describe type: scene,
+    // the folder's real default_type -- this one-off cover note sharing the
+    // same folder would get nonsense "loc: — required —" placeholders for
+    // fields that don't apply to it at all if the generic mechanism ran here.
+    function _renderScriptCard(note) {
+        const m     = _ownMeta(note);
+        const stem  = (note.filename || '').replace(/\.md$/i, '');
+        const title = m.title || note.title || '';
+        const idLine = [stem, title].filter(Boolean).join(', ');
 
-        return `<div class="nb-script-title-page">
-            <div class="nb-stp-title">${_esc(title)}</div>
-            ${author}
-            ${info ? `<div class="nb-stp-info">${_esc(info)}</div>` : ''}
-            <div class="nb-stp-actions">${stats}${exportBtns}</div>
-        </div>
-        ${assembledHtml}`;
+        const fields = _cAllFields(m, {
+            title:     () => '',
+            caption:   v => _cRow('caption', v),
+            author:    v => _cRow('author', v),
+            draft:     v => _cRow('draft', v),
+            copyright: v => _cRow('copyright', `© ${v}`),
+        });
+
+        const inner = [
+            idLine ? `<div class="nb-cine-sc-name">${_esc(idLine)}</div>` : '',
+            fields ? `<div class="nb-card-fields">${fields}</div>` : '',
+        ].filter(Boolean).join('');
+
+        return `<div class="nb-cine-shot-card">` +
+            (inner ? `<div class="nb-card nb-cine-card-fm">${inner}</div>` : '') +
+            `</div>`;
     }
 
     // ── Shot sheet renderer (shots.sheet) ────────────────────────────────────
@@ -6329,6 +6446,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // (and other specialty headers' nav buttons can jump to a shot from anywhere).
     window.NbSpecialty?.register?.('shot', { icon: '🎬', label: 'Shot', noRender: true });
     window.NbSpecialty?.register?.('scene', { icon: '🎞', label: 'Scene', noRender: true });
+    window.NbSpecialty?.register?.('script', { icon: '🎬', label: 'Script', noRender: true });
 
     NbWeb.registerModule('cine', {
         label:       'NbWeb-cine',
@@ -6387,7 +6505,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Script',
                 types:  ['script'],
                 detect: note => note.type === 'script',
-                render: note => _renderScriptNote(note),
+                render: async note => (await _renderScriptHeader(note)) + (await _renderScriptNote(note)),
             },
             {
                 id:     'script-markdown',
@@ -6395,10 +6513,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Markdown',
                 types:  ['script'],
                 detect: note => note.type === 'script',
-                render: note => {
+                render: async note => {
+                    const header = await _renderScriptHeader(note);
                     const body = (note.body || '').trim();
                     if (typeof marked === 'undefined')
-                        return `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
+                        return header + `<div class="nb-cine-plain-script"><pre>${_esc(body)}</pre></div>`;
                     const withLinks = body.replace(
                         /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
                         (_, target, label) => {
@@ -6406,8 +6525,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                             return `<span class="nb-wiki-link" data-selector="${_esc(t)}"${label ? '' : ' data-autolabel="1"'}>${_esc(label?.trim() || t)}</span>`;
                         }
                     );
-                    return `<div class="nb-cine-plain-script nb-rendered">${marked.parse(withLinks)}</div>`;
+                    return header + `<div class="nb-cine-plain-script nb-rendered">${marked.parse(withLinks)}</div>`;
                 },
+            },
+            {
+                id:     'script-card',
+                icon:   '🃏',
+                label:  'Script card',
+                types:  ['script'],
+                detect: note => note.type === 'script',
+                render: async note => (await _renderScriptHeader(note)) + _renderScriptCard(note),
             },
             {
                 id:     'plotline-card',
