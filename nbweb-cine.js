@@ -1784,8 +1784,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     // Content builders, keyed by the trigger's data-cine-dropdown value --
-    // async, called with the trigger's data-notebook. Add a sibling entry
-    // here for a new dropdown type; no other code needs to change.
+    // async, called with (notebook, arg), arg being the trigger's own
+    // data-cine-arg (unused by scenes, a scene alias for shots). Add a
+    // sibling entry here for a new dropdown type; no other code needs to
+    // change.
     const _cineDropdownContent = {
         async scenes(notebook) {
             const data   = await _fetchData(notebook).catch(() => ({}));
@@ -1796,6 +1798,18 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             return scenes.map(s =>
                 `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(s.selector)}" title="${_esc(s.synopsis || '')}">Sc.${_esc(s.alias)}${s.synopsis ? ` — ${_esc(s.synopsis)}` : ''}</a>`
             ).join('');
+        },
+        async shots(notebook, sceneAlias) {
+            const data  = await _fetchData(notebook).catch(() => ({}));
+            const shots = (data.shots || [])
+                .filter(s => String(s.scene || '') === sceneAlias)
+                .sort((a, b) => (a.alias || a.shot || a.filename)
+                    .localeCompare(b.alias || b.shot || b.filename, undefined, { numeric: true }));
+            if (!shots.length) return '<div class="nb-cine-dropdown-empty">No shots</div>';
+            return shots.map(s => {
+                const label = s.alias || s.shot || s.filename;
+                return `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(label)}${s.desc ? ` — ${_esc(s.desc)}` : ''}</a>`;
+            }).join('');
         },
     };
 
@@ -1813,7 +1827,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             // the header's own render in the common case, but don't block the
             // open on a fresh fetch regardless.
             _openCineDropdown(trigger, '<div class="nb-cine-dropdown-empty">⟳</div>');
-            const html = await builder(trigger.dataset.notebook || '');
+            const html = await builder(trigger.dataset.notebook || '', trigger.dataset.cineArg || '');
             if (_cineDropdownTrigger === trigger) _cineDropdownEl.innerHTML = html;
             return;
         }
@@ -5152,16 +5166,26 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             ? `<span class="nb-specialty-pill nb-cine-shot-pill-dnie nb-cine-strip-${dnie}">${dnieLabel[dnie] || dnie}</span>`
             : '';
 
-        // LOC resolves to its real location note the same way a shot's does;
-        // falls back to a plain pill if the lookup fails or nothing matches.
-        let locField = loc ? `<span class="nb-specialty-pill">${_esc(loc)}</span>` : '';
-        if (notebook && loc) {
+        // LOC and the shot count both need the notebook's cine data -- one
+        // fetch, reused for both instead of two separate round-trips.
+        let locField  = loc ? `<span class="nb-specialty-pill">${_esc(loc)}</span>` : '';
+        let shotCount = 0;
+        if (notebook) {
             try {
                 const data = await _fetchData(notebook);
-                const lo = (data.locations || {})[loc];
-                if (lo) locField = `<a class="nb-specialty-link" href="#" data-open="${_esc(lo.selector)}" title="${_esc(lo.meta?.title || '')}">${_esc(loc)}</a>`;
-            } catch { /* keep the plain-pill fallback already set above */ }
+                if (loc) {
+                    const lo = (data.locations || {})[loc];
+                    if (lo) locField = `<a class="nb-specialty-link" href="#" data-open="${_esc(lo.selector)}" title="${_esc(lo.meta?.title || '')}">${_esc(loc)}</a>`;
+                }
+                shotCount = (data.shots || []).filter(s => String(s.scene || '') === alias).length;
+            } catch { /* locField keeps its plain-pill fallback; shotCount stays 0 */ }
         }
+
+        // Shot count doubles as a dropdown trigger, same mechanism as
+        // type:script's own scenes-count pill (_cineDropdownContent).
+        const shotsPill = shotCount
+            ? `<button class="nb-specialty-pill nb-cine-dropdown-trigger" data-cine-dropdown="shots" data-notebook="${_esc(notebook)}" data-cine-arg="${_esc(alias)}">${shotCount} shot${shotCount !== 1 ? 's' : ''}</button>`
+            : '';
 
         const wordCount = ((note.body || '').match(/\S+/g) || []).length;
         const wordCountPill = wordCount
@@ -5173,6 +5197,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
   <strong class="nb-specialty-label nb-specialty-link nb-cine-self-link" data-open="${_esc(note.selector || '')}" title="Reload this note">Scene:${alias ? _esc(alias) : _esc(note.title || '')}</strong>
   ${dniePill}
   ${locField}
+  ${shotsPill}
   <span class="nb-specialty-right">${wordCountPill}</span>
 </div>`;
     }
