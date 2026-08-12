@@ -4551,6 +4551,41 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                `<span class="nb-card-value nb-card-value-missing" title="${_esc(tooltip || 'Use FM above to enter values')}">— required —</span></div>`;
     }
 
+    // Fetch a note's own constraints-full (which fields are required) -- was
+    // production-card-only; generalized so any card can show "— required —"
+    // placeholders. Best-effort: a fetch failure just means no required-rows,
+    // not a broken card.
+    async function _fetchConstraints(selector) {
+        try {
+            const r = await fetch(`/api/note/constraints-full?selector=${encodeURIComponent(selector)}`);
+            const d = await r.json();
+            return d && !d.error ? d : {};
+        } catch { return {}; }
+    }
+
+    // _cMissingRow for every required constraint key that's currently blank/
+    // absent in `m`. A *filled* required field needs no special handling here
+    // -- it already renders through whatever normal path (customRenderer or
+    // _cAllFields' generic fallback) the card gives it; this only covers the
+    // gap _cAllFields' own null/''/false skip otherwise leaves (a blank-or-
+    // absent field never even reaches a customRenderer to begin with).
+    function _requiredRows(m, constraints, missingTip) {
+        return Object.keys(constraints || {})
+            .filter(k => constraints[k]?.required && !m[k])
+            .map(k => _cMissingRow(k, missingTip))
+            .join('');
+    }
+
+    // opts.inline tooltip text, shared by every card that supports required-
+    // rows -- same "Set in ... click the card to open it" wording production
+    // introduced for the same reason (no "above"/Changes-panel to point at
+    // when a card is embedded via {{inline: card path}}, not opened directly).
+    function _missingTip(note, opts) {
+        return opts?.inline
+            ? `Set in "${note.title || note.filename}" — click the card to open it`
+            : undefined;
+    }
+
     // Expand a block field (multiline string OR plain object) into a sub-section.
     // rowFn: optional (key, val) → html for each sub-field; defaults to _cRow.
     function _cBlock(label, v, rowFn) {
@@ -4612,7 +4647,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // ── Actor card (type: actor) ──────────────────────────────────────────────
 
-    function _renderActorCard(note) {
+    async function _renderActorCard(note, opts = {}) {
         const m    = note.meta || {};
         const name = m.title || note.title || '';
         const code = m.alias ? String(m.alias) : '';
@@ -4632,17 +4667,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             agent:   v => _cBlock('agent', v),
         });
 
+        // cast/.cast.md marks alias:/title: required -- a blank one otherwise
+        // just vanishes (see _requiredRows).
+        const constraints = await _fetchConstraints(note.selector);
+        const requiredRows = _requiredRows(m, constraints, _missingTip(note, opts));
+
         return `<div class="nb-card">` +
             `<div class="nb-card-header">${avatar}` +
             `<div><div class="nb-card-title">${_esc(name)}</div>` +
             `<div class="nb-card-sub">${_esc(sub)}</div></div></div>` +
-            `<div class="nb-card-fields">${fields}</div>` +
+            `<div class="nb-card-fields">${fields}${requiredRows}</div>` +
             `</div>${_cBody(note)}`;
     }
 
     // ── Character card (type: character) ─────────────────────────────────────
 
-    async function _renderCharacterCard(note) {
+    async function _renderCharacterCard(note, opts = {}) {
         const m    = note.meta || {};
         const name = m.title || note.title || '';
         const code = (note.filename || '').replace(/\.md$/i, '');
@@ -4651,8 +4691,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const avatar = `<div class="nb-card-avatar" style="background:${_cColor(note.title)}">${_esc(_cInitials(name))}</div>`;
         const sub    = 'Character';
 
-        let data = {};
-        try { data = await _fetchData(notebook); } catch { /* fields/cross-refs below degrade gracefully */ }
+        let data = {}, constraints = {};
+        try {
+            const [d, c] = await Promise.all([_fetchData(notebook), _fetchConstraints(note.selector)]);
+            data = d; constraints = c;
+        } catch { /* fields/cross-refs below degrade gracefully */ }
 
         // cast: <title> (<alias>) -- alias is the cast member's own filename stem;
         // resolve their real name + callsheet code instead of a bare selector link.
@@ -4679,6 +4722,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             // nothing useful against prose, which was dropping this field entirely.
             description: v => `<div class="nb-cine-sc-desc">${_esc(String(v).trim())}</div>`,
         });
+
+        // characters/.characters.md marks title: required (alias: is deliberately
+        // NOT required -- "empty = uncast" is a normal state) -- a blank one
+        // otherwise just vanishes (see _requiredRows).
+        const requiredRows = _requiredRows(m, constraints, _missingTip(note, opts));
 
         // Scenes/shots this character appears in, one line per scene -- derived
         // from each shot's own cast.actors list (the granular unit shots already
@@ -4714,7 +4762,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             `<div class="nb-card-header">${avatar}` +
             `<div><div class="nb-card-title">${_esc(name)}</div>` +
             `<div class="nb-card-sub">${_esc(sub)}</div></div></div>` +
-            `<div class="nb-card-fields">${fields}</div>` +
+            `<div class="nb-card-fields">${fields}${requiredRows}</div>` +
             crossRefHtml +
             `</div>${_cBody(note)}`;
     }
@@ -4790,7 +4838,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // ── Location card (type: location) ───────────────────────────────────────
 
-    function _renderLocationCard(note) {
+    async function _renderLocationCard(note, opts = {}) {
         const m    = note.meta || {};
         const name = m.title || note.title || '';
         const code = m.alias ? String(m.alias) : '';
@@ -4809,11 +4857,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             pin: v => v ? _cLink('pin', v, 'https://maps.google.com/?q=' + encodeURIComponent(String(v))) : '',
         });
 
+        // locations/.locations.md marks alias:/title: required -- a blank one
+        // otherwise just vanishes (see _requiredRows).
+        const constraints = await _fetchConstraints(note.selector);
+        const requiredRows = _requiredRows(m, constraints, _missingTip(note, opts));
+
         return `<div class="nb-card">` +
             `<div class="nb-card-header">${avatar}` +
             `<div><div class="nb-card-title">${_esc(name)}</div>` +
             `<div class="nb-card-sub">${_esc(sub)}</div></div></div>` +
-            `<div class="nb-card-fields">${fields}</div>` +
+            `<div class="nb-card-fields">${fields}${requiredRows}</div>` +
             `</div>${_cBody(note)}`;
     }
 
@@ -4910,13 +4963,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // roster, then a short excerpt below a divider. Deliberately no full body
     // render here -- Screenplay and Markdown views already cover the complete
     // text; this view exists to be a quick-glance summary, not a third copy.
-    async function _renderSceneCard(note) {
+    async function _renderSceneCard(note, opts = {}) {
         const m     = note.meta || {};
         const stem  = (note.filename || '').replace(/\.md$/i, '');
         const alias = m.alias ? String(m.alias) : '';
         const title = note.title ? String(note.title) : '';
         const loc   = m.loc ? String(m.loc) : '';
         const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
+
+        const constraints = await _fetchConstraints(note.selector);
 
         // Line 1: filename-stub (alias), title -- same identity convention as
         // the shot card; the header carries only the alias.
@@ -4959,6 +5014,10 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             int_ext:   () => '',
         });
 
+        // script/.script.md marks alias:/title:/loc:/day_night:/int_ext: all
+        // required -- a blank one otherwise just vanishes (see _requiredRows).
+        const requiredRows = _requiredRows(m, constraints, _missingTip(note, opts));
+
         const inner = [
             idLine    ? `<div class="nb-cine-sc-name">${_esc(idLine)}</div>` : '',
             locLine   ? `<div class="nb-cine-sc-sub">${locLine}</div>` : '',
@@ -4967,6 +5026,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             firstLine ? `<div class="nb-cine-sc-desc">${_esc(firstLine)}</div>` : '',
             firstPara ? `<div class="nb-cine-sc-desc">${_esc(firstPara)}</div>` : '',
             extraFields ? `<div class="nb-cine-card-sec"><div class="nb-cine-card-sec-lbl">other</div><div class="nb-card-fields">${extraFields}</div></div>` : '',
+            requiredRows ? `<div class="nb-card-fields">${requiredRows}</div>` : '',
         ].filter(Boolean).join('');
 
         return `<div class="nb-cine-shot-card">` +
@@ -6474,7 +6534,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Scene card',
                 types:  ['scene'],
                 detect: note => note.type === 'scene',
-                render: async note => (await _renderSceneHeader(note)) + (await _renderSceneCard(note)),
+                render: async (note, opts) => (await _renderSceneHeader(note)) + (await _renderSceneCard(note, opts)),
             },
             {
                 id:     'actor-card',
@@ -6482,7 +6542,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Actor card',
                 types:  ['actor'],
                 detect: note => note.type === 'actor',
-                render: note => _renderActorCard(note),
+                render: async (note, opts) => await _renderActorCard(note, opts),
             },
             {
                 id:     'character-card',
@@ -6490,7 +6550,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Character card',
                 types:  ['character'],
                 detect: note => note.type === 'character',
-                render: async note => await _renderCharacterCard(note),
+                render: async (note, opts) => await _renderCharacterCard(note, opts),
             },
             {
                 id:     'location-card',
@@ -6498,7 +6558,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Location card',
                 types:  ['location'],
                 detect: note => note.type === 'location',
-                render: note => _renderLocationCard(note),
+                render: async (note, opts) => await _renderLocationCard(note, opts),
             },
             {
                 id:     'production-card',
