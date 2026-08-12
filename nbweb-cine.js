@@ -159,6 +159,12 @@ button.nb-cine-actor {
     padding: 72px 80px 96px 96px;
     box-shadow: 0 4px 28px rgba(0,0,0,.5);
 }
+/* A4 (8.27" wide) is ~2.7% narrower than US Letter (8.5") -- proportional
+   scale-down of the same 680px reading width, not a literal inch conversion
+   (680px was never a literal 96dpi mapping of 8.5" to begin with). First-pass
+   approximation; expect to retune alongside the pagination work (djp: cycle
+   real afterwriting PDF output to compare and tweak for a close fit). */
+.nb-script-page.nb-script-a4 { width: 661px; min-width: 661px; }
 .nb-script-slug {
     font-weight: bold; text-transform: uppercase;
     border-bottom: 1px solid #222;
@@ -1663,7 +1669,17 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         ).join('');
     }
 
-    function _renderScript(note) {
+    // paper: is a whole-production setting, not a per-note one -- lives in the
+    // notebook's own cine: config block (.{notebook}.md) and is already part
+    // of the same /api/cine/data response every scene/shot view fetches for
+    // other reasons (data.config), so reading it here is free, not a new
+    // fetch. Mirrors app.py's api_cine_export_pdf, which reads the identical
+    // config key for the real PDF -- see that function's own comment.
+    function _paperClass(paper) {
+        return String(paper || '').toLowerCase().replace(/\s/g, '') === 'a4' ? 'nb-script-a4' : '';
+    }
+
+    function _renderScript(note, opts = {}) {
         const meta = _ownMeta(note);
         if (note.type !== 'scene') return null;
 
@@ -1672,10 +1688,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const loc = String(meta.loc      || '').toUpperCase();
         const slug     = `${ie} ${loc} — ${dn}`;
         const sceneTag = `SCENE ${meta.alias ?? ''}`;
+        const paperCls = _paperClass(opts.paper);
 
         const bodyHtml = _renderFountainTokens(_parseFountain(note.raw));
 
-        return `<div class="nb-cine-screenplay"><div class="nb-script-page">` +
+        return `<div class="nb-cine-screenplay"><div class="nb-script-page${paperCls ? ' ' + paperCls : ''}">` +
                `<div class="nb-script-slug"><span class="nb-script-scene-tag">${_esc(sceneTag)}</span>${_esc(slug)}</div>` +
                `<div class="nb-script-body">${bodyHtml}</div>` +
                `</div></div>`;
@@ -1724,12 +1741,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // djp: "as classically formatted as practical" -- bold+enlarged title is
     // the one deliberate emphasis point (CSS, see .nb-script-titlepage), no
     // attempt at exact professional vertical-centering/margins beyond that.
-    function _renderScriptTitlePage(note) {
+    function _renderScriptTitlePage(note, paper) {
         const m       = _ownMeta(note);
         const title   = (m.title || note.title || 'Untitled').toUpperCase();
         const caption = m.caption ? String(m.caption) : '';
         const author  = m.author  ? String(m.author)  : '';
         const info    = [m.draft, m.copyright ? `© ${m.copyright}` : ''].filter(Boolean).join(' · ');
+        const paperCls = _paperClass(paper);
 
         const lines = [
             `> **${title}** <`,
@@ -1740,13 +1758,14 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         ].filter(Boolean);
 
         const bodyHtml = _renderFountainTokens(_parseFountain(lines.join('\n')));
-        return `<div class="nb-cine-screenplay"><div class="nb-script-page nb-script-titlepage">${bodyHtml}</div></div>`;
+        return `<div class="nb-cine-screenplay"><div class="nb-script-page nb-script-titlepage${paperCls ? ' ' + paperCls : ''}">${bodyHtml}</div></div>`;
     }
 
     async function _renderScriptNote(note) {
-        let assembledHtml = '';
+        let assembledHtml = '', paper;
         try {
             const data   = await _fetchData(note.notebook);
+            paper        = data.config?.paper;
             const scenes = (data.scenes || [])
                 .filter(s => /^\d+$/.test(String(s.alias || '')))
                 .sort((a, b) => parseInt(a.alias) - parseInt(b.alias));
@@ -1759,11 +1778,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             );
             assembledHtml = sceneNotes
                 .filter(Boolean)
-                .map(sn => _renderScript(sn) || '')
+                .map(sn => _renderScript(sn, { paper }) || '')
                 .join('');
         } catch (_) {}
 
-        return _renderScriptTitlePage(note) + assembledHtml;
+        return _renderScriptTitlePage(note, paper) + assembledHtml;
     }
 
     // ── Script card (type: script) — vitals only, third view alongside
@@ -6657,7 +6676,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Screenplay format',
                 types:  ['scene'],
                 detect: note => note.type === 'scene',
-                render: async note => (await _renderSceneHeader(note)) + _renderScript(note),
+                render: async note => {
+                    let paper;
+                    try { paper = (await _fetchData(note.notebook)).config?.paper; } catch { /* default paper */ }
+                    return (await _renderSceneHeader(note)) + _renderScript(note, { paper });
+                },
             },
             {
                 id:     'markdown',
