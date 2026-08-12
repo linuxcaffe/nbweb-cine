@@ -4635,9 +4635,11 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     // ── Character card (type: character) ─────────────────────────────────────
 
-    function _renderCharacterCard(note) {
+    async function _renderCharacterCard(note) {
         const m    = note.meta || {};
         const name = m.title || note.title || '';
+        const code = (note.filename || '').replace(/\.md$/i, '');
+        const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
 
         const avatar = `<div class="nb-card-avatar" style="background:${_cColor(note.title)}">${_esc(_cInitials(name))}</div>`;
         const sub    = 'Character';
@@ -4650,11 +4652,41 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 : _cRow('description', v),
         });
 
+        // Scenes/shots this character appears in -- derived from each shot's own
+        // cast.actors list (the granular unit shots already carry; a scene's
+        // membership is just the union of its shots'), same _fetchData cache
+        // the shot/scene headers use.
+        let crossRefHtml = '';
+        if (notebook && code) {
+            try {
+                const data  = await _fetchData(notebook);
+                const shots = (data.shots || []).filter(s => (s.actors || []).includes(code));
+                const sceneLookup = new Map((data.scenes || []).map(sc => [String(sc.alias), sc]));
+                const sceneNums   = [...new Set(shots.map(s => s.scene).filter(Boolean))];
+
+                const sceneChips = sceneNums.map(scNum => {
+                    const sc = sceneLookup.get(String(scNum));
+                    return sc
+                        ? `<span class="nb-cine-cast-chip nb-wiki-link" data-selector="${_esc(sc.selector)}" title="${_esc(sc.synopsis || '')}">Sc.${_esc(scNum)}</span>`
+                        : `<span class="nb-cine-cast-chip">Sc.${_esc(scNum)}</span>`;
+                }).join('');
+                const shotChips = shots.map(s =>
+                    `<span class="nb-cine-cast-chip nb-wiki-link" data-selector="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(s.alias || s.shot || s.filename)}</span>`
+                ).join('');
+
+                crossRefHtml = [
+                    sceneChips ? `<div class="nb-cine-card-sec"><div class="nb-cine-card-sec-lbl">scenes</div><div class="nb-cine-sc-cast">${sceneChips}</div></div>` : '',
+                    shotChips  ? `<div class="nb-cine-card-sec"><div class="nb-cine-card-sec-lbl">shots</div><div class="nb-cine-sc-cast">${shotChips}</div></div>` : '',
+                ].filter(Boolean).join('');
+            } catch { /* best-effort -- card still renders without cross-refs */ }
+        }
+
         return `<div class="nb-card">` +
             `<div class="nb-card-header">${avatar}` +
             `<div><div class="nb-card-title">${_esc(name)}</div>` +
             `<div class="nb-card-sub">${_esc(sub)}</div></div></div>` +
             `<div class="nb-card-fields">${fields}</div>` +
+            crossRefHtml +
             `</div>${_cBody(note)}`;
     }
 
@@ -6398,7 +6430,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Character card',
                 types:  ['character'],
                 detect: note => note.type === 'character',
-                render: note => _renderCharacterCard(note),
+                render: async note => await _renderCharacterCard(note),
             },
             {
                 id:     'location-card',
