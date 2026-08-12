@@ -187,6 +187,26 @@ button.nb-cine-actor {
     cursor: pointer; display: block;
 }
 .nb-cine-shot-flag:hover { transform: rotate(-3deg) scale(1.1); }
+/* Count-pill dropdown (scenes today, shots planned) -- same visual language
+   as nbweb-specialty.js's own nav popup, kept self-contained here rather
+   than sharing its CSS across plugin boundaries. */
+.nb-cine-dropdown-trigger.nb-active { background: var(--accent); color: #fff; }
+.nb-cine-dropdown-pop {
+    position: fixed; z-index: 9100;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.28);
+    min-width: 200px; max-width: 300px;
+    max-height: 320px; overflow-y: auto;
+    padding: 4px 0; font-size: .85em;
+}
+.nb-cine-dropdown-item {
+    display: block; padding: 5px 12px;
+    color: var(--text); text-decoration: none;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    cursor: pointer; border: none; border-radius: 0;
+}
+.nb-cine-dropdown-item:hover { background: var(--bg3); color: var(--text) !important; }
+.nb-cine-dropdown-empty { padding: 8px 12px; color: var(--text-muted); text-align: center; }
 /* Character: 3.7" from left = ~37% of 10" text width */
 .nb-script-char       { margin: 1em 0 0; padding-left: 37%; text-transform: uppercase; }
 /* Dialogue: 2.5" from left, ends 2.5" from right */
@@ -1709,29 +1729,101 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
         const title    = m.title || note.title || 'Script';
 
-        let sceneCount = 0, maxAlias = 0;
+        let sceneCount = 0;
         try {
-            const data   = await _fetchData(notebook);
-            const scenes = (data.scenes || []).filter(s => /^\d+$/.test(String(s.alias || '')));
-            sceneCount   = scenes.length;
-            maxAlias     = Math.max(0, ...scenes.map(s => parseInt(s.alias)));
-        } catch { /* stats just stay at 0 */ }
+            const data = await _fetchData(notebook);
+            sceneCount = (data.scenes || []).filter(s => /^\d+$/.test(String(s.alias || ''))).length;
+        } catch { /* stat just stays at 0 */ }
 
-        const statsHtml = [
-            sceneCount ? `<span class="nb-specialty-pill">${sceneCount} scene${sceneCount !== 1 ? 's' : ''}</span>` : '',
-            maxAlias   ? `<span class="nb-specialty-pill">~${maxAlias} min est.</span>` : '',
-        ].join('');
+        // Scene count doubles as a dropdown trigger -- data-cine-dropdown="scenes"
+        // is resolved at click time by _cineDropdownContent below, not baked in
+        // here, so it's always current even if scenes change after this header
+        // rendered. Same pattern planned for a shots-count pill on type:scene's
+        // own header next.
+        const scenesPill = sceneCount
+            ? `<button class="nb-specialty-pill nb-cine-dropdown-trigger" data-cine-dropdown="scenes" data-notebook="${_esc(notebook)}">${sceneCount} scene${sceneCount !== 1 ? 's' : ''}</button>`
+            : '';
 
         return `<div class="nb-specialty-header nb-cine-script-hdr" data-selector="${_esc(note.selector || '')}">
   <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🎬</button>
   <strong class="nb-specialty-label">${_esc(title)}</strong>
-  ${statsHtml}
+  ${scenesPill}
   <span class="nb-specialty-right">
     <button class="nb-specialty-action nb-script-dl-fountain" data-notebook="${_esc(notebook)}" title="Download .fountain">⬇ .fountain</button>
     <button class="nb-specialty-action nb-script-dl-pdf" data-notebook="${_esc(notebook)}" title="Export PDF via afterwriting">⬇ PDF</button>
   </span>
 </div>`;
     }
+
+    // ── Small popover dropdown, anchored to a count-pill trigger ────────────
+    // type:script's scenes-count pill is the first use; a shots-count pill on
+    // type:scene's own header is the planned next one -- built generic (a
+    // content-builder registry keyed by data-cine-dropdown) so that one is a
+    // sibling entry in _cineDropdownContent, not a second copy of the popover
+    // mechanics. Same position/toggle/outside-click shape as nbweb-specialty's
+    // own nav popup (_showSpecialtyNav), kept as separate, self-contained code
+    // here rather than reaching into that plugin's internals.
+    let _cineDropdownEl = null, _cineDropdownTrigger = null;
+
+    function _closeCineDropdown() {
+        _cineDropdownEl?.remove(); _cineDropdownEl = null;
+        _cineDropdownTrigger?.classList.remove('nb-active'); _cineDropdownTrigger = null;
+    }
+
+    function _openCineDropdown(trigger, html) {
+        trigger.classList.add('nb-active');
+        _cineDropdownTrigger = trigger;
+        const pop = document.createElement('div');
+        pop.className = 'nb-cine-dropdown-pop';
+        pop.innerHTML = html;
+        document.body.appendChild(pop);
+        _cineDropdownEl = pop;
+        const rect = trigger.getBoundingClientRect();
+        pop.style.top  = `${Math.min(rect.bottom + 4, window.innerHeight - 320)}px`;
+        pop.style.left = `${Math.min(rect.left, window.innerWidth - 260)}px`;
+    }
+
+    // Content builders, keyed by the trigger's data-cine-dropdown value --
+    // async, called with the trigger's data-notebook. Add a sibling entry
+    // here for a new dropdown type; no other code needs to change.
+    const _cineDropdownContent = {
+        async scenes(notebook) {
+            const data   = await _fetchData(notebook).catch(() => ({}));
+            const scenes = (data.scenes || [])
+                .filter(s => /^\d+$/.test(String(s.alias || '')))
+                .sort((a, b) => parseInt(a.alias) - parseInt(b.alias));
+            if (!scenes.length) return '<div class="nb-cine-dropdown-empty">No scenes</div>';
+            return scenes.map(s =>
+                `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(s.selector)}" title="${_esc(s.synopsis || '')}">Sc.${_esc(s.alias)}${s.synopsis ? ` — ${_esc(s.synopsis)}` : ''}</a>`
+            ).join('');
+        },
+    };
+
+    document.addEventListener('click', async e => {
+        const trigger = e.target.closest('.nb-cine-dropdown-trigger');
+        if (trigger) {
+            e.preventDefault();
+            e.stopPropagation();
+            const wasOpen = _cineDropdownTrigger === trigger;
+            _closeCineDropdown();
+            if (wasOpen) return;
+            const builder = _cineDropdownContent[trigger.dataset.cineDropdown];
+            if (!builder) return;
+            // Open immediately with a spinner -- _fetchData is cache-warm from
+            // the header's own render in the common case, but don't block the
+            // open on a fresh fetch regardless.
+            _openCineDropdown(trigger, '<div class="nb-cine-dropdown-empty">⟳</div>');
+            const html = await builder(trigger.dataset.notebook || '');
+            if (_cineDropdownTrigger === trigger) _cineDropdownEl.innerHTML = html;
+            return;
+        }
+        // An item was clicked -- it navigates via the existing
+        // .nb-specialty-link[data-open] handler (nbweb-specialty.js), but this
+        // popover floats outside #nb-preview-content and won't get torn down
+        // by that navigation on its own, so close it here too.
+        if (e.target.closest('.nb-cine-dropdown-item')) { _closeCineDropdown(); return; }
+        if (_cineDropdownEl && !e.target.closest('.nb-cine-dropdown-pop')) _closeCineDropdown();
+    });
 
     // Real screenplay title page — classic shape (title, tagline, "written
     // by", author, draft/copyright), rendered through the same Fountain
