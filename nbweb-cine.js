@@ -1059,6 +1059,37 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         .replace(/&/g,'&amp;').replace(/</g,'&lt;')
         .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+    // note.meta is server-side merged (_merged_meta in app.py): annotation
+    // sidecar frontmatter fills any gap the note's own frontmatter leaves --
+    // by design, and load-bearing for non-FM file types (images, binaries)
+    // where the annotation is the *only* metadata source. But that merge is
+    // exactly why financial fields meant to live *only* in an annotation
+    // (e.g. a cast/location note's rate/cost-per sidecar) were showing up on
+    // the card -- an annotation is a deliberate second click, not something
+    // that should silently blend into the primary view. This strips note.meta
+    // back down to exactly what the note's own frontmatter defines, by keying
+    // off note.raw (the note's own unmerged file content) instead of the
+    // merged note.meta -- every cine card/header reads FM through this, never
+    // note.meta directly, so annotation-sourced fields never reach display.
+    // A note with no frontmatter block of its own (the non-FM-file case above)
+    // falls through to the merged meta unchanged -- nothing to strip down to.
+    function _ownMeta(note) {
+        const raw = note?.raw || '';
+        const fm  = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+        if (!fm) return note?.meta || {};
+        const ownKeys = new Set();
+        for (const line of fm[1].split('\n')) {
+            const km = line.match(/^([A-Za-z0-9_ -]+):/);
+            if (km) ownKeys.add(km[1].trim());
+        }
+        const meta = note?.meta || {};
+        const out  = {};
+        for (const k of Object.keys(meta)) {
+            if (ownKeys.has(k)) out[k] = meta[k];
+        }
+        return out;
+    }
+
     function _descFirst(desc) {
         return (desc || '').split('\n').find(l => l.trim()) || '';
     }
@@ -1584,7 +1615,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     function _renderScript(note) {
-        const meta = note.meta || {};
+        const meta = _ownMeta(note);
         if (note.type !== 'scene') return null;
 
         const ie  = String(meta.int_ext  || '').toUpperCase().startsWith('I') ? 'INT.' : 'EXT.';
@@ -1604,7 +1635,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Script title-page header (type: script) ──────────────────────────────
 
     async function _renderScriptNote(note) {
-        const meta    = note.meta || {};
+        const meta    = _ownMeta(note);
         const title   = meta.title || note.title || 'Untitled';
         const author  = meta.author   ? `<div class="nb-stp-byline">written by</div><div class="nb-stp-author">${_esc(meta.author)}</div>` : '';
         const info    = [meta.draft, meta.copyright ? `© ${meta.copyright}` : ''].filter(Boolean).join(' · ');
@@ -4648,7 +4679,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Actor card (type: actor) ──────────────────────────────────────────────
 
     async function _renderActorCard(note, opts = {}) {
-        const m    = note.meta || {};
+        const m    = _ownMeta(note);
         const name = m.title || note.title || '';
         const code = m.alias ? String(m.alias) : '';
 
@@ -4683,7 +4714,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Character card (type: character) ─────────────────────────────────────
 
     async function _renderCharacterCard(note, opts = {}) {
-        const m    = note.meta || {};
+        const m    = _ownMeta(note);
         const name = m.title || note.title || '';
         const code = (note.filename || '').replace(/\.md$/i, '');
         const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
@@ -4783,7 +4814,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     const _ATL_ROLES = ['director', 'exec_producer', 'producer', 'line_producer', 'dp', 'writer'];
 
     async function _renderProductionCard(note, opts = {}) {
-        const m    = note.meta || {};
+        const m    = _ownMeta(note);
         const name = m.production_company || note.title || 'Production';
 
         const avatar = `<div class="nb-card-avatar" style="background:${_cColor(name)}">${_esc(_cInitials(name))}</div>`;
@@ -4839,7 +4870,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Location card (type: location) ───────────────────────────────────────
 
     async function _renderLocationCard(note, opts = {}) {
-        const m    = note.meta || {};
+        const m    = _ownMeta(note);
         const name = m.title || note.title || '';
         const code = m.alias ? String(m.alias) : '';
 
@@ -4878,7 +4909,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // day is a shot-level scheduling concept (a scene can span several shot
     // days), not something a scene note itself carries.
     async function _renderSceneHeader(note) {
-        const m     = note.meta || {};
+        const m     = _ownMeta(note);
         const alias = m.alias != null ? String(m.alias) : '';
         const ie    = (m.int_ext   || '').charAt(0).toUpperCase();
         const dn    = (m.day_night || '').charAt(0).toUpperCase();
@@ -4964,7 +4995,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // render here -- Screenplay and Markdown views already cover the complete
     // text; this view exists to be a quick-glance summary, not a third copy.
     async function _renderSceneCard(note, opts = {}) {
-        const m     = note.meta || {};
+        const m     = _ownMeta(note);
         const stem  = (note.filename || '').replace(/\.md$/i, '');
         const alias = m.alias ? String(m.alias) : '';
         const title = note.title ? String(note.title) : '';
@@ -5093,7 +5124,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // the master type:storyline note by design (djp, 2026-08-06) -- not the
     // same header, not a reuse of storyline's board/story/script machinery.
     async function _renderPlotlineHeader(note) {
-        const m        = note.meta || {};
+        const m        = _ownMeta(note);
         const color    = m.color ? String(m.color) : '';
         const seq      = m.seq != null && m.seq !== '' ? String(m.seq) : '';
         const notebook = (note.selector || '').split(':')[0];
@@ -5121,7 +5152,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     function _renderPlotlineCard(note) {
-        const m = note.meta || {};
+        const m = _ownMeta(note);
         const fields = _cAllFields(m, {
             // title/color/seq now live in _renderPlotlineHeader above.
             title: () => '',
@@ -5378,7 +5409,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     async function _showSlate(note) {
-        const m  = note.meta || {};
+        const m  = _ownMeta(note);
         const ef = note.effective_fm || {};
         const alias    = m.alias ? String(m.alias) : '';
         const scene    = m.scene != null ? String(m.scene) : '';
@@ -6025,7 +6056,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // (cached, see _fetchData); Day resolves by the schedule/day_N.md filename
     // convention with no server lookup, so it gets a generic tooltip, not a real title.
     async function _renderShotHeader(note) {
-        const m     = note.meta || {};
+        const m     = _ownMeta(note);
         const alias = m.alias != null ? String(m.alias) : '';
         const scene = m.scene != null ? String(m.scene) : '';
         const ie    = (m.int_ext   || '').charAt(0).toUpperCase();
@@ -6086,7 +6117,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     function _renderShotCard(note) {
-        const m     = note.meta || {};
+        const m     = _ownMeta(note);
         const stem  = (note.filename || '').replace(/\.md$/i, '');
         const alias = m.alias ? String(m.alias) : '';
         const title = note.title ? String(note.title) : '';
@@ -6165,7 +6196,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Day card (type: day) ─────────────────────────────────────────────────
 
     function _renderDayCard(note) {
-        const m      = note.meta || {};
+        const m      = _ownMeta(note);
         const dayNo  = m.day != null ? String(m.day) : '';
         const date   = (m.date || '').trim();
         const hours  = _parseBlock(typeof m.hours === 'string' ? m.hours : '');
@@ -6207,7 +6238,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // ── Resource card (type: resource) ───────────────────────────────────────
 
     function _renderResourceCard(note) {
-        const m    = note.meta || {};
+        const m    = _ownMeta(note);
         const name = (m.resource || note.title || '').trim();
         const code = (m.code || '').trim();
         const unit = (m.unit || 'day').trim().toLowerCase();
@@ -6431,7 +6462,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 types:  ['story'],
                 detect: note => note.type === 'story',
                 render: async note => {
-                    const m        = note.meta || {};
+                    const m        = _ownMeta(note);
                     const desc     = m.desc     ? String(m.desc).trim()     : '';
                     const scenes   = m.scenes   ? String(m.scenes).trim()   : '';
                     // plotline/story_seq now live in _renderStoryHeader above.
@@ -6465,7 +6496,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 types:  ['milestone'],
                 detect: note => note.type === 'milestone',
                 render: async note => {
-                    const m      = note.meta || {};
+                    const m      = _ownMeta(note);
                     // milestone_seq/story_seq now live in _renderMilestoneHeader above.
                     const skip   = new Set(['title','type','milestone_seq','story_seq','color','lock']);
                     const extras = Object.entries(m).filter(([k,v]) => !skip.has(k) && v != null && String(v).trim());
