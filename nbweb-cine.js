@@ -956,6 +956,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
    .nb-specialty-link's pill chrome back down to .nb-specialty-label's look. */
 .nb-cine-self-link { color: inherit; font-size: inherit; padding: 0; border: none; border-radius: 0; cursor: pointer; }
 .nb-cine-self-link:hover { background: none; color: inherit !important; text-decoration: underline; }
+/* Movie-title label leading shot/scene headers -- quiet by design, shouldn't
+   compete with the header's own Scene:/Shot: identity label for attention. */
+.nb-cine-movie-title {
+    color: var(--text-muted); font-size: .85em; opacity: .75;
+    padding: 1px 4px; border: none; border-radius: 0;
+}
+.nb-cine-movie-title:hover { background: none; color: var(--accent) !important; opacity: 1; }
 /* Fixed dark text -- all four dnie backgrounds above are light pastels
    regardless of app theme, so var(--text-muted) (near-invisible on light
    bg in dark mode) is wrong here. Pre-existing bug on the shot header;
@@ -1132,6 +1139,19 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             if (ownKeys.has(k)) out[k] = meta[k];
         }
         return out;
+    }
+
+    // Small, quiet clickable production-title label leading a specialty
+    // header -- narrative-bound types only (shot, scene today; not actor/
+    // location, which aren't tied to one specific script's story -- djp).
+    // data.script comes from /api/cine/data (the type:script cover note's
+    // {selector, title}, added alongside this), null if the notebook has no
+    // cover note yet. Plain text, not a pill -- shouldn't compete with the
+    // header's own identity label for attention.
+    function _movieTitleLabel(data) {
+        const script = data?.script;
+        if (!script) return '';
+        return `<a class="nb-specialty-link nb-cine-movie-title" href="#" data-open="${_esc(script.selector)}" title="Open ${_esc(script.title)}">${_esc(script.title)}</a>`;
     }
 
     function _descFirst(desc) {
@@ -5166,13 +5186,15 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             ? `<span class="nb-specialty-pill nb-cine-shot-pill-dnie nb-cine-strip-${dnie}">${dnieLabel[dnie] || dnie}</span>`
             : '';
 
-        // LOC and the shot count both need the notebook's cine data -- one
-        // fetch, reused for both instead of two separate round-trips.
-        let locField  = loc ? `<span class="nb-specialty-pill">${_esc(loc)}</span>` : '';
-        let shotCount = 0;
+        // LOC, the shot count, and the movie-title label all need the
+        // notebook's cine data -- one fetch, reused for all three.
+        let locField   = loc ? `<span class="nb-specialty-pill">${_esc(loc)}</span>` : '';
+        let shotCount  = 0;
+        let movieTitle = '';
         if (notebook) {
             try {
                 const data = await _fetchData(notebook);
+                movieTitle = _movieTitleLabel(data);
                 if (loc) {
                     const lo = (data.locations || {})[loc];
                     if (lo) locField = `<a class="nb-specialty-link" href="#" data-open="${_esc(lo.selector)}" title="${_esc(lo.meta?.title || '')}">${_esc(loc)}</a>`;
@@ -5194,6 +5216,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         return `<div class="nb-specialty-header nb-cine-scene-hdr" data-selector="${_esc(note.selector || '')}" data-dnie="${_esc(dnie)}">
   <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🎞</button>
+  ${movieTitle}
   <strong class="nb-specialty-label nb-specialty-link nb-cine-self-link" data-open="${_esc(note.selector || '')}" title="Reload this note">Scene:${alias ? _esc(alias) : _esc(note.title || '')}</strong>
   ${dniePill}
   ${locField}
@@ -6335,12 +6358,16 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             : '';
 
         // Scene + LOC resolve to real target notes; fall back to plain text/pill
-        // if the lookup fails or nothing matches.
+        // if the lookup fails or nothing matches. Movie title needs the same
+        // fetch regardless of whether scene/loc are even set, so it's no
+        // longer conditional on either.
         let sceneField = scene ? _esc(`Scene:${scene}`) : '';
         let locField   = loc   ? `<span class="nb-specialty-pill">${_esc(loc)}</span>` : '';
-        if (notebook && (scene || loc)) {
+        let movieTitle = '';
+        if (notebook) {
             try {
                 const data = await _fetchData(notebook);
+                movieTitle = _movieTitleLabel(data);
                 if (scene) {
                     const sc = (data.scenes || []).find(s => String(s.alias) === scene);
                     sceneField = sc
@@ -6359,6 +6386,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         return `<div class="nb-specialty-header nb-cine-shot-hdr" data-selector="${_esc(note.selector || '')}" data-dnie="${_esc(dnie)}">
   <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🎬</button>
+  ${movieTitle}
   ${sceneField}
   <strong class="nb-specialty-label">Shot:${alias ? _esc(alias) : _esc(note.title || '')}</strong>
   ${dniePill}
