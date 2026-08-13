@@ -1831,6 +1831,81 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 return `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(label)}${s.desc ? ` — ${_esc(s.desc)}` : ''}</a>`;
             }).join('');
         },
+        // arg = character filename stem
+        async charScenes(notebook, code) {
+            const data  = await _fetchData(notebook).catch(() => ({}));
+            const shots = (data.shots || []).filter(s => (s.actors || []).includes(code));
+            const sceneLookup = new Map((data.scenes || []).map(sc => [String(sc.alias), sc]));
+            const sceneNums = [...new Set(shots.map(s => String(s.scene || '')))]
+                .filter(Boolean)
+                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+            if (!sceneNums.length) return '<div class="nb-cine-dropdown-empty">No scenes</div>';
+            return sceneNums.map(n => {
+                const sc = sceneLookup.get(n);
+                return sc
+                    ? `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(sc.selector)}" title="${_esc(sc.synopsis || '')}">Sc.${_esc(n)}</a>`
+                    : `<span class="nb-cine-dropdown-item">Sc.${_esc(n)}</span>`;
+            }).join('');
+        },
+        // arg = character filename stem
+        async charShots(notebook, code) {
+            const data  = await _fetchData(notebook).catch(() => ({}));
+            const shots = (data.shots || [])
+                .filter(s => (s.actors || []).includes(code))
+                .sort((a, b) => (a.alias || a.shot || a.filename)
+                    .localeCompare(b.alias || b.shot || b.filename, undefined, { numeric: true }));
+            if (!shots.length) return '<div class="nb-cine-dropdown-empty">No shots</div>';
+            return shots.map(s => {
+                const label = s.alias || s.shot || s.filename;
+                return `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(label)}</a>`;
+            }).join('');
+        },
+        // arg = location alias code (e.g. "LG")
+        async locScenes(notebook, code) {
+            const data   = await _fetchData(notebook).catch(() => ({}));
+            const scenes = (data.scenes || [])
+                .filter(s => s.loc === code)
+                .sort((a, b) => a.alias.localeCompare(b.alias, undefined, { numeric: true }));
+            if (!scenes.length) return '<div class="nb-cine-dropdown-empty">No scenes</div>';
+            return scenes.map(s =>
+                `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(s.selector)}" title="${_esc(s.synopsis || '')}">Sc.${_esc(s.alias)}${s.synopsis ? ` — ${_esc(s.synopsis)}` : ''}</a>`
+            ).join('');
+        },
+        // arg = location alias code
+        async locShots(notebook, code) {
+            const data  = await _fetchData(notebook).catch(() => ({}));
+            const shots = (data.shots || [])
+                .filter(s => s.loc === code)
+                .sort((a, b) => (a.alias || a.shot || a.filename)
+                    .localeCompare(b.alias || b.shot || b.filename, undefined, { numeric: true }));
+            if (!shots.length) return '<div class="nb-cine-dropdown-empty">No shots</div>';
+            return shots.map(s => {
+                const label = s.alias || s.shot || s.filename;
+                return `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(label)}</a>`;
+            }).join('');
+        },
+        // arg = shoot day number (string)
+        async dayShots(notebook, dayNo) {
+            const data  = await _fetchData(notebook).catch(() => ({}));
+            const shots = (data.shots || [])
+                .filter(s => String(s.day) === dayNo)
+                .sort((a, b) => (a.seq ?? 999) - (b.seq ?? 999));
+            if (!shots.length) return '<div class="nb-cine-dropdown-empty">No shots</div>';
+            return shots.map(s => {
+                const label = s.alias || s.shot || s.filename;
+                return `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(label)}</a>`;
+            }).join('');
+        },
+        // arg = actor filename stem -- reverse lookup, which character(s)
+        // this real actor is cast as (characters/*.md's own alias: points here).
+        async roles(notebook, actorStem) {
+            const data  = await _fetchData(notebook).catch(() => ({}));
+            const roles = Object.values(data.characters || {}).filter(c => c.meta?.alias === actorStem);
+            if (!roles.length) return '<div class="nb-cine-dropdown-empty">No roles</div>';
+            return roles.map(c =>
+                `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(c.selector)}">${_esc(c.meta?.title || c.selector)}</a>`
+            ).join('');
+        },
     };
 
     document.addEventListener('click', async e => {
@@ -4938,19 +5013,41 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             : '';
     }
 
-    // ── Actor card (type: actor) ──────────────────────────────────────────────
+    // ── Actor header + card (type: actor) — no movie-title (djp: actor isn't
+    // tied to one specific script's story, unlike shot/scene/character). Roles
+    // pill is a reverse lookup -- which character(s) this real actor is cast
+    // as (a character's own alias: points back to this actor's filename stem).
+    async function _renderActorHeader(note) {
+        const m        = _ownMeta(note);
+        const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
+        const code     = m.alias ? String(m.alias) : '';
+        const stem     = (note.filename || '').replace(/\.md$/i, '');
+
+        let roleCount = 0;
+        if (notebook && stem) {
+            try {
+                const data = await _fetchData(notebook);
+                roleCount = Object.values(data.characters || {}).filter(c => c.meta?.alias === stem).length;
+            } catch { /* stat just stays 0 */ }
+        }
+        const rolesPill = roleCount
+            ? `<button class="nb-specialty-pill nb-cine-dropdown-trigger" data-cine-dropdown="roles" data-notebook="${_esc(notebook)}" data-cine-arg="${_esc(stem)}">${roleCount} role${roleCount !== 1 ? 's' : ''}</button>`
+            : '';
+
+        return `<div class="nb-specialty-header nb-cine-actor-hdr" data-selector="${_esc(note.selector || '')}">
+  <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🧑</button>
+  <strong class="nb-specialty-label">${code ? _esc(code) : _esc(m.title || note.title || 'Actor')}</strong>
+  ${rolesPill}
+</div>`;
+    }
 
     async function _renderActorCard(note, opts = {}) {
-        const m    = _ownMeta(note);
-        const name = m.title || note.title || '';
-        const code = m.alias ? String(m.alias) : '';
-
-        const avatar = `<div class="nb-card-avatar" style="background:${_cColor(name)}">${_esc(_cInitials(name))}</div>`;
-        const sub    = ['Actor', code ? `code: ${code}` : ''].filter(Boolean).join(' · ');
+        const m = _ownMeta(note);
 
         const fields = _cAllFields(m, {
             title:   v => _cRow('title', v),
-            alias:   v => _cRow('alias', v),
+            // alias (code) already shows in the header.
+            alias:   () => '',
             phone:   v => _cLink('phone', v, 'tel:' + String(v).replace(/\s/g, '')),
             contact: v => _cBlock('contact', v, (k, bv) => {
                 if (k === 'email') return _cLink('email', bv, 'mailto:' + bv);
@@ -4966,29 +5063,54 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const requiredRows = _requiredRows(m, constraints, _missingTip(note, opts));
 
         return `<div class="nb-card">` +
-            `<div class="nb-card-header">${avatar}` +
-            `<div><div class="nb-card-title">${_esc(name)}</div>` +
-            `<div class="nb-card-sub">${_esc(sub)}</div></div></div>` +
             `<div class="nb-card-fields">${fields}${requiredRows}</div>` +
             `</div>${_cBody(note)}`;
     }
 
-    // ── Character card (type: character) ─────────────────────────────────────
-
-    async function _renderCharacterCard(note, opts = {}) {
-        const m    = _ownMeta(note);
-        const name = m.title || note.title || '';
-        const code = (note.filename || '').replace(/\.md$/i, '');
+    // ── Character header + card (type: character) — scenes/shots cross-ref
+    // moved here from the card as dropdown pills (same mechanism as scene's
+    // own shots pill), decluttering the card down to cast + description.
+    async function _renderCharacterHeader(note) {
+        const m        = _ownMeta(note);
+        const name     = m.title || note.title || '';
+        const code     = (note.filename || '').replace(/\.md$/i, '');
         const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
 
-        const avatar = `<div class="nb-card-avatar" style="background:${_cColor(note.title)}">${_esc(_cInitials(name))}</div>`;
-        const sub    = 'Character';
+        let movieTitle = '', sceneCount = 0, shotCount = 0;
+        if (notebook) {
+            try {
+                const data = await _fetchData(notebook);
+                movieTitle = _movieTitleLabel(data);
+                const shots = (data.shots || []).filter(s => (s.actors || []).includes(code));
+                shotCount   = shots.length;
+                sceneCount  = new Set(shots.map(s => String(s.scene || '')).filter(Boolean)).size;
+            } catch { /* stats stay 0 */ }
+        }
+        const scenesPill = sceneCount
+            ? `<button class="nb-specialty-pill nb-cine-dropdown-trigger" data-cine-dropdown="charScenes" data-notebook="${_esc(notebook)}" data-cine-arg="${_esc(code)}">${sceneCount} scene${sceneCount !== 1 ? 's' : ''}</button>`
+            : '';
+        const shotsPill = shotCount
+            ? `<button class="nb-specialty-pill nb-cine-dropdown-trigger" data-cine-dropdown="charShots" data-notebook="${_esc(notebook)}" data-cine-arg="${_esc(code)}">${shotCount} shot${shotCount !== 1 ? 's' : ''}</button>`
+            : '';
+
+        return `<div class="nb-specialty-header nb-cine-character-hdr" data-selector="${_esc(note.selector || '')}">
+  <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🎭</button>
+  ${movieTitle}
+  <strong class="nb-specialty-label">${_esc(name || code)}</strong>
+  ${scenesPill}
+  ${shotsPill}
+</div>`;
+    }
+
+    async function _renderCharacterCard(note, opts = {}) {
+        const m = _ownMeta(note);
+        const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
 
         let data = {}, constraints = {};
         try {
             const [d, c] = await Promise.all([_fetchData(notebook), _fetchConstraints(note.selector)]);
             data = d; constraints = c;
-        } catch { /* fields/cross-refs below degrade gracefully */ }
+        } catch { /* fields below degrade gracefully */ }
 
         // cast: <title> (<alias>) -- alias is the cast member's own filename stem;
         // resolve their real name + callsheet code instead of a bare selector link.
@@ -5005,9 +5127,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         }
 
         const fields = _cAllFields(m, {
-            // type: is a global housekeeping suppression (_C_SCHEMA_KEYS). title:
-            // already shows in the card header (.nb-card-title) -- suppress here
-            // too so it doesn't also appear as a generic row below.
+            // title already shows in the header.
             title:       () => '',
             alias:       () => castRowHtml,
             // Plain prose line, not _cBlock -- description is free text, not
@@ -5021,42 +5141,8 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // otherwise just vanishes (see _requiredRows).
         const requiredRows = _requiredRows(m, constraints, _missingTip(note, opts));
 
-        // Scenes/shots this character appears in, one line per scene -- derived
-        // from each shot's own cast.actors list (the granular unit shots already
-        // carry), sorted numeric-aware by alias throughout (localeCompare's
-        // numeric option, so "10a" sorts after "2a" rather than before it).
-        let crossRefHtml = '';
-        if (code) {
-            const shots = (data.shots || []).filter(s => (s.actors || []).includes(code));
-            const sceneLookup = new Map((data.scenes || []).map(sc => [String(sc.alias), sc]));
-            const byScene = new Map();
-            for (const s of shots) {
-                const key = String(s.scene || '');
-                if (!byScene.has(key)) byScene.set(key, []);
-                byScene.get(key).push(s);
-            }
-            const sceneKeys = [...byScene.keys()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
-            crossRefHtml = sceneKeys.map(scNum => {
-                const sc = sceneLookup.get(scNum);
-                const sceneLabel = sc
-                    ? `<span class="nb-wiki-link" data-selector="${_esc(sc.selector)}" title="${_esc(sc.synopsis || '')}">Scene:${_esc(scNum)}</span>`
-                    : `Scene:${_esc(scNum)}`;
-                const shotSpans = byScene.get(scNum)
-                    .sort((a, b) => (a.alias || a.shot || a.filename)
-                        .localeCompare(b.alias || b.shot || b.filename, undefined, { numeric: true }))
-                    .map(s => `<span class="nb-wiki-link" data-selector="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(s.alias || s.shot || s.filename)}</span>`)
-                    .join('  ');
-                return `<div class="nb-cine-sc-desc">${sceneLabel} -- ${shotSpans}</div>`;
-            }).join('');
-        }
-
         return `<div class="nb-card">` +
-            `<div class="nb-card-header">${avatar}` +
-            `<div><div class="nb-card-title">${_esc(name)}</div>` +
-            `<div class="nb-card-sub">${_esc(sub)}</div></div></div>` +
             `<div class="nb-card-fields">${fields}${requiredRows}</div>` +
-            crossRefHtml +
             `</div>${_cBody(note)}`;
     }
 
@@ -5075,11 +5161,22 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
     const _ATL_ROLES = ['director', 'exec_producer', 'producer', 'line_producer', 'dp', 'writer'];
 
+    // No movie-title lead here (djp's earlier scoping already excludes actor/
+    // location as not narrative-bound; production is the whole notebook's own
+    // umbrella identity, not a thing that belongs *to* a script -- pointing it
+    // at itself would be circular).
+    function _renderProductionHeader(note) {
+        const m        = _ownMeta(note);
+        const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
+        const name     = m.production_company || note.title || 'Production';
+        return `<div class="nb-specialty-header nb-cine-production-hdr" data-selector="${_esc(note.selector || '')}">
+  <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🎬</button>
+  <strong class="nb-specialty-label">${_esc(name)}</strong>
+</div>`;
+    }
+
     async function _renderProductionCard(note, opts = {}) {
         const m    = _ownMeta(note);
-        const name = m.production_company || note.title || 'Production';
-
-        const avatar = `<div class="nb-card-avatar" style="background:${_cColor(name)}">${_esc(_cInitials(name))}</div>`;
 
         let cast = {}, constraints = {};
         try {
@@ -5109,7 +5206,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         const fields = _cAllFields(m, {
             // type:/access:/lock: are global housekeeping suppressions (_C_SCHEMA_KEYS).
-            production_company: () => '',   // already the card title
+            production_company: () => '',   // already the header label
             phone:              v => _cLink('phone', v, 'tel:' + String(v).replace(/\s/g, '')),
             email:              v => _cLink('email', v, 'mailto:' + v),
             copyright:          v => _cRow('copyright', `© ${v}`),
@@ -5122,27 +5219,47 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         });
 
         return `<div class="nb-card">` +
-            `<div class="nb-card-header">${avatar}` +
-            `<div><div class="nb-card-title">${_esc(name)}</div>` +
-            `<div class="nb-card-sub">Production</div></div></div>` +
             `<div class="nb-card-fields">${fields}${atlRows}</div>` +
             `</div>${_cBody(note)}`;
     }
 
-    // ── Location card (type: location) ───────────────────────────────────────
+    // ── Location header + card (type: location) — no movie-title (djp: not
+    // narrative-bound). Scenes/shots pills mirror the same pattern as
+    // character's -- which scenes/shots actually use this location.
+    async function _renderLocationHeader(note) {
+        const m        = _ownMeta(note);
+        const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
+        const code     = m.alias ? String(m.alias) : '';
+
+        let sceneCount = 0, shotCount = 0;
+        if (notebook && code) {
+            try {
+                const data = await _fetchData(notebook);
+                sceneCount = (data.scenes || []).filter(s => s.loc === code).length;
+                shotCount  = (data.shots  || []).filter(s => s.loc === code).length;
+            } catch { /* stats stay 0 */ }
+        }
+        const scenesPill = sceneCount
+            ? `<button class="nb-specialty-pill nb-cine-dropdown-trigger" data-cine-dropdown="locScenes" data-notebook="${_esc(notebook)}" data-cine-arg="${_esc(code)}">${sceneCount} scene${sceneCount !== 1 ? 's' : ''}</button>`
+            : '';
+        const shotsPill = shotCount
+            ? `<button class="nb-specialty-pill nb-cine-dropdown-trigger" data-cine-dropdown="locShots" data-notebook="${_esc(notebook)}" data-cine-arg="${_esc(code)}">${shotCount} shot${shotCount !== 1 ? 's' : ''}</button>`
+            : '';
+
+        return `<div class="nb-specialty-header nb-cine-location-hdr" data-selector="${_esc(note.selector || '')}">
+  <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">📍</button>
+  <strong class="nb-specialty-label">${code ? _esc(code) : _esc(m.title || note.title || 'Location')}</strong>
+  ${scenesPill}
+  ${shotsPill}
+</div>`;
+    }
 
     async function _renderLocationCard(note, opts = {}) {
-        const m    = _ownMeta(note);
-        const name = m.title || note.title || '';
-        const code = m.alias ? String(m.alias) : '';
-
-        const avatar = `<div class="nb-card-avatar" style="background:${_cColor(name)}">${_esc(code || _cInitials(name))}</div>`;
-        const sub    = 'Location';
+        const m = _ownMeta(note);
 
         const fields = _cAllFields(m, {
-            // title/alias already show -- title as the bold card title, alias
-            // (code) inside the avatar dot -- so suppress both here.
-            title:   () => '',
+            title:   v => _cRow('title', v),
+            // alias (code) already shows in the header.
             alias:   () => '',
             address: v => {
                 const mq = 'https://maps.google.com/?q=' + encodeURIComponent(String(v));
@@ -5158,9 +5275,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         const requiredRows = _requiredRows(m, constraints, _missingTip(note, opts));
 
         return `<div class="nb-card">` +
-            `<div class="nb-card-header">${avatar}` +
-            `<div><div class="nb-card-title">${_esc(name)}</div>` +
-            `<div class="nb-card-sub">${_esc(sub)}</div></div></div>` +
             `<div class="nb-card-fields">${fields}${requiredRows}</div>` +
             `</div>${_cBody(note)}`;
     }
@@ -6476,17 +6590,40 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 </div>`;
     }
 
-    // ── Day card (type: day) ─────────────────────────────────────────────────
+    // ── Day header + card (type: day) — movie-title shown (djp added day:
+    // to the narrative-bound list explicitly). Shots pill lists everything
+    // scheduled for this day, sorted by seq (shoot order), not alias.
+    async function _renderDayHeader(note) {
+        const m        = _ownMeta(note);
+        const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
+        const dayNo    = m.day != null ? String(m.day) : '';
+        const date     = (m.date || '').trim();
+
+        let movieTitle = '', shotCount = 0;
+        if (notebook) {
+            try {
+                const data = await _fetchData(notebook);
+                movieTitle = _movieTitleLabel(data);
+                shotCount  = (data.shots || []).filter(s => String(s.day) === dayNo).length;
+            } catch { /* stat stays 0 */ }
+        }
+        const datePill  = date ? `<span class="nb-specialty-pill">${_esc(date)}</span>` : `<span class="nb-specialty-pill" style="opacity:.6">unscheduled</span>`;
+        const shotsPill = shotCount
+            ? `<button class="nb-specialty-pill nb-cine-dropdown-trigger" data-cine-dropdown="dayShots" data-notebook="${_esc(notebook)}" data-cine-arg="${_esc(dayNo)}">${shotCount} shot${shotCount !== 1 ? 's' : ''}</button>`
+            : '';
+
+        return `<div class="nb-specialty-header nb-cine-day-hdr" data-selector="${_esc(note.selector || '')}">
+  <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">📅</button>
+  ${movieTitle}
+  <strong class="nb-specialty-label">Day:${_esc(dayNo || '?')}</strong>
+  ${datePill}
+  ${shotsPill}
+</div>`;
+    }
 
     function _renderDayCard(note) {
         const m      = _ownMeta(note);
-        const dayNo  = m.day != null ? String(m.day) : '';
-        const date   = (m.date || '').trim();
         const hours  = _parseBlock(typeof m.hours === 'string' ? m.hours : '');
-
-        const dateHtml = date
-            ? `<div class="nb-card-row"><span class="nb-card-label">date</span><span class="nb-card-value">${_esc(date)}</span></div>`
-            : `<div class="nb-card-row"><span class="nb-card-label">date</span><span class="nb-card-value" style="color:var(--text-muted);font-style:italic">unscheduled</span></div>`;
 
         const hoursRows = Object.entries(hours)
             .filter(([, v]) => v != null && v !== '')
@@ -6498,32 +6635,37 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             : '';
 
         const extraFields = _cAllFields(m, {
-            // type: is a global housekeeping suppression (_C_SCHEMA_KEYS).
+            // day/date already show in the header.
             day:   () => '',
             date:  () => '',
             hours: () => '',
         });
 
-        const fields = [dateHtml, hoursHtml, extraFields].filter(Boolean).join('');
+        const fields = [hoursHtml, extraFields].filter(Boolean).join('');
 
         const bodyHtml = (note.body || '').trim()
             ? `<div class="nb-card-body">${NbMain.renderMarkdown(note.body, note.selector)}</div>` : '';
 
         return `<div class="nb-cine-shot-card">` +
-            `<div class="nb-card nb-cine-card-fm">` +
-            `<div class="nb-card-header"><div class="nb-card-avatar" style="background:var(--accent)">${_esc(dayNo || '?')}</div>` +
-            `<div><div class="nb-card-title">Day ${_esc(dayNo || '—')}</div>` +
-            `<div class="nb-card-sub">${date ? _esc(date) : 'Unscheduled'}</div></div></div>` +
-            `<div class="nb-card-fields">${fields}</div></div>` +
+            (fields ? `<div class="nb-card nb-cine-card-fm"><div class="nb-card-fields">${fields}</div></div>` : '') +
             `${bodyHtml}</div>`;
     }
 
-    // ── Resource card (type: resource) ───────────────────────────────────────
+    // ── Resource header + card (type: resource) — no movie-title (logistics/
+    // budget item, not narrative-bound, same reasoning as actor/location).
+    function _renderResourceHeader(note) {
+        const m        = _ownMeta(note);
+        const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
+        const code     = (m.code || '').trim();
+        const name     = (m.resource || note.title || '').trim();
+        return `<div class="nb-specialty-header nb-cine-resource-hdr" data-selector="${_esc(note.selector || '')}">
+  <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🎁</button>
+  <strong class="nb-specialty-label">${code ? _esc(code) : _esc(name || 'Resource')}</strong>
+</div>`;
+    }
 
     function _renderResourceCard(note) {
         const m    = _ownMeta(note);
-        const name = (m.resource || note.title || '').trim();
-        const code = (m.code || '').trim();
         const unit = (m.unit || 'day').trim().toLowerCase();
         const hoursType = (m.hours_type || '').trim();
 
@@ -6532,9 +6674,9 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
             : unit;
 
         const fields = _cAllFields(m, {
-            // type:/lock: are global housekeeping suppressions (_C_SCHEMA_KEYS).
-            resource:   () => '',
-            code:       v  => _cRow('code', v),
+            resource:   v => _cRow('resource', v),
+            // code already shows in the header.
+            code:       () => '',
             supplier:   v  => _cRow('supplier', v),
             unit:       () => _cRow('unit', unitDisplay),
             hours_type: () => '',          // folded into unit row above
@@ -6548,10 +6690,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 
         return `<div class="nb-cine-shot-card">` +
             `<div class="nb-card nb-cine-card-fm">` +
-            `<div class="nb-card-header">` +
-            `<div class="nb-card-avatar" style="background:${_cColor(code)}">${_esc(_cInitials(code))}</div>` +
-            `<div><div class="nb-card-title">${_esc(name)}</div>` +
-            `<div class="nb-card-sub">${_esc(code)}</div></div></div>` +
             `<div class="nb-card-fields">${fields}</div></div>` +
             `${bodyHtml}</div>`;
     }
@@ -6611,6 +6749,12 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     window.NbSpecialty?.register?.('shot', { icon: '🎬', label: 'Shot', noRender: true });
     window.NbSpecialty?.register?.('scene', { icon: '🎞', label: 'Scene', noRender: true });
     window.NbSpecialty?.register?.('script', { icon: '🎬', label: 'Script', noRender: true });
+    window.NbSpecialty?.register?.('character', { icon: '🎭', label: 'Character', noRender: true });
+    window.NbSpecialty?.register?.('actor', { icon: '🧑', label: 'Actor', noRender: true });
+    window.NbSpecialty?.register?.('location', { icon: '📍', label: 'Location', noRender: true });
+    window.NbSpecialty?.register?.('production', { icon: '🎬', label: 'Production', noRender: true });
+    window.NbSpecialty?.register?.('day', { icon: '📅', label: 'Day', noRender: true });
+    window.NbSpecialty?.register?.('resource', { icon: '🎁', label: 'Resource', noRender: true });
 
     NbWeb.registerModule('cine', {
         label:       'NbWeb-cine',
@@ -6870,7 +7014,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Actor card',
                 types:  ['actor'],
                 detect: note => note.type === 'actor',
-                render: async (note, opts) => await _renderActorCard(note, opts),
+                render: async (note, opts) => (await _renderActorHeader(note)) + (await _renderActorCard(note, opts)),
             },
             {
                 id:     'character-card',
@@ -6878,7 +7022,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Character card',
                 types:  ['character'],
                 detect: note => note.type === 'character',
-                render: async (note, opts) => await _renderCharacterCard(note, opts),
+                render: async (note, opts) => (await _renderCharacterHeader(note)) + (await _renderCharacterCard(note, opts)),
             },
             {
                 id:     'location-card',
@@ -6886,7 +7030,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Location card',
                 types:  ['location'],
                 detect: note => note.type === 'location',
-                render: async (note, opts) => await _renderLocationCard(note, opts),
+                render: async (note, opts) => (await _renderLocationHeader(note)) + (await _renderLocationCard(note, opts)),
             },
             {
                 id:     'production-card',
@@ -6894,7 +7038,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Production card',
                 types:  ['production'],
                 detect: note => note.type === 'production',
-                render: (note, opts) => _renderProductionCard(note, opts),
+                render: async (note, opts) => _renderProductionHeader(note) + (await _renderProductionCard(note, opts)),
             },
             {
                 id:     'day-card',
@@ -6902,7 +7046,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Day card',
                 types:  ['day'],
                 detect: note => note.type === 'day',
-                render: note => _renderDayCard(note),
+                render: async note => (await _renderDayHeader(note)) + _renderDayCard(note),
             },
             {
                 id:     'resource-card',
@@ -6910,7 +7054,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 label:  'Resource card',
                 types:  ['resource'],
                 detect: note => note.type === 'resource',
-                render: note => _renderResourceCard(note),
+                render: note => _renderResourceHeader(note) + _renderResourceCard(note),
             },
         ],
 
