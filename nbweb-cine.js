@@ -1831,35 +1831,6 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
                 return `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(label)}${s.desc ? ` — ${_esc(s.desc)}` : ''}</a>`;
             }).join('');
         },
-        // arg = character filename stem
-        async charScenes(notebook, code) {
-            const data  = await _fetchData(notebook).catch(() => ({}));
-            const shots = (data.shots || []).filter(s => (s.actors || []).includes(code));
-            const sceneLookup = new Map((data.scenes || []).map(sc => [String(sc.alias), sc]));
-            const sceneNums = [...new Set(shots.map(s => String(s.scene || '')))]
-                .filter(Boolean)
-                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-            if (!sceneNums.length) return '<div class="nb-cine-dropdown-empty">No scenes</div>';
-            return sceneNums.map(n => {
-                const sc = sceneLookup.get(n);
-                return sc
-                    ? `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(sc.selector)}" title="${_esc(sc.synopsis || '')}">Sc.${_esc(n)}</a>`
-                    : `<span class="nb-cine-dropdown-item">Sc.${_esc(n)}</span>`;
-            }).join('');
-        },
-        // arg = character filename stem
-        async charShots(notebook, code) {
-            const data  = await _fetchData(notebook).catch(() => ({}));
-            const shots = (data.shots || [])
-                .filter(s => (s.actors || []).includes(code))
-                .sort((a, b) => (a.alias || a.shot || a.filename)
-                    .localeCompare(b.alias || b.shot || b.filename, undefined, { numeric: true }));
-            if (!shots.length) return '<div class="nb-cine-dropdown-empty">No shots</div>';
-            return shots.map(s => {
-                const label = s.alias || s.shot || s.filename;
-                return `<a class="nb-specialty-link nb-cine-dropdown-item" href="#" data-open="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(label)}</a>`;
-            }).join('');
-        },
         // arg = location alias code (e.g. "LG")
         async locScenes(notebook, code) {
             const data   = await _fetchData(notebook).catch(() => ({}));
@@ -5068,49 +5039,37 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     }
 
     // ── Character header + card (type: character) — scenes/shots cross-ref
-    // moved here from the card as dropdown pills (same mechanism as scene's
-    // own shots pill), decluttering the card down to cast + description.
+    // stays in the card body, grouped by scene (djp: a flat "shots" dropdown
+    // spanning multiple scenes loses the scene grouping and reads as
+    // nonsense -- this needs the per-scene structure, not two flat counts).
     async function _renderCharacterHeader(note) {
         const m        = _ownMeta(note);
         const name     = m.title || note.title || '';
         const code     = (note.filename || '').replace(/\.md$/i, '');
         const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
 
-        let movieTitle = '', sceneCount = 0, shotCount = 0;
+        let movieTitle = '';
         if (notebook) {
-            try {
-                const data = await _fetchData(notebook);
-                movieTitle = _movieTitleLabel(data);
-                const shots = (data.shots || []).filter(s => (s.actors || []).includes(code));
-                shotCount   = shots.length;
-                sceneCount  = new Set(shots.map(s => String(s.scene || '')).filter(Boolean)).size;
-            } catch { /* stats stay 0 */ }
+            try { movieTitle = _movieTitleLabel(await _fetchData(notebook)); } catch { /* no label */ }
         }
-        const scenesPill = sceneCount
-            ? `<button class="nb-specialty-pill nb-cine-dropdown-trigger" data-cine-dropdown="charScenes" data-notebook="${_esc(notebook)}" data-cine-arg="${_esc(code)}">${sceneCount} scene${sceneCount !== 1 ? 's' : ''}</button>`
-            : '';
-        const shotsPill = shotCount
-            ? `<button class="nb-specialty-pill nb-cine-dropdown-trigger" data-cine-dropdown="charShots" data-notebook="${_esc(notebook)}" data-cine-arg="${_esc(code)}">${shotCount} shot${shotCount !== 1 ? 's' : ''}</button>`
-            : '';
 
         return `<div class="nb-specialty-header nb-cine-character-hdr" data-selector="${_esc(note.selector || '')}">
   <button class="nb-specialty-icon nb-specialty-nav-btn" data-nb-nav="${_esc(notebook)}" title="All specialty notes in ${_esc(notebook || 'this notebook')}">🎭</button>
   ${movieTitle}
   <strong class="nb-specialty-label">${_esc(name || code)}</strong>
-  ${scenesPill}
-  ${shotsPill}
 </div>`;
     }
 
     async function _renderCharacterCard(note, opts = {}) {
-        const m = _ownMeta(note);
+        const m    = _ownMeta(note);
+        const code = (note.filename || '').replace(/\.md$/i, '');
         const notebook = note.notebook || (note.selector || '').split(':')[0] || '';
 
         let data = {}, constraints = {};
         try {
             const [d, c] = await Promise.all([_fetchData(notebook), _fetchConstraints(note.selector)]);
             data = d; constraints = c;
-        } catch { /* fields below degrade gracefully */ }
+        } catch { /* fields/cross-refs below degrade gracefully */ }
 
         // cast: <title> (<alias>) -- alias is the cast member's own filename stem;
         // resolve their real name + callsheet code instead of a bare selector link.
@@ -5141,8 +5100,38 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         // otherwise just vanishes (see _requiredRows).
         const requiredRows = _requiredRows(m, constraints, _missingTip(note, opts));
 
+        // Scenes/shots this character appears in, one line per scene -- derived
+        // from each shot's own cast.actors list, sorted numeric-aware by alias
+        // throughout (so "10a" sorts after "2a" rather than before it).
+        let crossRefHtml = '';
+        if (code) {
+            const shots = (data.shots || []).filter(s => (s.actors || []).includes(code));
+            const sceneLookup = new Map((data.scenes || []).map(sc => [String(sc.alias), sc]));
+            const byScene = new Map();
+            for (const s of shots) {
+                const key = String(s.scene || '');
+                if (!byScene.has(key)) byScene.set(key, []);
+                byScene.get(key).push(s);
+            }
+            const sceneKeys = [...byScene.keys()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+            crossRefHtml = sceneKeys.map(scNum => {
+                const sc = sceneLookup.get(scNum);
+                const sceneLabel = sc
+                    ? `<span class="nb-wiki-link" data-selector="${_esc(sc.selector)}" title="${_esc(sc.synopsis || '')}">Scene:${_esc(scNum)}</span>`
+                    : `Scene:${_esc(scNum)}`;
+                const shotSpans = byScene.get(scNum)
+                    .sort((a, b) => (a.alias || a.shot || a.filename)
+                        .localeCompare(b.alias || b.shot || b.filename, undefined, { numeric: true }))
+                    .map(s => `<span class="nb-wiki-link" data-selector="${_esc(s.selector)}" title="${_esc(s.desc || '')}">${_esc(s.alias || s.shot || s.filename)}</span>`)
+                    .join('  ');
+                return `<div class="nb-cine-sc-desc">${sceneLabel} -- ${shotSpans}</div>`;
+            }).join('');
+        }
+
         return `<div class="nb-card">` +
             `<div class="nb-card-fields">${fields}${requiredRows}</div>` +
+            crossRefHtml +
             `</div>${_cBody(note)}`;
     }
 
