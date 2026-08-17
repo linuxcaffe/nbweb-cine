@@ -6732,6 +6732,13 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     // replacing cine's real storyline-story/storyline-note UI with a bare
     // FM-field dump. Same mechanism nbweb-quartz's 'item' type already needed.
     window.NbSpecialty?.register?.('storyline', { icon: '🧵', label: 'Storyline', noRender: true });
+    // These three predate the NbSpecialty.register convention (built
+    // 2026-08-06, before shot/scene/script etc. started registering) and were
+    // simply missed -- same nav-popup visibility everything else with a real
+    // header already gets.
+    window.NbSpecialty?.register?.('plotline', { icon: '🧶', label: 'Plotline', noRender: true });
+    window.NbSpecialty?.register?.('story', { icon: '🃏', label: 'Story', noRender: true });
+    window.NbSpecialty?.register?.('milestone', { icon: '🏁', label: 'Milestone', noRender: true });
     // Shot's own header is a custom nb-cine-shot-hdr, not the generic specialty
     // header -- registering it here is purely so shots appear in the nav popup
     // (and other specialty headers' nav buttons can jump to a shot from anywhere).
