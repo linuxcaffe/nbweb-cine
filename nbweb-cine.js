@@ -33,7 +33,7 @@
 }
 .nb-cine-colheader {
     background: var(--bg2, #1e2228) !important;
-    color: var(--fg, #ccc) !important;
+    color: var(--text) !important;
     font-weight: bold;
     border-bottom: 2px solid var(--border, #444);
     position: sticky; top: 0; z-index: 2;
@@ -255,7 +255,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     background: var(--bg2, #222); border: 1px solid var(--border, #555);
     border-radius: 8px; padding: 20px 24px; min-width: 320px;
     box-shadow: 0 8px 32px rgba(0,0,0,.6);
-    font-family: var(--font, sans-serif);
+    font-family: var(--font-ui);
 }
 .nb-cine-insert-card h4 {
     margin: 0 0 14px; font-size: .95em;
@@ -284,7 +284,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     font-family: 'Courier Prime', 'Courier New', Courier, monospace;
     font-size: 0.9em; line-height: 1.6;
     white-space: pre-wrap; word-break: break-word;
-    margin: 0; color: var(--fg, #ccc);
+    margin: 0; color: var(--text);
 }
 
 /* Shot sheet rows */
@@ -435,7 +435,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
     background: var(--accent, #7c6af7); border-radius: 11px;
     border: 5px solid var(--bg2, #1e2228);
 }
-.nb-cine-sl-overlay-body::-webkit-scrollbar-thumb:hover { background: var(--accent-hover, #9384fa); }
+.nb-cine-sl-overlay-body::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 .nb-cine-sl-overlay > .nb-cine-card-peek { flex-shrink: 0; }
 
 /* Board layout (used inside overlay) */
@@ -533,7 +533,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 }
 
 .nb-cine-orders-sel {
-    background: var(--bg2, #1e2228); color: var(--fg, #ccc);
+    background: var(--bg2, #1e2228); color: var(--text);
     border: 1px solid var(--border, #444); border-radius: 3px;
     padding: 2px 4px; font-size: 0.85em; cursor: pointer;
     max-width: 10em;
@@ -1077,7 +1077,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
 .nb-cine-org-rect { fill: var(--bg2, #1e2228); stroke: var(--border, #444); stroke-width: 1.5; transition: filter 0.1s; }
 .nb-cine-org-node[style*="pointer"]:hover .nb-cine-org-rect { filter: brightness(1.18); }
 .nb-cine-org-node.nb-cine-org-inert .nb-cine-org-rect { stroke-dasharray: 4 3; }
-.nb-cine-org-label { font-size: 11px; fill: var(--text, #eee); font-family: var(--font-sans, system-ui); dominant-baseline: auto; }
+.nb-cine-org-label { font-size: 11px; fill: var(--text, #eee); font-family: var(--font-ui); dominant-baseline: auto; }
 .nb-cine-org-node.nb-cine-org-inert .nb-cine-org-label { fill: var(--text-muted, #aaa); }
 .nb-cine-org-node.nb-cine-org-milestone .nb-cine-org-rect { stroke: var(--text-muted, #aaa); }
 .nb-cine-org-tagstripe { stroke: none; pointer-events: none; }
