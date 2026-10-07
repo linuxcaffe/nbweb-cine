@@ -4758,7 +4758,7 @@ sup.nb-cine-shot-cue:hover { color: #c77; text-decoration: underline; }
         } catch (_) {}
 
         const today = new Date();
-        const dateStr = today.toISOString().slice(0, 10);
+        const dateStr = NbWeb.isoDate(today);
         const vars = {
             shot_id:   alias,
             scene:     String(sceneMeta.alias ?? ''),
